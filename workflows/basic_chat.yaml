@@ -1,0 +1,38 @@
+# Location: workflows/basic_chat.yaml
+version: "0.1.0"
+description: "Basic chat workflow that takes user input and returns a response"
+
+# Global defaults for LLM client
+defaults:
+  llm_client:
+    type: "openai"
+    model: "gpt-4.1-mini"
+    params:
+      temperature: 0.7
+      max_tokens: 1000
+
+# Tools (none needed for basic chat)
+tools: []
+
+# Define the chat agent
+agents:
+  - id: "chat_agent"
+    system_prompt: |
+      You are a helpful AI assistant.
+      You respond to user queries in a concise and friendly manner.
+    user_prompt: "{{ input.message }}"
+    output_parser: "text"
+
+# Workflow steps
+steps:
+  - id: "chat_step"
+    agent_id: "chat_agent"
+    input:
+      source: "user"
+      key: "message"
+
+# Output configuration
+output:
+    step: chat_step
+    save_to:
+      path: "output/{{ name }}.md"

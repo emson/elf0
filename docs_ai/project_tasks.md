@@ -11,7 +11,8 @@
 - [x] Define a workflow schema in JSON-Schema, in `docs_specs/workflow_schema.md`
 - [x] Create a simple example workflow in YAML, in `workflows/basic_chat.yaml`. It has one step and one agent and just returns the result from an input prompt.
 - [x] Create a pydantic model for the workflow schema in `core/workflow_model.py`
-- [ ] Create a `core/workflow_loader.py` that loads a workflow from a YAML file into the model
+- [x] Create a `core/workflow_loader.py` that loads a workflow from a YAML file into the model
+- [ ] Create a `core/workflow_executor.py` that executes a workflow, it loads the workflow file and then has an `execute` function that takes a `workflow` and `input` parameters
 
 
 

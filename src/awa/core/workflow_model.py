@@ -141,12 +141,36 @@ class StepDef(BaseModel):
         return values
 
 
+class SaveConfig(BaseModel):
+    """Configuration for saving workflow output"""
+    path: str = Field(
+        description="Template path for saving the output"
+    )
+
+    def render_path(self, variables: Dict[str, Any]) -> str:
+        """Render the path template with variables.
+        
+        Args:
+            variables: Dictionary of variables to substitute in the template
+            
+        Returns:
+            str: The rendered path
+        """
+        try:
+            # Simple template substitution
+            return self.path.format(**variables)
+        except KeyError as e:
+            raise ValueError(f"Missing variable in path template: {e}")
+        except Exception as e:
+            raise ValueError(f"Failed to render path template: {e}")
+
+
 class OutputDef(BaseModel):
     """Configuration for workflow output"""
     step: str = Field(
         description="ID of the step that produces the final output"
     )
-    save_to: Optional[Dict[str, str]] = Field(
+    save_to: Optional[SaveConfig] = Field(
         default=None,
         description="Configuration for saving the output"
     )

@@ -7,6 +7,8 @@ from functools import lru_cache
 import logging
 
 logger = logging.getLogger(__name__)
+from awa.core.errors import LLMClientError, LLMRateLimitError, LLMConnectionError
+from awa.core.models import LLMClient
 
 
 class LLMResponse(BaseModel):

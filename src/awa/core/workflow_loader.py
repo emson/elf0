@@ -1,10 +1,12 @@
 # src/awa/core/workflow_loader.py
-import yaml
-from pathlib import Path
 from typing import Dict, Any, Optional
+from pathlib import Path
+import yaml
 from pydantic import ValidationError
 from awa.core.workflow_model import Workflow
+import logging
 
+logger = logging.getLogger(__name__)
 
 class WorkflowLoaderError(Exception):
     """Base exception for workflow loading errors"""

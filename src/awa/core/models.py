@@ -3,8 +3,23 @@
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
 
+class LLMClient(BaseModel):
+    """Configuration for LLM client"""
+    type: str = Field(
+        description="Type of LLM client (e.g., 'openai', 'anthropic')",
+        examples=["openai", "anthropic", "local_vllm"]
+    )
+    model: str = Field(
+        description="Model name to use",
+        examples=["gpt-4", "claude-3"]
+    )
+    params: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional parameters for the LLM client"
+    )
+
 class LLMClientConfig(BaseModel):
-    """Configuration for an LLM client"""
+    """Configuration for LLM clients"""
     type: str = Field(..., description="Type of LLM client (e.g., 'openai', 'anthropic')")
     model: str = Field(..., description="Model name")
     params: Dict[str, Any] = Field(default_factory=dict, description="Additional parameters")

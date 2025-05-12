@@ -1,6 +1,6 @@
 # src/awa/core/workflow_executor.py
 
-from typing import Dict, Any, Optional, List, Callable, Union
+from typing import Dict, Any, Optional, List, Callable
 from pathlib import Path
 from awa.core.workflow_loader import WorkflowLoader
 from awa.core.workflow_model import Workflow, StepDef, AgentDef, ToolDef
@@ -11,58 +11,90 @@ import logging
 from functools import partial
 import asyncio
 
+import logging
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
-class ExecutionError(Exception):
-    """Base exception for workflow execution errors"""
-    pass
+# Configure logging to output to console
+handler = logging.StreamHandler()
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
-class StepDependencyError(ExecutionError):
-    """Raised when a step's dependencies are not met"""
-    pass
-
-class WorkflowContext:
-    """Execution context for a workflow"""
+class StepExecutor:
+    """Base class for step executors."""
     
-    def __init__(self, workflow: Workflow):
-        """Initialize the workflow context.
+    def __init__(self, step: StepDef):
+        self.step = step
+        
+    async def execute(self, input_data: Dict[str, Any]) -> Any:
+        """Execute the step with the given input data.
         
         Args:
-            workflow: The workflow to execute
-        """
-        self.workflow = workflow
-        self.step_results: Dict[str, Any] = {}
-        self.agent_executors: Dict[str, AgentExecutor] = {}
-        self.tool_registry: Dict[str, Callable] = {}
-        
-        # Initialize agent executors
-        for agent in workflow.agents:
-            self.agent_executors[agent.id] = AgentExecutor(agent, workflow.defaults.get('llm_client'))
-        
-    def get_step_result(self, step_id: str) -> Any:
-        """Get the result of a previous step.
-        
-        Args:
-            step_id: The ID of the step to get results from
+            input_data: The input data for the step
             
         Returns:
-            The result of the step
-            
-        Raises:
-            StepDependencyError: If the step hasn't been executed yet
+            The result of the step execution
         """
-        if step_id not in self.step_results:
-            raise StepDependencyError(f"Step {step_id} has not been executed yet")
-        return self.step_results[step_id]
+        raise NotImplementedError
+
+class AgentStepExecutor(StepExecutor):
+    """Executor for agent steps."""
+    
+    def __init__(self, step: StepDef, agent_executor: AgentExecutor):
+        super().__init__(step)
+        self.agent_executor = agent_executor
         
-    def register_tool(self, tool_id: str, tool_func: Callable) -> None:
-        """Register a tool function.
+    async def execute(self, input_data: Dict[str, Any]) -> Any:
+        """Execute an agent step.
         
         Args:
-            tool_id: The ID of the tool
-            tool_func: The function implementing the tool
+            input_data: The input data for the step
+            
+        Returns:
+            The result of the agent execution
         """
-        self.tool_registry[tool_id] = tool_func
+        return await asyncio.to_thread(self.agent_executor.execute, input_data)
+
+class ToolStepExecutor(StepExecutor):
+    """Executor for tool steps."""
+    
+    def __init__(self, step: StepDef, tool_func: Callable):
+        super().__init__(step)
+        self.tool_func = tool_func
+        
+    async def execute(self, input_data: Dict[str, Any]) -> Any:
+        """Execute a tool step.
+        
+        Args:
+            input_data: The input data for the step
+            
+        Returns:
+            The result of the tool execution
+        """
+        tool_params = self.step.tool_params or {}
+        return self.tool_func(input_data, **tool_params)
+
+class SubworkflowStepExecutor(StepExecutor):
+    """Executor for subworkflow steps."""
+    
+    def __init__(self, step: StepDef, workflow_path: Path):
+        super().__init__(step)
+        self.workflow_path = workflow_path
+        
+    async def execute(self, input_data: Dict[str, Any]) -> Any:
+        """Execute a nested workflow step.
+        
+        Args:
+            input_data: The input data for the step
+            
+        Returns:
+            The result of the subworkflow execution
+        """
+        nested_executor = WorkflowExecutor(self.workflow_path)
+        return await nested_executor.execute(input_data)
 
 class WorkflowExecutor:
     """Executes a workflow by managing its execution context and step execution."""
@@ -74,7 +106,51 @@ class WorkflowExecutor:
             workflow_path: Path to the workflow YAML file
         """
         self.workflow = WorkflowLoader.load_workflow(workflow_path)
-        self.context = WorkflowContext(self.workflow)
+        self.results: Dict[str, Any] = {}
+        self.agent_executors: Dict[str, AgentExecutor] = {}
+        self.tool_registry: Dict[str, Callable] = {}
+        
+        # Initialize agent executors
+        for agent in self.workflow.agents:
+            self.agent_executors[agent.id] = AgentExecutor(agent, self.workflow.defaults.get('llm_client'))
+        
+        self.step_executors = self._create_step_executors()
+        
+    def _create_step_executors(self) -> List[StepExecutor]:
+        """Create executors for all steps in the workflow."""
+        return [
+            self._create_step_executor(step)
+            for step in self.workflow.steps
+        ]
+        
+    def _create_step_executor(self, step: StepDef) -> StepExecutor:
+        """Create an executor for a specific step.
+        
+        Args:
+            step: The step to create an executor for
+            
+        Returns:
+            The appropriate step executor
+            
+        Raises:
+            ValueError: If the step type is invalid
+        """
+        if step.agent_id:
+            return AgentStepExecutor(step, self.agent_executors[step.agent_id])
+        elif step.tool_id:
+            return ToolStepExecutor(step, self.tool_registry[step.tool_id])
+        elif step.workflow:
+            return SubworkflowStepExecutor(step, Path(step.workflow))
+        raise ValueError("Invalid step type")
+        
+    def register_tool(self, tool_id: str, tool_func: Callable) -> None:
+        """Register a tool function.
+        
+        Args:
+            tool_id: The ID of the tool
+            tool_func: The function implementing the tool
+        """
+        self.tool_registry[tool_id] = tool_func
         
     async def execute(self, input_data: Dict[str, Any]) -> Any:
         """Execute the workflow with the given input data.
@@ -88,88 +164,31 @@ class WorkflowExecutor:
         Raises:
             ExecutionError: If any step fails to execute
         """
-        # Store initial input with both possible names for backward compatibility
-        self.context.step_results["USER_INPUT"] = input_data
-        self.context.step_results["user"] = input_data
+        self.results["USER_INPUT"] = input_data
+        self.results["user"] = input_data
         
         # Log workflow start
         logger.info(f"Starting workflow execution with input: {input_data}")
         
         # Execute each step in order
-        for step in self.workflow.steps:
-            logger.info(f"Executing step: {step.id}")
-            await self._execute_step(step)
-        
-        # Get final output
-        final_step = self.context.get_step_result(self.workflow.output.step)
-        logger.info(f"Workflow completed successfully")
-        return self._save_output(final_step)
-        
-    async def _execute_step(self, step: StepDef) -> None:
-        """Execute a single step.
-        
-        Args:
-            step: The step to execute
-            
-        Raises:
-            ExecutionError: If the step fails to execute
-        """
-        if not self._should_execute_step(step):
-            return
-            
-        try:
-            # Get input data
-            input_data = self._get_input_data(step)
-            
-            # Execute based on step type
-            if step.agent_id:
-                await self._execute_agent_step(step, input_data)
-            elif step.tool_id:
-                await self._execute_tool_step(step, input_data)
-            elif step.workflow:
-                await self._execute_subworkflow(step, input_data)
-            else:
-                raise ValueError("Step must have exactly one of agent_id, tool_id, or workflow")
+        for executor in self.step_executors:
+            if not self._should_execute_step(executor.step):
+                continue
                 
-        except Exception as e:
-            logger.error(f"Step {step.id} failed: {str(e)}")
-            await self._handle_error(step, e)
-            
-    async def _execute_agent_step(self, step: StepDef, input_data: Dict[str, Any]) -> None:
-        """Execute an agent step.
+            input_data = self._get_step_input(executor.step)
+            try:
+                result = await executor.execute(input_data)
+                self.results[executor.step.id] = result
+            except Exception as e:
+                logger.error(f"Step {executor.step.id} failed: {str(e)}")
+                await self._handle_error(executor.step, e)
+                
+        # Get final output
+        final_result = self.results[self.workflow.output.step]
+        logger.info(f"Workflow completed successfully")
+        return self._save_output(final_result)
         
-        Args:
-            step: The agent step to execute
-            input_data: The input data for the step
-        """
-        executor = self.context.agent_executors[step.agent_id]
-        result = await asyncio.to_thread(executor.execute, input_data)
-        self.context.step_results[step.id] = result
-        
-    async def _execute_tool_step(self, step: StepDef, input_data: Dict[str, Any]) -> None:
-        """Execute a tool step.
-        
-        Args:
-            step: The tool step to execute
-            input_data: The input data for the step
-        """
-        tool_func = self.context.tool_registry[step.tool_id]
-        tool_params = step.tool_params or {}
-        result = tool_func(input_data, **tool_params)
-        self.context.step_results[step.id] = result
-        
-    async def _execute_subworkflow(self, step: StepDef, input_data: Dict[str, Any]) -> None:
-        """Execute a nested workflow step.
-        
-        Args:
-            step: The subworkflow step to execute
-            input_data: The input data for the step
-        """
-        nested_executor = WorkflowExecutor(Path(step.workflow))
-        result = await nested_executor.execute(input_data)
-        self.context.step_results[step.id] = result
-        
-    def _get_input_data(self, step: StepDef) -> Dict[str, Any]:
+    def _get_step_input(self, step: StepDef) -> Dict[str, Any]:
         """Get the input data for a step.
         
         Args:
@@ -186,24 +205,29 @@ class WorkflowExecutor:
         
         # Check if it's a special input source
         if source in ["USER_INPUT", "user"]:
-            return self.context.step_results[source]
+            raw_input = self.results[source]
+            # For agent steps, format the input as {"input": {"message": input_data}}
+            if step.agent_id:  # Check if this is an agent step
+                return {"input": {"message": raw_input}}  # Format for template {{ input.message }}
+            return raw_input
             
         # Get data from previous step
         try:
-            previous_result = self.context.get_step_result(source)
-        except StepDependencyError:
+            previous_result = self.results[source]
+        except KeyError:
             logger.error(f"Failed to get result for step {source}")
-            raise
+            raise StepDependencyError(f"Step {source} has not been executed yet")
         
         # If key is specified, get that specific field
         if step.input.key:
-            logger.debug(f"Extracting key {step.input.key} from previous result")
-            return previous_result[step.input.key]
+            if not isinstance(previous_result, dict):
+                raise ValueError(f"Step {source} result is not a dictionary, cannot extract key {step.input.key}")
+            return previous_result.get(step.input.key, {})
             
         return previous_result
         
     def _should_execute_step(self, step: StepDef) -> bool:
-        """Check if a step should be executed based on conditions.
+        """Determine if a step should be executed based on its condition.
         
         Args:
             step: The step to check
@@ -217,12 +241,12 @@ class WorkflowExecutor:
         # Evaluate Jinja-like condition expression
         try:
             # This is a simplified version - in production we'd use a proper template engine
-            condition = step.condition.replace("{{", "self.context.step_results['").replace("}}", "']")
+            condition = step.condition.replace("{{", "self.results['").replace("}}", "']")
             return eval(condition)
         except Exception as e:
             logger.warning(f"Failed to evaluate condition for step {step.id}: {e}")
             return False
-            
+        
     async def _handle_error(self, step: StepDef, error: Exception) -> None:
         """Handle errors during step execution.
         
@@ -230,36 +254,25 @@ class WorkflowExecutor:
             step: The step that failed
             error: The error that occurred
         """
-        if isinstance(error, LLMClientError):
-            if step.on_error == "retry" and step.max_retries:
-                # TODO: Implement retry logic
-                pass
-            elif step.on_error == "skip":
-                logger.warning(f"Skipping failed step {step.id} due to LLM error")
-                return
+        logger.error(f"Step {step.id} failed: {str(error)}")
+        if step.on_error:
+            try:
+                error_handler = self.tool_registry[step.on_error.tool_id]
+                await error_handler(step.on_error.params)
+            except Exception as e:
+                logger.error(f"Error handler for step {step.id} failed: {str(e)}")
         
-        raise error
-        
-    def _save_output(self, output_data: Any) -> Any:
-        """Save the final output if configured.
+    def _save_output(self, output: Any) -> Any:
+        """Save the final output of the workflow.
         
         Args:
-            output_data: The data to save
+            output: The output to save
             
         Returns:
-            The saved output data
+            The saved output
         """
-        if self.workflow.output.save_to:
-            # Get variables from the output data
-            variables = output_data if isinstance(output_data, dict) else {}
-            
-            # Render the path using the SaveConfig model
-            output_path = self.workflow.output.save_to.render_path(variables)
-            
-            # TODO: Implement actual saving logic
-            logger.info(f"Output saved to {output_path}")
-            
-        return output_data
+        # TODO: Implement output saving logic
+        return output
 
 if __name__ == "__main__":
     import asyncio
@@ -277,7 +290,7 @@ if __name__ == "__main__":
         # executor.context.register_tool("echo", echo_tool)
         
         # Execute with sample input
-        input_data = {"message": "Hello, what can you do?"}
+        input_data = {"message": "How many 'r's are in the word 'strawberry'?"}
         result = await executor.execute(input_data)
         print("\nWorkflow result:", result)
     

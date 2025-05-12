@@ -4,9 +4,11 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from awa.core.llm_client import BaseLLMClient, LLMResponse
 from awa.core.errors import LLMClientError, LLMRateLimitError, LLMConnectionError
-from awa.core.models import LLMClientConfig
+from awa.core.models import LLMClientConfig, LLMClient
+from awa.core.workflow_model import AgentDef
 from openai import OpenAI
 import logging
+from jinja2 import Template
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +161,9 @@ class AgentExecutor:
         system_msg = {"role": "system", "content": self.agent.system_prompt}
         
         # Format user prompt with input data
-        user_msg = {"role": "user", "content": self.agent.user_prompt.format(**input_data)}
+        # Use proper template rendering instead of direct format
+        template = Template(self.agent.user_prompt)
+        user_msg = {"role": "user", "content": template.render(input_data)}
         
         return [system_msg, user_msg]
         

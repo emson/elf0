@@ -6,22 +6,7 @@ from pydantic.functional_validators import AfterValidator
 from datetime import datetime
 import re
 from pathlib import Path
-
-
-class LLMClient(BaseModel):
-    """Configuration for LLM client"""
-    type: str = Field(
-        description="Type of LLM client (e.g., 'openai', 'anthropic')",
-        examples=["openai", "anthropic", "local_vllm"]
-    )
-    model: str = Field(
-        description="Model name to use",
-        examples=["gpt-4", "claude-3"]
-    )
-    params: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional parameters for the LLM client"
-    )
+from awa.core.models import LLMClient, LLMClientConfig
 
 
 class ToolDef(BaseModel):

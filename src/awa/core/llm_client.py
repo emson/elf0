@@ -1,6 +1,8 @@
-from typing import Any, Dict
+# src/awa/core/llm_client.py
+from typing import Any, Dict, List
 import openai
-from .config import LLMConfig, create_llm_config
+from openai.types.chat import ChatCompletionMessageParam
+from .config import create_llm_config
 
 class LLMClient:
     """Client for interacting with LLMs through OpenAI's API."""
@@ -19,17 +21,20 @@ class LLMClient:
             
         Returns:
             The generated response text
+            
+        Raises:
+            RuntimeError: If there's an error generating a response
         """
         try:
             # Get max_tokens from params if it exists
             max_tokens = self.config.params.get('max_tokens')
             
             # Create messages array with system prompt if it exists
-            messages = []
+            messages: List[ChatCompletionMessageParam] = []
             if 'system_prompt' in self.config.params:
                 messages.append({
                     "role": "system",
-                    "content": self.config.params['system_prompt']
+                    "content": str(self.config.params['system_prompt'])
                 })
             messages.append({
                 "role": "user",
@@ -42,6 +47,11 @@ class LLMClient:
                 temperature=self.config.temperature,
                 max_tokens=max_tokens
             )
-            return response.choices[0].message.content
+            
+            # Ensure content is never None
+            content = response.choices[0].message.content
+            if content is None:
+                return ""
+            return content
         except Exception as e:
-            raise RuntimeError(f"Error generating response from LLM: {str(e)}") 
+            raise RuntimeError(f"Error generating response from LLM: {str(e)}")

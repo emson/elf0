@@ -11,3 +11,4 @@ wheels/
 .env
 output.*
 .DS_Store
+**/.claude/settings.local.json

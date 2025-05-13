@@ -1,3 +1,4 @@
+# src/awa/core/config.py
 from typing import Any, Dict, Optional, Union
 from pathlib import Path
 from pydantic import BaseModel
@@ -18,14 +19,14 @@ def load_env_file(env_path: Optional[str] = None) -> None:
     Args:
         env_path: Optional path to .env file. If not provided, looks for .env in project root.
     """
-    if env_path is None:
-        # Look for .env in project root (2 levels up from this file)
-        env_path = Path(__file__).parent.parent.parent.parent / '.env'
+    default_path = Path(__file__).parent.parent.parent.parent / '.env'
     
-    if Path(env_path).exists():
-        load_dotenv(env_path)
+    path_to_use = Path(env_path) if env_path is not None else default_path
+    
+    if path_to_use.exists():
+        load_dotenv(str(path_to_use))
     else:
-        raise FileNotFoundError(f"No .env file found at {env_path}")
+        raise FileNotFoundError(f"No .env file found at {path_to_use}")
 
 def get_openai_api_key() -> str:
     """
@@ -59,4 +60,4 @@ def create_llm_config(config: Union[Dict[str, Any], LLMConfig]) -> LLMConfig:
     else:
         # If it's already an LLMConfig, create a new one with the updated api_key
         config_dict = config.model_dump(exclude={'api_key'})
-        return LLMConfig(**config_dict, api_key=get_openai_api_key()) 
+        return LLMConfig(**config_dict, api_key=get_openai_api_key())

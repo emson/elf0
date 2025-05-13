@@ -2,6 +2,8 @@ import typer
 from pathlib import Path
 from typing import List, Optional
 from awa.core.runner import run_workflow
+from rich.console import Console
+from rich.markdown import Markdown
 
 app = typer.Typer(
     name="awa",
@@ -57,7 +59,27 @@ def run_workflow_command(
             processed_prompt = "\\n".join(all_files_content) + "\\nUser prompt:\\n" + prompt
 
     result = run_workflow(spec_path, processed_prompt, session_id)
-    typer.echo(result)
+    # typer.echo(result) # This line is replaced by the logic below.
+    
+    if isinstance(result, dict):
+        output_content = result.get('output')
+        if isinstance(output_content, str):
+            console = Console()
+            console.print(Markdown(output_content))
+        else:
+            # Fallback: if 'output' key is missing or its content is not a string
+            if 'output' in result: # 'output' key exists but content is not a string
+                 typer.secho(f"Warning: Content of 'output' key is not a string (type: {type(output_content)}). Displaying raw result.", fg=typer.colors.YELLOW)
+            else: # 'output' key is missing
+                 typer.secho("Warning: Key 'output' not found in workflow result. Displaying raw result.", fg=typer.colors.YELLOW)
+            typer.echo(str(result)) # Print the whole dict for inspection
+    elif isinstance(result, str):
+        # If the result from run_workflow is already a string (e.g., an error message or simple text output)
+        typer.echo(result)
+    else:
+        # Fallback for other unexpected result types
+        typer.secho(f"Warning: Unexpected result type from workflow ({type(result)}). Displaying raw result.", fg=typer.colors.YELLOW)
+        typer.echo(str(result))
 
 app.command()(run_workflow_command)
 

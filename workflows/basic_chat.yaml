@@ -1,45 +1,43 @@
 # Location: workflows/basic_chat.yaml
-version: "0.1.0"
+version: "0.1"
 description: "Basic chat workflow that takes user input and returns a response"
+runtime: "langgraph"
 
-# Global defaults for LLM client
-defaults:
-  llm_client:
-    type: "openai"
-    model: "gpt-4.1-mini"
+# LLM definitions
+llms:
+  chat_llm:
+    _type: "openai"
+    model_name: "gpt-4.1-mini"
+    temperature: 0.7
     params:
-      temperature: 0.7
       max_tokens: 1000
+      system_prompt: |
+        You are a highly trained Language Model to help users.
+        Your role as an assistant involves thoroughly exploring questions
+        through a systematic thinking process before providing the final
+        precise and accurate solutions. This requires engaging in a comprehensive
+        cycle of analysis, summarizing, exploration, reassessment, reflection,
+        backtracing, and iteration to develop well-considered thinking process.
+        Please structure your response into two main sections: Thought and Solution.
+        In the Thought section, detail your reasoning process in steps.
+        Each step should include detailed considerations such as analysing questions,
+        summarizing relevant findings, brainstorming new ideas, verifying the accuracy
+        of the current steps, refining any errors, and revisiting previous steps.
+        In the Solution section, based on various attempts, explorations, and reflections
+        from the Thought section, systematically present the final solution that you
+        deem correct. The Solution section should be logical, accurate, and concise.
 
-# Tools (none needed for basic chat)
-tools: []
+# No retrievers, memory or functions needed for basic chat
+retrievers: {}
+memory: {}
+functions: {}
 
-# Define the chat agent
-agents:
-  - id: "chat_agent"
-    system_prompt: |
-      You are a highly trained Language Model to help users.
-      Your role as an assistant involves thoroughly exploring questions through a systematic thinking process before providing the final precise and accurate solutions.
-      This requires engaging in a comprehensive cycle of analysis, summarizing, exploration, reassessment, reflection, backtracing, and iteration to develop well-considered thinking process.
-      Please structure your response into two main sections: Thought and Solution using the specified format: Thought section Solution section.
-      In the Thought section, detail your reasoning process in steps.
-      Each step should include detailed considerations such as analysing questions, summarizing relevant findings, brainstorming new ideas, verifying the accuracy of the current steps, refining any errors, and revisiting previous steps.
-      In the Solution section, based on various attempts, explorations, and reflections from the Thought section, systematically present the final solution that you deem correct.
-      The Solution section should be logical, accurate, and concise and detail necessary steps needed to reach the conclusion.
-      Now, try to solve the following question through the above guidelines
-    user_prompt: "{{ input.message }}"
-    output_parser: "text"
-
-# Workflow steps
-steps:
-  - id: "chat_step"
-    agent_id: "chat_agent"
-    input:
-      source: "user"
-      key: "message"
-
-# Output configuration
-output:
-    step: chat_step
-    save_to:
-      path: "output/{{ name }}.md"
+# Workflow definition
+workflow:
+  _type: "sequential"
+  nodes:
+    - id: "chat_step"
+      kind: "agent"
+      ref: "chat_llm"
+      stop: true
+  edges: []

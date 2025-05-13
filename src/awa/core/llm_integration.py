@@ -152,20 +152,50 @@ class AgentExecutor:
         """Format the input data into messages for the LLM.
         
         Args:
-            input_data: The input data to format
-            
+            input_data: The input data to format. Can be a dictionary or any value.
+                      If it's not a dictionary, it will be wrapped in an "input" key.
+                      
         Returns:
-            List[Dict[str, str]]: Formatted messages
+            List[Dict[str, str]]: Formatted messages with system and user messages
+            
+        Raises:
+            LLMClientError: If there's an error formatting the messages
         """
-        # Format system prompt
-        system_msg = {"role": "system", "content": self.agent.system_prompt}
+        messages = []
         
-        # Format user prompt with input data
-        # Use proper template rendering instead of direct format
-        template = Template(self.agent.user_prompt)
-        user_msg = {"role": "user", "content": template.render(input_data)}
-        
-        return [system_msg, user_msg]
+        try:
+            # Add system message if system prompt exists
+            if self.agent.system_prompt:
+                system_msg = {"role": "system", "content": self.agent.system_prompt}
+                messages.append(system_msg)
+            
+            # Ensure input_data is a dictionary
+            if not isinstance(input_data, dict):
+                input_data = {"input": input_data}
+            
+            # Add default params if not present
+            if "params" not in input_data:
+                input_data["params"] = {}
+            
+            # Ensure we have the expected structure
+            if "input" not in input_data:
+                input_data = {"input": input_data}
+            
+            # Create and render the template
+            template = Template(self.agent.user_prompt)
+            user_content = template.render(**input_data)
+            
+            # Add user message
+            user_msg = {"role": "user", "content": user_content}
+            messages.append(user_msg)
+            
+            return messages
+            
+        except Exception as e:
+            logger.error(f"Failed to format messages: {str(e)}")
+            logger.debug(f"Input data: {input_data}")
+            logger.debug(f"Agent config: {self.agent}")
+            raise LLMClientError(f"Failed to format messages: {str(e)}") from e
         
     def _parse_response(self, response: LLMResponse) -> Dict[str, Any]:
         """Parse the LLM response.

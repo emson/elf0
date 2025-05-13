@@ -1,0 +1,125 @@
+# Location: workflows/prompt_optimizer.yaml
+version: "0.1.0"
+description: "An iterative prompt optimization workflow using the Evaluator-Optimizer pattern"
+
+# Global defaults for LLM client
+defaults:
+  llm_client:
+    type: "openai"
+    model: "gpt-4.1-mini"
+    params:
+      temperature: 0.7
+      max_tokens: 4000
+
+# Tools (none needed for this workflow)
+tools: []
+
+# Define the agents
+agents:
+  - id: "generator"
+    system_prompt: |
+      You are a prompt engineering expert who specializes in optimizing system prompts.
+      Your task is to improve the given prompt to make it clearer, more effective, and better aligned with best practices.
+      Focus on:
+      1. Clarity and precision of instructions
+      2. Removing ambiguities and contradictions
+      3. Improving structure and organization
+      4. Making the prompt more concise without losing important information
+      5. Ensuring the prompt follows LLM best practices
+      
+      Output only the improved prompt without explanations or meta-commentary.
+    user_prompt: |
+      Here is a system prompt that needs optimization:
+      
+      {{ input.prompt }}
+      
+      Please provide an improved version of this prompt.
+
+  - id: "evaluator"
+    system_prompt: |
+      You are a prompt quality evaluator. Your task is to analyze system prompts and evaluate their effectiveness.
+      For each prompt, provide:
+      
+      1. A score from 1-10 (where 10 is excellent)
+      2. A list of strengths (what works well)
+      3. A list of weaknesses (what could be improved)
+      4. Specific recommendations for improvement
+      
+      Structure your response in JSON format:
+      {
+        "score": <score>,
+        "strengths": ["strength1", "strength2", ...],
+        "weaknesses": ["weakness1", "weakness2", ...],
+        "recommendations": ["recommendation1", "recommendation2", ...]
+      }
+    user_prompt: |
+      Evaluate the following system prompt:
+      
+      {{ input }}
+    output_parser: "json"
+
+  - id: "optimizer"
+    system_prompt: |
+      You are a prompt engineering expert who specializes in optimizing system prompts.
+      Your task is to improve the given prompt based on evaluation feedback.
+      
+      Follow these guidelines:
+      1. Carefully review the evaluation feedback
+      2. Address all identified weaknesses
+      3. Implement the specific recommendations
+      4. Preserve the strengths of the original prompt
+      5. Make the prompt clearer, more effective, and better aligned with best practices
+      
+      Output only the improved prompt without explanations or meta-commentary.
+    user_prompt: |
+      Here is the current prompt:
+      
+      {{ params.current_prompt }}
+      
+      Here is the evaluation feedback:
+      
+      Strengths:
+      {% for strength in params.strengths %}
+      - {{ strength }}
+      {% endfor %}
+      
+      Weaknesses:
+      {% for weakness in params.weaknesses %}
+      - {{ weakness }}
+      {% endfor %}
+      
+      Recommendations:
+      {% for recommendation in params.recommendations %}
+      - {{ recommendation }}
+      {% endfor %}
+      
+      Please provide an improved version of this prompt that addresses the feedback.
+
+# Workflow steps
+steps:
+  - id: "initial_generation"
+    agent_id: "generator"
+    input:
+      source: "USER_INPUT"
+      key: "prompt"
+
+  - id: "evaluate_initial"
+    agent_id: "evaluator"
+    input:
+      source: "initial_generation"
+
+  - id: "optimize_prompt"
+    agent_id: "optimizer"
+    input:
+      source: "USER_INPUT"
+    params:
+      current_prompt: "{{ steps.initial_generation.output }}"
+      strengths: "{{ steps.evaluate_initial.output.strengths }}"
+      weaknesses: "{{ steps.evaluate_initial.output.weaknesses }}"
+      recommendations: "{{ steps.evaluate_initial.output.recommendations }}"
+
+# Output configuration
+output:
+  step: "optimize_prompt"
+  save_to:
+    path: "output/optimized_prompt.md"

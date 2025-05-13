@@ -1,22 +1,36 @@
 from typing import Callable, Any, Dict, TypedDict
 from langgraph.graph import StateGraph, END
 from pydantic import BaseModel
+from .llm_client import LLMClient
 
 class WorkflowState(TypedDict):
     input: str
     output: str | None
 
-def make_llm_node(llm: Any) -> Callable:
+def make_llm_node(llm_config: Dict[str, Any]) -> Callable:
     """
     Create a node function that uses an LLM to process input and generate output.
+    
+    Args:
+        llm_config: Dictionary containing LLM configuration parameters
+        
+    Returns:
+        A function that processes state using the LLM
     """
+    llm = LLMClient(llm_config)
+    
     def node_fn(state: WorkflowState) -> WorkflowState:
-        # TODO: Implement actual LLM call here
-        # For now, just echo the input
-        return {
-            "input": state["input"],
-            "output": f"Echo: {state['input']}"
-        }
+        try:
+            response = llm.generate(state["input"])
+            return {
+                "input": state["input"],
+                "output": response
+            }
+        except Exception as e:
+            return {
+                "input": state["input"],
+                "output": f"Error: {str(e)}"
+            }
     return node_fn
 
 def load_tool(fn: Any) -> Callable:

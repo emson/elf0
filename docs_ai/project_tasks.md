@@ -5,15 +5,14 @@
 ### CLI Functionality
 - [x] Add a `awa` command to the CLI, and it defaults to `help`
 - [x] Add a `awa --help` command to the CLI
-- [x] Add a `awa ./workflows/<workflow_name>.yaml` command to the CLI
+- [x] Add a `awa ./specs/<spec_name>.yaml` command to the CLI
 
-### Workflow Functionality
-- [x] Define a workflow schema in JSON-Schema, in `docs_specs/workflow_schema.md`
-- [x] Create a simple example workflow in YAML, in `workflows/basic_chat.yaml`. It has one step and one agent and just returns the result from an input prompt.
-- [x] Create a pydantic model for the workflow schema in `core/workflow_model.py`
-- [x] Create a `core/workflow_loader.py` that loads a workflow from a YAML file into the model
-- [x] Create a `core/workflow_executor.py` that executes a workflow, it loads the workflow file and then has an `execute` function that takes a `workflow` and `input` parameters
-- [x] Hook up the CLI to the workflow executor
+### Spec Functionality
+- [x] Define a spec schema in JSON-Schema, in `docs_specs/spec_schema.md`
+- [x] Create a simple example spec in YAML, in `specs/basic_chat.yaml`. It has one step and one agent and just returns the result from an input prompt.
+- [x] Create `spec`, `compiler` and `runner` as well as the `yaml_loader`.
+- [ ] Implmement basic LLM call using LangGraph
+  - [ ] Create an `llm_client` file that implements the OpenAI API and returns a client that the `compiler.py` `make_llm_node` function can use
 
 
 

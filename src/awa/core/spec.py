@@ -6,7 +6,7 @@ from pathlib import Path
 class LLM(BaseModel):
     _type: Literal['openai', 'anthropic', 'ollama']
     model_name: str
-    temperature: float = 0.0
+    temperature: float = 0.7
     params: Dict[str, Union[str, float, int]] = Field(default_factory=dict)
 
 class Retriever(BaseModel):

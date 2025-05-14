@@ -9,6 +9,6 @@ wheels/
 # Virtual environments
 .venv
 .env
-output.*
+output*.*
 .DS_Store
 **/.claude/settings.local.json

@@ -1,0 +1,61 @@
+version: "1.0"
+description: "A sequential workflow that first generates a detailed outline for a given topic and then refines that outline into a polished LinkedIn post."
+runtime: "langgraph" # Specifies the execution engine
+
+llms:
+  # Define the LLM client configuration to be used by agent nodes
+  # The 'ref' in the nodes will point to 'default_chat_llm'
+  default_chat_llm:
+    _type: "openai_chat"  # Placeholder: actual type depends on LLMClient implementation
+    model_name: "gpt-4.1-mini" # Corrected field name, was 'model'
+    temperature: 0.7
+    # A system message could be part of the LLM config if always applicable
+    # system_message: "You are an expert content creator."
+
+workflow:
+  _type: sequential # Indicates nodes process data in sequence
+  nodes:
+    - id: outline_generator
+      kind: agent         # This node is an LLM-powered agent
+      ref: default_chat_llm # Uses the LLM configuration defined above
+      config:
+        # The prompt template for this node.
+        # It's assumed that {input} will be replaced with the initial user prompt.
+        prompt: |
+          Topic: {input}
+
+          Based on the topic provided above, please generate a comprehensive and well-structured outline.
+          The outline should clearly delineate:
+          1. Main sections with descriptive headings.
+          2. Key sub-points or arguments under each main section.
+          3. A logical progression of ideas from introduction to conclusion.
+
+          The output should consist solely of the generated outline text.
+      # No 'stop: true' here, as it's not the final node
+
+    - id: linkedin_post_refiner
+      kind: agent
+      ref: default_chat_llm
+      config:
+        # This prompt template will use the output of the 'outline_generator'.
+        # It's assumed that {output} will be replaced with state['output'] from the previous node.
+        prompt: |
+          Original Outline:
+          {output}
+
+          Transform the above outline into a polished, engaging, and professional LinkedIn post.
+          The post should:
+          - Adopt a natural and human-like tone.
+          - Be suitable for a professional LinkedIn audience.
+          - Encourage engagement (e.g., by posing a thoughtful question or a call to discussion).
+          - Be well-structured and easy to read (consider using short paragraphs, bullet points if appropriate).
+          - Include 2-3 relevant hashtags.
+
+          The output should consist solely of the LinkedIn post content.
+      stop: true # Marks this as the final node in the workflow
+
+  edges:
+    # Defines the explicit sequence of execution from one node to the next.
+    - source: outline_generator
+      target: linkedin_post_refiner
+      # No condition means it's a direct, unconditional transition. 

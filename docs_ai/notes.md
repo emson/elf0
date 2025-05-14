@@ -1,5 +1,6 @@
 # General Project Notes and Todos
 
+- Load prompt from a file `--prompt_file` as well as having the CLI `--prompt` parameter
 - Spec that can call another Spec
 - Trigger calls to an MCP
 - Trigger calls to a function
@@ -16,4 +17,4 @@
   - Parallelization
   - Autonomous Agent
   - Simulation
-- 
+- Handle connection errors more gracefully

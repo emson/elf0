@@ -8,7 +8,7 @@ llms:
     model_name: "gpt-4.1-mini"
     temperature: 0.7
     params:
-      max_tokens: 1000
+      max_tokens: 4000
       system_prompt: |
         You are an expert prompt engineer specializing in coding prompts.
         Your task is to improve the given prompt by:
@@ -16,6 +16,7 @@ llms:
         2. Adding necessary context and constraints
         3. Structuring it for better code generation
         4. Including relevant examples or patterns
+        5. Do not include a preamble or summary, just the best prompt for this task.
         Focus on making the prompt more effective for generating high-quality code.
 
   evaluator:
@@ -23,7 +24,7 @@ llms:
     model_name: "gpt-4.1-mini"
     temperature: 0.3
     params:
-      max_tokens: 1000
+      max_tokens: 4000
       system_prompt: |
         You are a prompt evaluation expert.
         Evaluate the improved prompt based on these criteria:
@@ -40,7 +41,7 @@ functions: {}
 
 workflow:
   _type: "evaluator_optimizer"
-  max_iterations: 3  # Maximum number of iterations before forcing completion
+  max_iterations: 7  # Maximum number of iterations before forcing completion
   nodes:
     - id: "generate"
       kind: "agent"
@@ -64,11 +65,11 @@ workflow:
 
     - source: "evaluate"
       target: "end"
-      condition: "state.get('evaluation_score', 0) >= 4 or state.get('iteration_count', 0) >= 3"
+      condition: "state.get('evaluation_score', 0) >= 4 or state.get('iteration_count', 0) >= 5"
 
     - source: "evaluate"
       target: "generate"
-      condition: "state.get('evaluation_score', 0) < 4 and state.get('iteration_count', 0) < 3"
+      condition: "state.get('evaluation_score', 0) < 4 and state.get('iteration_count', 0) < 5"
 
 eval:
   metrics:

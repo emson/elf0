@@ -26,12 +26,13 @@ class NodeFactory(Protocol):
     """Protocol defining the interface for node factory functions."""
     def __call__(self, spec: Spec, node: WorkflowNode) -> NodeFunction: ...
 
-def make_llm_node(llm_config: Dict[str, Any]) -> NodeFunction:
+def make_llm_node(llm_config: Dict[str, Any], node: WorkflowNode) -> NodeFunction:
     """
     Create a node function that uses an LLM to process input and generate output.
     
     Args:
         llm_config: Dictionary containing LLM configuration parameters
+        node: The WorkflowNode object, used here to access node.id
         
     Returns:
         A function that processes state using the LLM
@@ -40,17 +41,29 @@ def make_llm_node(llm_config: Dict[str, Any]) -> NodeFunction:
     
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
-            logger.info(f"🤖 LLM Processing: {state['input'][:100]}...")
+            logger.info(f"🤖 LLM Processing for node '{node.id}': {state.get('input', '')[:100]}...")
             response = llm.generate(state["input"])
-            logger.info(f"✨ LLM Response: {response[:100]}...")
-            return {
+            logger.info(f"✨ LLM Response from node '{node.id}': {response[:100]}...")
+            
+            new_state = {
                 **state,  # Preserve all existing state
                 "output": response
             }
+
+            # If this node is 'breakdown_worker', increment iteration_count.
+            # This is specific to the logic in orchestration_workers.yaml where breakdown_worker
+            # completes a cycle before returning to the orchestrator.
+            if node.id == "breakdown_worker":
+                current_iteration = state.get('iteration_count', 0)
+                new_state['iteration_count'] = current_iteration + 1
+                logger.info(f"🔄 Node '{node.id}' (breakdown_worker) incremented iteration_count to {new_state['iteration_count']}")
+            
+            return new_state
         except Exception as e:
-            logger.error(f"❌ LLM Error: {str(e)}")
+            logger.error(f"❌ LLM Error in node '{node.id}': {str(e)}")
+            # Preserve original state from before this node's execution on error
             return {
-                **state,  # Preserve all existing state
+                **state, 
                 "output": f"Error: {str(e)}"
             }
     return node_fn
@@ -156,7 +169,7 @@ class NodeFactoryRegistry:
     """Registry for node factory functions."""
     
     _factories: Dict[str, NodeFactory] = {
-        "agent": lambda spec, node: make_llm_node(spec.llms.get(node.ref)),
+        "agent": lambda spec, node: make_llm_node(spec.llms.get(node.ref), node),
         "tool": lambda spec, node: load_tool(spec.functions.get(node.ref)),
         "judge": lambda spec, node: make_judge_node(spec.llms.get(node.ref)),
         "branch": lambda spec, node: make_branch_node(node),
@@ -276,54 +289,100 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
         spec: The workflow specification
     """
     logger.info("🔄 Building workflow edges...")
-    # Group edges by source node
     edges_by_source: Dict[str, List[Edge]] = {}
     for edge in spec.workflow.edges:
-        if edge.source not in edges_by_source:
-            edges_by_source[edge.source] = []
-        edges_by_source[edge.source].append(edge)
+        edges_by_source.setdefault(edge.source, []).append(edge)
     
-    # Process each source node's edges
-    for source, edges in edges_by_source.items():
+    for source, edges_from_source in edges_by_source.items():
         logger.info(f"📝 Processing edges from node: {source}")
-        # Handle direct edges (no conditions)
-        direct_edges = [e for e in edges if not e.condition]
-        for edge in direct_edges:
-            logger.info(f"  → Direct edge to: {edge.target}")
-            graph.add_edge(edge.source, edge.target)
         
-        # Handle conditional edges
-        conditional_edges = [e for e in edges if e.condition]
+        conditional_edges = [e for e in edges_from_source if e.condition]
+        unconditional_edges = [e for e in edges_from_source if not e.condition]
+
         if conditional_edges:
-            logger.info(f"  → Conditional edges: {len(conditional_edges)}")
-            # Create a single routing function for all conditional edges
-            def create_router(edges: List[Edge]) -> Callable[[Dict[str, Any]], str]:
-                condition_fns = [
+            # If there are any conditional edges, all decisions from this node
+            # must go through a single conditional router.
+            logger.info(f"  → Node {source} has conditional logic. All outgoing edges managed by a router.")
+
+            default_target: Optional[str] = None
+            if len(unconditional_edges) > 1:
+                logger.warning(
+                    f"  ⚠️ Node {source} has multiple unconditional edges ({[e.target for e in unconditional_edges]}) "
+                    f"alongside conditional ones. The first unconditional edge target "
+                    f"'{unconditional_edges[0].target}' will be used as the default fallback. "
+                    "Define explicit conditions for all paths or ensure a single default path for clarity."
+                )
+                default_target = unconditional_edges[0].target
+            elif unconditional_edges:
+                default_target = unconditional_edges[0].target
+                logger.info(f"  → Default target for {source} (if no conditions met): {default_target}")
+
+
+            # Create a router function that evaluates conditions and falls back to default_target or END
+            def create_router_for_source(
+                source_node_id: str,
+                cond_edges: List[Edge],
+                def_target: Optional[str]
+            ) -> Callable[[Dict[str, Any]], str]:
+                
+                condition_target_pairs = [
                     (create_condition_function(e.condition), e.target)
-                    for e in edges
+                    for e in cond_edges
                 ]
-                
+
                 def router(state: Dict[str, Any]) -> str:
-                    for condition_fn, target in condition_fns:
+                    for condition_fn, target_node_name in condition_target_pairs:
                         try:
-                            result = condition_fn(state)
-                            if result:
-                                logger.info(f"  → Routing to: {target}")
-                                return target
+                            if condition_fn(state): # condition_fn should return boolean
+                                logger.info(f"  Router for {source_node_id}: Condition met, routing to '{target_node_name}'")
+                                return target_node_name # Router returns the key for the ends_map
                         except Exception as e:
-                            logger.error(f"❌ Routing Error: {str(e)}")
-                            raise ValueError(f"Failed to evaluate condition: {str(e)}")
-                    return END
-                
+                            logger.error(
+                                f"❌ Routing Error for {source_node_id} evaluating condition for {target_node_name}: {str(e)}. "
+                                "Attempting to continue with other conditions or fallback."
+                            )
+                            # In a production system, you might want to raise or handle this more specifically
+                    
+                    if def_target:
+                        logger.info(f"  Router for {source_node_id}: No conditional route taken, routing to default target '{def_target}'")
+                        return def_target
+                    
+                    logger.warning(
+                        f"  Router for {source_node_id}: No condition met and no default target. Routing to END. "
+                        "Ensure graph logic correctly leads to a defined state or END."
+                    )
+                    return END # LangGraph's END sentinel if no path is chosen
+
                 return router
+
+            router_fn = create_router_for_source(source, conditional_edges, default_target)
             
-            # Add a single conditional edge with the router
-            router = create_router(conditional_edges)
+            # The conditional_edge_mapping keys are what the router returns.
+            # The values are the actual node IDs (or special targets like END).
+            # Our router is designed to return actual target node names or END.
+            edge_mapping = {e.target: e.target for e in conditional_edges}
+            if default_target:
+                edge_mapping[default_target] = default_target # Add default target to map
+            edge_mapping[END] = END # Ensure END is always a valid target if router returns it
+
             graph.add_conditional_edges(
                 source,
-                router,
-                {edge.target: edge.target for edge in conditional_edges}
+                router_fn,
+                edge_mapping
             )
+        
+        elif unconditional_edges: # No conditional edges from this source, only unconditional ones.
+            logger.info(f"  → Node {source} has only unconditional edges.")
+            if len(unconditional_edges) > 1:
+                 logger.info(f"    Node {source} has multiple unconditional edges (fan-out): {[e.target for e in unconditional_edges]}")
+            for edge in unconditional_edges:
+                logger.info(f"    → Adding direct edge from {source} to: {edge.target}")
+                graph.add_edge(edge.source, edge.target)
+        else:
+            # This case means the node is a leaf node in terms of defined edges.
+            # If it's not a 'stop: true' node, the graph might halt here if no global end is reached.
+            logger.info(f"  → Node {source} has no outgoing edges defined in the spec.")
+
 
 def compile_to_langgraph(spec: Spec) -> StateGraph:
     """

@@ -51,4 +51,7 @@
       ```
     - [x] Clarify in help text: output file contains workflow result, console output replaced by confirmation when `--output` is used.
 
+### Prompt Chaining Pattern
+- [ ] Add a new Spec file `specs/prompt_chaining.yaml` that implements the prompt chain pattern
+
 

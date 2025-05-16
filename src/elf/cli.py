@@ -136,9 +136,42 @@ def display_workflow_result(result: Any) -> None:
         typer.secho(f"Warning: Unexpected result type from workflow ({type(result)}). Displaying raw result.", fg=typer.colors.YELLOW)
         typer.echo(str(result))
 
+def read_prompt_file(prompt_file: Path) -> str:
+    """
+    Read content from a prompt file.
+    
+    Args:
+        prompt_file: Path to the prompt file
+        
+    Returns:
+        Content of the prompt file, or empty string if file is empty
+        
+    Raises:
+        typer.Exit: If the file cannot be read or has an invalid extension
+    """
+    if prompt_file.suffix.lower() not in ['.md', '.xml']:
+        typer.secho("Error: --prompt_file must be a markdown (.md) or XML (.xml) file.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+        
+    try:
+        content = prompt_file.read_text(encoding='utf-8')
+        return content if content is not None else ""
+    except Exception as e:
+        typer.secho(f"Error: Could not read prompt file '{prompt_file}': {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
 def run_workflow_command(
     spec_path: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=False, help='Path to YAML spec'),
-    prompt: str = typer.Option(..., help='User prompt to process'),
+    prompt: Optional[str] = typer.Option(None, help='User prompt to process'),
+    prompt_file: Optional[Path] = typer.Option(
+        None,
+        "--prompt_file",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        help="Path to a markdown (.md) or XML (.xml) file containing the prompt.",
+        show_default=False,
+    ),
     session_id: str = typer.Option('session', help='Session identifier for stateful runs'),
     context_files: Optional[List[Path]] = typer.Option(None, "--context", help="Path to context file(s). Can be specified multiple times or as a comma-separated list. File contents will be added to the prompt.", show_default=False),
     output_path: Optional[Path] = typer.Option(None, "--output", help="Path to save the final workflow result. If provided, console output of the result is suppressed.", show_default=False, file_okay=True, dir_okay=False, writable=True, resolve_path=True)
@@ -148,14 +181,34 @@ def run_workflow_command(
     
     Example:
         elf workflow.yaml --prompt "What is the weather in London?"
+        elf workflow.yaml --prompt_file prompt.md
+        elf workflow.yaml --prompt_file prompt.md --prompt "Additional instructions"
         elf workflow.yaml --prompt "Summarize these files" --context file1.txt --context dir/file2.py
         elf workflow.yaml --prompt "Explain this code" --context file1.py,file2.py
         elf workflow.yaml --prompt "Explain this code" --context file1.py --output result.md
         elf workflow.yaml --prompt "Summarize data" --output summary.json
     """
+    # Validate that at least one prompt source is provided
+    if not prompt and not prompt_file:
+        typer.secho("Error: You must provide either --prompt or --prompt_file.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    # Read prompt_file content if provided
+    prompt_file_content = ""
+    if prompt_file:
+        prompt_file_content = read_prompt_file(prompt_file)
+
+    # Combine prompt_file content and prompt string
+    if prompt_file_content and prompt:
+        combined_prompt = f"{prompt_file_content}\n{prompt}"
+    elif prompt_file_content:
+        combined_prompt = prompt_file_content
+    else:
+        combined_prompt = prompt or ""  # Ensure we never pass None to run_workflow
+
     # Process context files and prepare input
     context_content = parse_context_files(context_files)
-    processed_prompt = prepare_workflow_input(prompt, context_content)
+    processed_prompt = prepare_workflow_input(combined_prompt, context_content)
     
     # Run workflow
     result = run_workflow(spec_path, processed_prompt, session_id)

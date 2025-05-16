@@ -67,6 +67,13 @@
 - Remove obsolete tests
 - Example: Update tests when API changes, don't leave broken tests
 
+### 6. CLI Application Testing
+- Test CLI applications at the command level, not function level
+- Use proper CLI testing frameworks (e.g., Typer's CliRunner)
+- Test parameter handling and type consistency
+- Handle empty values and optional parameters explicitly
+- Example: Test CLI commands with `CliRunner.invoke()` instead of calling functions directly
+
 ## Anti-Patterns to Avoid
 
 ### 1. Testing Implementation Details

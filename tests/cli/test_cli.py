@@ -7,11 +7,16 @@ from elf.cli import (
     format_workflow_result,
     validate_output_path,
     save_workflow_result,
-    display_workflow_result
+    display_workflow_result,
+    read_prompt_file,
+    run_workflow_command,
+    app
 )
 from typer import Exit
 import json
 import os
+from unittest.mock import patch
+from typer.testing import CliRunner
 
 # Test data
 SAMPLE_CONTENT = "This is sample content"
@@ -31,6 +36,18 @@ def temp_files(tmp_path):
 def temp_output_file(tmp_path):
     """Create a temporary output file."""
     return tmp_path / "output.txt"
+
+@pytest.fixture
+def temp_prompt_file(tmp_path):
+    """Create a temporary prompt file."""
+    file_path = tmp_path / "test_prompt.md"
+    file_path.write_text("Test prompt content")
+    return file_path
+
+@pytest.fixture
+def runner():
+    """Create a Typer CLI test runner."""
+    return CliRunner()
 
 def test_parse_context_files_empty():
     """Test parsing empty context files list."""
@@ -164,4 +181,77 @@ def test_display_workflow_result_unexpected_type(capsys):
     display_workflow_result(123)
     captured = capsys.readouterr()
     assert "Warning" in captured.out
-    assert "123" in captured.out 
+    assert "123" in captured.out
+
+def test_read_prompt_file_valid(temp_prompt_file):
+    """Test reading a valid prompt file."""
+    content = read_prompt_file(temp_prompt_file)
+    assert content == "Test prompt content"
+
+def test_read_prompt_file_invalid_extension(tmp_path):
+    """Test reading a prompt file with invalid extension."""
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("Test content")
+    with pytest.raises(Exit):
+        read_prompt_file(file_path)
+
+def test_read_prompt_file_nonexistent(tmp_path):
+    """Test reading a nonexistent prompt file."""
+    file_path = tmp_path / "nonexistent.md"
+    with pytest.raises(Exit):
+        read_prompt_file(file_path)
+
+def test_run_workflow_command_prompt_file_only(runner, temp_prompt_file, tmp_path):
+    """Test running workflow with only prompt file."""
+    spec_path = tmp_path / "workflow.yaml"
+    spec_path.write_text("name: test\nruntime: langgraph\nworkflow:\n  nodes: []")
+    
+    # Mock run_workflow to avoid actual execution
+    with patch('elf.cli.run_workflow') as mock_run:
+        mock_run.return_value = {"output": "test result"}
+        result = runner.invoke(app, [str(spec_path), "--prompt_file", str(temp_prompt_file)])
+        assert result.exit_code == 0
+        mock_run.assert_called_once()
+        assert "Test prompt content" in mock_run.call_args[0][1]
+
+def test_run_workflow_command_prompt_file_and_prompt(runner, temp_prompt_file, tmp_path):
+    """Test running workflow with both prompt file and prompt."""
+    spec_path = tmp_path / "workflow.yaml"
+    spec_path.write_text("name: test\nruntime: langgraph\nworkflow:\n  nodes: []")
+    
+    # Mock run_workflow to avoid actual execution
+    with patch('elf.cli.run_workflow') as mock_run:
+        mock_run.return_value = {"output": "test result"}
+        result = runner.invoke(app, [
+            str(spec_path),
+            "--prompt_file", str(temp_prompt_file),
+            "--prompt", "Additional prompt"
+        ])
+        assert result.exit_code == 0
+        mock_run.assert_called_once()
+        assert "Test prompt content" in mock_run.call_args[0][1]
+        assert "Additional prompt" in mock_run.call_args[0][1]
+
+def test_run_workflow_command_no_prompt_sources(runner, tmp_path):
+    """Test running workflow with no prompt sources."""
+    spec_path = tmp_path / "workflow.yaml"
+    spec_path.write_text("name: test\nruntime: langgraph\nworkflow:\n  nodes: []")
+    
+    result = runner.invoke(app, [str(spec_path)])
+    assert result.exit_code == 1
+    assert "Error: You must provide either --prompt or --prompt_file" in result.stdout
+
+def test_run_workflow_command_empty_prompt_file(runner, tmp_path):
+    """Test running workflow with empty prompt file."""
+    file_path = tmp_path / "empty.md"
+    file_path.write_text("")
+    spec_path = tmp_path / "workflow.yaml"
+    spec_path.write_text("name: test\nruntime: langgraph\nworkflow:\n  nodes: []")
+    
+    # Mock run_workflow to avoid actual execution
+    with patch('elf.cli.run_workflow') as mock_run:
+        mock_run.return_value = {"output": "test result"}
+        result = runner.invoke(app, [str(spec_path), "--prompt_file", str(file_path)])
+        assert result.exit_code == 0
+        mock_run.assert_called_once()
+        assert mock_run.call_args[0][1] == "" 

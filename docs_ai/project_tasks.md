@@ -47,9 +47,22 @@
 - [x] Define a spec schema in JSON-Schema, in `docs_specs/spec_schema.md`
 - [x] Create a simple example spec in YAML, in `specs/basic_chat.yaml`. It has one step and one agent and just returns the result from an input prompt.
 - [x] Create `spec`, `compiler` and `runner` as well as the `yaml_loader`.
-- [x] Implmement basic LLM call using LangGraph
+- [x] Implement basic LLM call using LangGraph
   - [x] Create an `llm_client` file that implements the OpenAI API and returns a client that the `compiler.py` `make_llm_node` function can use
-
+  - [x] Implement multi-provider support in `llm_client.py`:
+    - [x] Create base provider protocol
+    - [x] Implement OpenAI provider
+    - [x] Implement Anthropic provider
+    - [x] Implement Ollama provider
+  - [x] Update field naming consistency:
+    - [x] Change `_type` to `type` in Pydantic models
+    - [x] Update YAML specs to use `type`
+    - [x] Fix logging statements to use correct field names
+  - [x] Add proper error handling:
+    - [x] Provider-specific error messages
+    - [x] API key validation
+    - [x] Parameter validation
+    - [x] Import error handling
 
 ### Save File Functionality
 - [x] Enhance `run_workflow_command` in `cli.py` with `--output <output.md>`:

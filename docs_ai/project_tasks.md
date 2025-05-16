@@ -3,9 +3,9 @@
 ## Phase 1: MVP Functionality
 
 ### CLI Functionality
-- [x] Add a `awa` command to the CLI, and it defaults to `help`
-- [x] Add a `awa --help` command to the CLI
-- [x] Add a `awa ./specs/<spec_name>.yaml` command to the CLI
+- [x] Add a `elf` command to the CLI, and it defaults to `help`
+- [x] Add a `elf --help` command to the CLI
+- [x] Add a `elf ./specs/<spec_name>.yaml` command to the CLI
 
 ### Spec Functionality
 - [x] Define a spec schema in JSON-Schema, in `docs_specs/spec_schema.md`
@@ -46,8 +46,8 @@
   - [x] **Example Usage in Help and Docstring:**
     - [x] Update command's docstring with `--output` examples:
       ```
-      awa workflow.yaml --prompt "Explain this code" --context file1.py --output result.md
-      awa workflow.yaml --prompt "Summarize data" --output summary.json
+      elf workflow.yaml --prompt "Explain this code" --context file1.py --output result.md
+      elf workflow.yaml --prompt "Summarize data" --output summary.json
       ```
     - [x] Clarify in help text: output file contains workflow result, console output replaced by confirmation when `--output` is used.
 

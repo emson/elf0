@@ -1,4 +1,4 @@
-# src/awa/core/compiler.py
+# src/elf/core/compiler.py
 from typing import Callable, Any, Dict, TypedDict, Protocol, List, Optional
 from langgraph.graph import StateGraph, END
 from .llm_client import LLMClient

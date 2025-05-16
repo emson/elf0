@@ -2,13 +2,13 @@ import typer
 from pathlib import Path
 from typing import List, Optional
 import json # Added for JSON serialization
-from awa.core.runner import run_workflow
+from elf.core.runner import run_workflow
 from rich.console import Console
 from rich.markdown import Markdown
 import os
 
 app = typer.Typer(
-    name="awa",
+    name="elf",
     help="AI Workflow Architect - Execute and optimize LLM-powered agent workflows",
     add_completion=False
 )
@@ -24,11 +24,11 @@ def run_workflow_command(
     Execute an agent workflow defined in YAML.
     
     Example:
-        awa workflow.yaml --prompt "What is the weather in London?"
-        awa workflow.yaml --prompt "Summarize these files" --context file1.txt --context dir/file2.py
-        awa workflow.yaml --prompt "Explain this code" --context file1.py,file2.py
-        awa workflow.yaml --prompt "Explain this code" --context file1.py --output result.md
-        awa workflow.yaml --prompt "Summarize data" --output summary.json
+        elf workflow.yaml --prompt "What is the weather in London?"
+        elf workflow.yaml --prompt "Summarize these files" --context file1.txt --context dir/file2.py
+        elf workflow.yaml --prompt "Explain this code" --context file1.py,file2.py
+        elf workflow.yaml --prompt "Explain this code" --context file1.py --output result.md
+        elf workflow.yaml --prompt "Summarize data" --output summary.json
     """
     processed_prompt = prompt
     if context_files:

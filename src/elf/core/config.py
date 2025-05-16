@@ -1,4 +1,4 @@
-# src/awa/core/config.py
+# src/elf/core/config.py
 from typing import Any, Dict, Optional, Union
 from pathlib import Path
 from pydantic import BaseModel

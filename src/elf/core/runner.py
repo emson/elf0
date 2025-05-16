@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Dict
-from awa.core.spec import load_spec
-from awa.core.compiler import compile_to_langgraph
+from elf.core.spec import load_spec
+from elf.core.compiler import compile_to_langgraph
 
 def run_workflow(spec_path: Path, prompt: str, session_id: str) -> Dict[str, Any]:
     """

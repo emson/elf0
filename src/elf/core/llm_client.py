@@ -1,4 +1,4 @@
-# src/awa/core/llm_client.py
+# src/elf/core/llm_client.py
 from typing import Any, Dict, List
 import openai
 from openai.types.chat import ChatCompletionMessageParam

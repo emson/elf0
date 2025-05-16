@@ -1,6 +1,6 @@
-# AWA: AI Workflow Architect
+# Elf: AI Workflow Architect
 
-**AWA is a Python framework for defining, executing, and intelligently improving LLM-powered agent workflows.**
+**Elf is a Python framework for defining, executing, and intelligently improving LLM-powered agent workflows.**
 
 It enables developers to build complex sequences of AI agent interactions declaratively and **provides tools to leverage AI itself for optimizing these workflows**.
 Our core philosophy is to _"start small, make it work, then make it better, but build on solid foundations."_
@@ -14,7 +14,7 @@ Key aims:
 1.  **Simplify Complexity:** Provide a clear, declarative way (via YAML) to define multi-agent workflows, making them easy to understand, share, and manage.
 2.  **Promote Flexibility:** Enable flexible selection of LLM clients (e.g., OpenAI, Anthropic), models, parameters, and tools at both the workflow and individual agent level.
 3.  **Facilitate Extensibility:** Allow for the easy integration of custom tools, functions, and future capabilities like Model Context Protocol (MCP) and Retrieval Augmented Generation (RAG).
-4.  **Enable AI-Driven Optimization:** Introduce an "AI Workflow Architect" (AWA) agent capable of analyzing existing workflows and suggesting improvements, effectively using AI to enhance AI systems.
+4.  **Enable AI-Driven Optimization:** Introduce an "AI Workflow Architect" (Elf) agent capable of analyzing existing workflows and suggesting improvements, effectively using AI to enhance AI systems.
 
 ## Installation
 
@@ -25,7 +25,7 @@ uv pip install -e .
 
 Run the app:
 ```bash
-uv run awa
+uv run elf
 ```
 
 ## Guiding Principles
@@ -59,8 +59,8 @@ You can delete or replace any slice without rippling changes across the codebase
 - It manages the passage of data (LLM responses) between agents in the sequence.
 - Handles interactions with different LLM clients and their specific parameters.
 
-### 3. AI-Powered Workflow Optimization (AWA Agent)
-- A specialized "AI Workflow Architect" (AWA) agent can analyze an existing workflow definition.
-- The AWA can suggest improvements to an agent's system prompt within a workflow, based on a user-defined goal.
-- Future: AWA will be able to suggest more complex changes like adding/removing steps, changing models, or incorporating new tools.
+### 3. AI-Powered Workflow Optimization (Elf Agent)
+- A specialized "AI Workflow Architect" (Elf) agent can analyze an existing workflow definition.
+- The Elf can suggest improvements to an agent's system prompt within a workflow, based on a user-defined goal.
+- Future: Elf will be able to suggest more complex changes like adding/removing steps, changing models, or incorporating new tools.
 - This functionality can be invoked via the CLI, enabling a meta-loop where AI helps refine its own operational procedures.

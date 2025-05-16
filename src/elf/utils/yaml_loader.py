@@ -1,4 +1,4 @@
-# src/awa/utils/yaml_loader.py
+# src/elf/utils/yaml_loader.py
 import yaml
 from pathlib import Path
 from typing import Dict, Any
@@ -104,7 +104,7 @@ def load_spec(path: str) -> Any:
     Returns:
         Validated Spec object
     """
-    from awa.core.spec import Spec
+    from elf.core.spec import Spec
     
     data = load_yaml_file(path)
     try:

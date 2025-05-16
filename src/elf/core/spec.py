@@ -1,4 +1,4 @@
-# src/awa/core/spec.py
+# src/elf/core/spec.py
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Literal, List, Dict, Union, Optional, ClassVar, Any, Callable
 from pathlib import Path

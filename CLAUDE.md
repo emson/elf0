@@ -1,9 +1,9 @@
-# AWA Development Guidelines
+# Elf Development Guidelines
 
 ## Commands
 - Install: `uv venv && uv pip install -e .`
-- Run: `uv run awa`
-- Run specific workflow: `uv run awa run workflows/basic_chat.yaml`
+- Run: `uv run elf`
+- Run specific workflow: `uv run elf run workflows/basic_chat.yaml`
 - Lint: `ruff check src/`
 - Type check: `mypy src/`
 

@@ -4,6 +4,7 @@ from langgraph.graph import StateGraph, END
 from .llm_client import LLMClient
 from .spec import Spec, WorkflowNode, Edge
 import logging
+from pydantic import BaseModel, Field
 
 # Configure logging
 logging.basicConfig(
@@ -395,10 +396,18 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
         A configured StateGraph ready for execution
     """
     logger.info("🚀 Compiling workflow...")
-    # Create a new graph with input/output schemas
+    
+    # Define the state schema using Pydantic
+    class WorkflowStateSchema(BaseModel):
+        """Schema for workflow state."""
+        input: str
+        output: Optional[str] = None
+        iteration_count: Optional[int] = Field(default=0)
+        evaluation_score: Optional[float] = None
+    
+    # Create a new graph with explicit state schema
     graph = StateGraph(
-        input=WorkflowState,
-        output=WorkflowState
+        state_schema=WorkflowStateSchema
     )
     
     # Build graph components

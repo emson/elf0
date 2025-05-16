@@ -55,4 +55,25 @@
 - [x] Add a new Spec file `specs/prompt_chaining.yaml` that implements the prompt chain pattern
 - [ ] Add a new Spec file `specs/prompt_routing.yaml` that implements the prompt routing pattern
 
+### Test Implementation
+- [x] Create test module for core Spec functionality:
+  - [x] Set up test data constants for valid configurations
+  - [x] Implement test_create_valid_spec to verify basic Spec creation
+  - [x] Implement test_workflow_edge_validation to verify edge validation
+  - [x] Implement test_node_reference_validation to verify LLM/function references
+  - [x] Implement test_spec_from_file to verify YAML loading
+  - [x] Add proper docstrings and test descriptions
+  - [x] Use pytest fixtures for file handling
+  - [x] Follow best practices for test structure and assertions
+
+- [x] Create test module for core Compiler functionality:
+  - [x] Set up helper functions for creating test specs
+  - [x] Implement test_compile_minimal_workflow to verify basic graph creation
+  - [x] Implement test_compile_workflow_with_conditional_edges to verify branching
+  - [x] Implement test_condition_function_evaluation to verify condition handling
+  - [x] Implement test_node_factory_registry to verify node creation
+  - [x] Implement test_workflow_state_management to verify state handling
+  - [x] Add proper docstrings and test descriptions
+  - [x] Follow best practices for test structure and assertions
+
 

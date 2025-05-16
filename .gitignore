@@ -10,5 +10,6 @@ wheels/
 .venv
 .env
 output*.*
+input*.*
 .DS_Store
 **/.claude/settings.local.json

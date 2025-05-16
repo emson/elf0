@@ -6,6 +6,42 @@
 - [x] Add a `elf` command to the CLI, and it defaults to `help`
 - [x] Add a `elf --help` command to the CLI
 - [x] Add a `elf ./specs/<spec_name>.yaml` command to the CLI
+- [x] Enhance `run_workflow_command` in `cli.py` with `--prompt_file <prompt.md>`:
+  - [x] **Parameter Definition:**
+    - [x] Add optional `--prompt_file` (type `Path`) for loading prompt from file
+    - [x] Support markdown (.md) and XML (.xml) file extensions
+    - [x] Validate file existence and extension
+    - [x] Make `--prompt` optional when `--prompt_file` is provided
+  - [x] **Behavior and Integration:**
+    - [x] Read and validate prompt file content
+    - [x] Combine prompt file content with `--prompt` when both provided
+    - [x] Handle empty files and error cases gracefully
+    - [x] Maintain backward compatibility with existing `--prompt` usage
+  - [x] **Edge Cases and Robustness:**
+    - [x] Handle file reading errors with clear messages
+    - [x] Validate file extensions case-insensitively
+    - [x] Ensure proper handling of empty files
+    - [x] Handle encoding issues gracefully
+  - [x] **Code Structure and Style:**
+    - [x] Add helper function for prompt file reading
+    - [x] Maintain consistent error handling patterns
+    - [x] Add clear docstrings and comments
+  - [x] **Example Usage in Help and Docstring:**
+    - [x] Update command's docstring with `--prompt_file` examples:
+      ```
+      elf workflow.yaml --prompt_file prompt.md
+      elf workflow.yaml --prompt_file prompt.md --prompt "Additional instructions"
+      ```
+  - [x] **Test Implementation:**
+    - [x] Add test module for prompt file functionality:
+      - [x] Test reading valid prompt files
+      - [x] Test combining prompt file with prompt string
+      - [x] Test handling of invalid file extensions
+      - [x] Test handling of nonexistent files
+      - [x] Test handling of empty files
+      - [x] Test proper error messages
+      - [x] Use Typer's CliRunner for proper CLI testing
+      - [x] Follow CLI testing best practices
 
 ### Spec Functionality
 - [x] Define a spec schema in JSON-Schema, in `docs_specs/spec_schema.md`

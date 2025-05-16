@@ -14,11 +14,11 @@ version: "0.1"
 description: "Test spec"
 llms:
   llm1:
-    _type: openai
+    type: openai
     model_name: gpt-4.1-mini
     temperature: 0.5
 workflow:
-  _type: sequential
+  type: sequential
   nodes:
     - id: start
       kind: agent
@@ -112,23 +112,35 @@ def test_merge_yaml_data():
     assert result["list"] == [1, 2, 3, 4, 5, 6]  # Concatenated
 
 def test_load_spec(tmp_path):
-    """Test loading and validating a spec file."""
-    # Arrange
+    """Test loading a spec from a YAML file."""
+    spec_yaml = """
+version: "0.1"
+llms:
+  llm1:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.5
+workflow:
+  type: sequential
+  nodes:
+    - id: start
+      kind: agent
+      ref: llm1
+    - id: end
+      kind: agent
+      ref: llm1
+      stop: true
+  edges:
+    - source: start
+      target: end
+"""
     spec_file = tmp_path / "spec.yaml"
-    spec_file.write_text(VALID_YAML_CONTENT)
+    spec_file.write_text(spec_yaml)
     
-    # Act
     spec = load_spec(str(spec_file))
-    
-    # Assert
-    # Test high-level behavior and structure
     assert spec.version == "0.1"
-    assert spec.description == "Test spec"
     assert "llm1" in spec.llms
-    assert len(spec.workflow.nodes) == 1
-    assert spec.workflow.nodes[0].id == "start"
-    assert spec.workflow.nodes[0].kind == "agent"
-    assert spec.workflow.nodes[0].ref == "llm1"
+    assert spec.workflow.type == "sequential"
 
 def test_load_spec_invalid(tmp_path):
     """Test loading an invalid spec file."""

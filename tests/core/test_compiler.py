@@ -9,7 +9,7 @@ from elf.core.spec import Spec, LLM, WorkflowNode, Edge, Workflow
 
 # Test data
 VALID_LLM_CONFIG = {
-    "_type": "openai",
+    "type": "openai",
     "model_name": "gpt-4.1-mini",
     "temperature": 0.5,
     "params": {}
@@ -21,7 +21,7 @@ def create_minimal_spec() -> Spec:
         version="0.1",
         llms={"llm1": LLM(**VALID_LLM_CONFIG)},
         workflow=Workflow(
-            _type="sequential",
+            type="sequential",
             nodes=[
                 WorkflowNode(id="start", kind="agent", ref="llm1"),
                 WorkflowNode(id="end", kind="agent", ref="llm1", stop=True)
@@ -47,7 +47,7 @@ def test_compile_workflow_with_conditional_edges():
         version="0.1",
         llms={"llm1": LLM(**VALID_LLM_CONFIG)},
         workflow=Workflow(
-            _type="sequential",
+            type="sequential",
             nodes=[
                 WorkflowNode(id="start", kind="agent", ref="llm1"),
                 WorkflowNode(id="branch1", kind="agent", ref="llm1"),

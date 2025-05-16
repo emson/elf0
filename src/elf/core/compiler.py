@@ -2,7 +2,8 @@
 from typing import Callable, Any, Dict, TypedDict, Protocol, List, Optional
 from langgraph.graph import StateGraph, END
 from .llm_client import LLMClient
-from .spec import Spec, WorkflowNode, Edge
+from .spec import Spec, WorkflowNode, Edge, LLM as LLMSpecModel
+from .config import create_llm_config
 import logging
 from pydantic import BaseModel, Field
 
@@ -27,23 +28,48 @@ class NodeFactory(Protocol):
     """Protocol defining the interface for node factory functions."""
     def __call__(self, spec: Spec, node: WorkflowNode) -> NodeFunction: ...
 
-def make_llm_node(llm_config: Dict[str, Any], node: WorkflowNode) -> NodeFunction:
+def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     """
     Create a node function that uses an LLM to process input and generate output.
     
     Args:
-        llm_config: Dictionary containing LLM configuration parameters
-        node: The WorkflowNode object, used here to access node.id
+        spec: The full workflow specification.
+        node: The WorkflowNode object, used here to access node.id and node.ref.
         
     Returns:
-        A function that processes state using the LLM
+        A function that processes state using the LLM.
     """
-    llm = LLMClient(llm_config)
+    # 1. Get the specific LLM model configuration from the spec
+    if node.ref not in spec.llms:
+        raise ValueError(f"LLM reference '{node.ref}' in node '{node.id}' not found in spec.llms")
+    
+    llm_pydantic_model_instance = spec.llms[node.ref]
+
+    # Safely get the type attribute
+    llm_instance_type = getattr(llm_pydantic_model_instance, 'type', None)
+    if not llm_instance_type:
+        raise ValueError(
+            f"LLM configuration for reference '{node.ref}' (used in node '{node.id}') "
+            f"is missing the required 'type' attribute. "
+            f"Ensure the LLM spec includes 'type'. LLM details: {llm_pydantic_model_instance.model_dump(exclude_none=True)}"
+        )
+
+    # 2. Use create_llm_config to get a config object that includes the resolved API key.
+    populated_config_obj = create_llm_config(
+        config=llm_pydantic_model_instance.model_dump(), 
+        llm_type=llm_instance_type # Use the safely retrieved type
+    )
+
+    # 3. Update the original Pydantic model instance from spec.llms with the resolved API key.
+    llm_pydantic_model_instance.api_key = populated_config_obj.api_key
+    
+    # 4. Instantiate LLMClient with the updated Pydantic model instance
+    llm_client = LLMClient(llm_pydantic_model_instance)
     
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
-            logger.info(f"🤖 LLM Processing for node '{node.id}': {state.get('input', '')[:100]}...")
-            response = llm.generate(state["input"])
+            logger.info(f"🤖 LLM Processing for node '{node.id}' (using {llm_client.spec._type}:{llm_client.spec.model_name}): {state.get('input', '')[:100]}...")
+            response = llm_client.generate(state["input"])
             logger.info(f"✨ LLM Response from node '{node.id}': {response[:100]}...")
             
             new_state = {
@@ -114,37 +140,72 @@ def load_tool(fn: Any) -> NodeFunction:
             }
     return node_fn
 
-def make_judge_node(llm: Any) -> NodeFunction:
+def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     """
     Create a node function that uses an LLM to evaluate/judge the state.
     
     Args:
-        llm: LLM configuration for the judge
+        spec: The full workflow specification.
+        node: The WorkflowNode for the judge.
         
     Returns:
         A node function that performs judgment
     """
+    # Similar logic to make_llm_node for instantiating the LLMClient
+    if node.ref not in spec.llms:
+        raise ValueError(f"LLM reference '{node.ref}' in judge node '{node.id}' not found in spec.llms")
+
+    llm_pydantic_model_instance = spec.llms[node.ref]
+
+    # Safely get the type attribute
+    llm_instance_type = getattr(llm_pydantic_model_instance, 'type', None)
+    if not llm_instance_type:
+        raise ValueError(
+            f"LLM configuration for reference '{node.ref}' (used in judge node '{node.id}') "
+            f"is missing the required 'type' attribute. "
+            f"Ensure the LLM spec includes 'type'. LLM details: {llm_pydantic_model_instance.model_dump(exclude_none=True)}"
+        )
+        
+    populated_config_obj = create_llm_config(
+        config=llm_pydantic_model_instance.model_dump(),
+        llm_type=llm_instance_type # Use the safely retrieved type
+    )
+    llm_pydantic_model_instance.api_key = populated_config_obj.api_key
+
+    judge_llm_client = LLMClient(llm_pydantic_model_instance)
+
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
-            logger.info("🔍 Evaluating prompt quality...")
-            # Increment iteration count
-            iteration_count = state.get('iteration_count', 0) + 1
-            logger.info(f"🔄 Iteration {iteration_count} of 3")
+            logger.info(f"⚖️ Judge LLM Processing for node '{node.id}' (using {judge_llm_client.spec._type}:{judge_llm_client.spec.model_name}): {state.get('input', '')[:100]}...")
+            # Modify this part to use the judge_llm_client for actual judgment
+            # For now, it uses the client to generate, but a judge might have a more complex logic or prompt engineering.
+            judgment_prompt = f"Evaluate the following input: {state['input']}" # Example prompt for judge
+            result = judge_llm_client.generate(judgment_prompt)
             
-            # TODO: Implement actual judgment logic
-            result = f"Judgment for: {state['input']}"
-            logger.info(f"📊 Evaluation result: {result[:100]}...")
+            logger.info(f"📊 Judge evaluation result for node '{node.id}': {result[:100]}...")
             
+            # Assuming the judgment result itself is the output, or it modifies a score, etc.
+            # For simplicity, let's put the raw judgment in 'output'
+            # and also update 'evaluation_score' if the result can be parsed to a float.
+            current_iteration = state.get('iteration_count', 0) + 1
+            
+            # Placeholder: try to parse a score if the judgment is numeric
+            try:
+                score = float(result.strip())
+            except ValueError:
+                score = None # Or some default / error indicator
+
             return {
                 **state,  # Preserve all existing state
-                "iteration_count": iteration_count,
-                "output": result
+                "iteration_count": current_iteration,
+                "output": result,
+                "evaluation_score": score if score is not None else state.get("evaluation_score") # Keep old score if new one is not parseable
             }
         except Exception as e:
-            logger.error(f"❌ Evaluation Error: {str(e)}")
+            logger.error(f"❌ Judge LLM Error in node '{node.id}': {str(e)}")
             return {
                 **state,  # Preserve all existing state
-                "output": f"Error: {str(e)}"
+                "output": f"Error in Judge Node '{node.id}': {str(e)}"
             }
     return node_fn
 
@@ -170,9 +231,9 @@ class NodeFactoryRegistry:
     """Registry for node factory functions."""
     
     _factories: Dict[str, NodeFactory] = {
-        "agent": lambda spec, node: make_llm_node(spec.llms.get(node.ref), node),
+        "agent": make_llm_node,
         "tool": lambda spec, node: load_tool(spec.functions.get(node.ref)),
-        "judge": lambda spec, node: make_judge_node(spec.llms.get(node.ref)),
+        "judge": lambda spec, node: make_judge_node(spec, node),
         "branch": lambda spec, node: make_branch_node(node),
     }
     

@@ -2,32 +2,32 @@ i## Spec YAML Schema Reference
 
 ```yaml
 # Top-level object
-version: <string>            # (Required) Spec version, e.g. "0.1"
-description: <string>        # (Optional) Free-text description of this workflow
-runtime:                     # (Required) Which engine to use
+version: <string>            # (Required) Spec version, e.g. "0.1"
+description: <string>        # (Optional) Free-text description of this workflow
+runtime:                     # (Required) Which engine to use
   langgraph | agentiq
-llms:                        # (Required) Named LLM clients
+llms:                        # (Required) Named LLM clients
   <llm_name>:                #   key used in workflow.nodes[].ref
-    _type:                   #   (Required) one of: openai, anthropic, ollama
+    type:                    #   (Required) one of: openai, anthropic, ollama
     model_name: <string>     #   (Required) provider model identifier
     temperature: <float>     #   (Optional, default 0.0) sampling temperature
     params:                  #   (Optional) provider-specific keyword args
       <param>: <value>
-retrievers:                  # (Optional) Named Retriever configs
+retrievers:                  # (Optional) Named Retriever configs
   <retriever_name>:
-    _type:                   #   one of: qdrant, redis, weaviate
+    type:                    #   one of: qdrant, redis, weaviate
     collection: <string>     #   name of vector collection
-memory:                      # (Optional) Named Memory stores
+memory:                      # (Optional) Named Memory stores
   <memory_name>:
-    _type:                   #   one of: inmemory, qdrant, postgres
+    type:                    #   one of: inmemory, qdrant, postgres
     namespace: <string>      #   namespace / table / prefix
-functions:                   # (Optional) Named Tool / Function definitions
+functions:                   # (Optional) Named Tool / Function definitions
   <function_name>:
-    _type:                   #   one of: python, mcp
+    type:                    #   one of: python, mcp
     name: <string>           #   human-readable name
     entrypoint: <string>     #   dotted path or MCP URI
-workflow:                    # (Required) Defines the directed graph
-  _type:                    #   (Required) one of: sequential, react, evaluator_optimizer, custom_graph
+workflow:                    # (Required) Defines the directed graph
+  type:                     #   (Required) one of: sequential, react, evaluator_optimizer, custom_graph
   nodes:                    #   (Required) list of graph nodes
     - id: <string>          #     (Required) unique node identifier
       kind: <string>        #     (Required) agent | tool | judge | branch
@@ -37,7 +37,7 @@ workflow:                    # (Required) Defines the directed graph
     - source: <string>      #     (Required) node.id
       target: <string>      #     (Required) node.id
       condition: <string>   #     (Optional) Python expression, uses state keys
-eval:                        # (Optional) evaluation harness
+eval:                        # (Optional) evaluation harness
   metrics:                  #   list of metric names to collect
     - quality
     - latency
@@ -51,12 +51,12 @@ eval:                        # (Optional) evaluation harness
 #### `version`
 - **Type**: string  
 - **Required**  
-- Indicates your spec’s version; bump when schema or semantics change.
+- Indicates your spec's version; bump when schema or semantics change.
 
 #### `description`
 - **Type**: string  
 - **Optional**  
-- A human-friendly summary of the workflow’s purpose.
+- A human-friendly summary of the workflow's purpose.
 
 #### `runtime`
 - **Type**: literal  
@@ -66,9 +66,9 @@ eval:                        # (Optional) evaluation harness
 #### `llms`
 - **Type**: map of **LLM** objects  
 - **Required**  
-- Defines each LLM client you’ll call.  
+- Defines each LLM client you'll call.  
 - **LLM Object**:
-  - `_type`: “openai” | “anthropic” | “ollama”  
+  - `type`: "openai" | "anthropic" | "ollama"  
   - `model_name`: string  
   - `temperature`: float (default 0.0)  
   - `params`: map of provider-specific kwargs
@@ -76,7 +76,7 @@ eval:                        # (Optional) evaluation harness
 ```yaml
 llms:
   chat_llm:
-    _type: openai
+    type: openai
     model_name: gpt-4o-mini
     temperature: 0.2
     params:
@@ -88,7 +88,7 @@ llms:
 - **Optional** (defaults to `{}`)  
 - For RAG use-cases: point at your vector stores.  
 - **Retriever Object**:
-  - `_type`: “qdrant” | “redis” | “weaviate”  
+  - `type`: "qdrant" | "redis" | "weaviate"  
   - `collection`: string
 
 #### `memory`
@@ -96,7 +96,7 @@ llms:
 - **Optional**  
 - Defines persistent context stores.  
 - **Memory Object**:
-  - `_type`: “inmemory” | “qdrant” | “postgres”  
+  - `type`: "inmemory" | "qdrant" | "postgres"  
   - `namespace`: string
 
 #### `functions`
@@ -104,7 +104,7 @@ llms:
 - **Optional**  
 - For local-python or MCP tool integrations.  
 - **Function Object**:
-  - `_type`: “python” | “mcp”  
+  - `type`: "python" | "mcp"  
   - `name`: string  
   - `entrypoint`: dotted path or URI
 
@@ -113,13 +113,13 @@ llms:
 - **Required**  
 - Describes your directed (or cyclic) graph.  
 - **Workflow Fields**:
-  - `_type`: “sequential” | “react” | “evaluator_optimizer” | “custom_graph”  
+  - `type`: "sequential" | "react" | "evaluator_optimizer" | "custom_graph"  
   - `nodes`: array of **WorkflowNode**  
   - `edges`: array of **Edge**
 
 **WorkflowNode**
 - `id` (string): unique name  
-- `kind` (string): “agent” / “tool” / “judge” / “branch”  
+- `kind` (string): "agent" / "tool" / "judge" / "branch"  
 - `ref` (string): reference key into `llms`, `functions`, or sub-workflows  
 - `stop` (bool): marks finish nodes
 
@@ -147,7 +147,7 @@ runtime: "langgraph"
 
 llms:
   chat_llm:
-    _type: openai
+    type: openai
     model_name: gpt-4o-mini
     temperature: 0.0
     params: {}
@@ -157,7 +157,7 @@ memory: {}
 functions: {}
 
 workflow:
-  _type: sequential
+  type: sequential
   nodes:
     - id: chat
       kind: agent
@@ -175,9 +175,9 @@ eval:
 
 ### Notes & Extensions
 
-- **Adding new `_type`s**: Extend your Pydantic `Spec` model and update the node-factory registry.  
-- **Branching/Loops**: Use `_type: custom_graph` and define your own `nodes` & `edges`.  
-- **Human-in-the-loop**: Insert a `branch` node with `condition: "await_user"` and wire in LangGraph’s `interrupt()` handler.  
-- **Structured outputs**: Embed a “judge” node that validates with a JSON Schema.
+- **Adding new `type`s**: Extend your Pydantic `Spec` model and update the node-factory registry.  
+- **Branching/Loops**: Use `type: custom_graph` and define your own `nodes` & `edges`.  
+- **Human-in-the-loop**: Insert a `branch` node with `condition: "await_user"` and wire in LangGraph's `interrupt()` handler.  
+- **Structured outputs**: Embed a "judge" node that validates with a JSON Schema.
 
 This reference, together with your Python `Spec` definitions, ensures anyone can author valid YAML specs and understand every field.  

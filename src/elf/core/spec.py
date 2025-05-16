@@ -7,10 +7,11 @@ from ..utils.yaml_loader import load_yaml_file
 class LLM(BaseModel):
     """Configuration for a language model."""
     
-    _type: Literal['openai', 'anthropic', 'ollama']
+    type: Literal['openai', 'anthropic', 'ollama']
     model_name: str
     temperature: float = 0.7
     params: Dict[str, Union[str, float, int]] = Field(default_factory=dict)
+    api_key: Optional[str] = None
     
     @field_validator('temperature')
     def check_temperature(cls, v: float) -> float:
@@ -22,26 +23,26 @@ class LLM(BaseModel):
 class Retriever(BaseModel):
     """Configuration for a vector retriever."""
     
-    _type: Literal['qdrant', 'redis', 'weaviate']
+    type: Literal['qdrant', 'redis', 'weaviate']
     collection: str
 
 class Memory(BaseModel):
     """Configuration for a memory store."""
     
-    _type: Literal['inmemory', 'qdrant', 'postgres']
+    type: Literal['inmemory', 'qdrant', 'postgres']
     namespace: str
 
 class Function(BaseModel):
     """Configuration for a function or tool."""
     
-    _type: Literal['python', 'mcp']
+    type: Literal['python', 'mcp']
     name: str
     entrypoint: str  # dotted path or MCP URI
     
     @field_validator('entrypoint')
     def validate_entrypoint(cls, v: str) -> str:
         """Check that entrypoint has proper format."""
-        if v.count('.') < 1 and cls._type == 'python':
+        if v.count('.') < 1 and cls.type == 'python':
             raise ValueError("Python entrypoint must be in format 'module.function'")
         return v
 
@@ -72,7 +73,7 @@ class Edge(BaseModel):
 class Workflow(BaseModel):
     """Definition of a workflow graph."""
     
-    _type: Literal['sequential', 'react', 'evaluator_optimizer', 'custom_graph']
+    type: Literal['sequential', 'react', 'evaluator_optimizer', 'custom_graph']
     nodes: List[WorkflowNode]
     edges: List[Edge]
     
@@ -219,7 +220,7 @@ def create_sequential_workflow(nodes: List[Dict[str, Any]]) -> Workflow:
         workflow_nodes[-1].stop = True
     
     return Workflow(
-        _type='sequential',
+        type='sequential',
         nodes=workflow_nodes,
         edges=edges
     )
@@ -243,7 +244,7 @@ def create_react_workflow(agent_node: Dict[str, Any], tools: List[Dict[str, Any]
     edges: List[Edge] = []
     
     return Workflow(
-        _type='react',
+        type='react',
         nodes=workflow_nodes,
         edges=edges
     )

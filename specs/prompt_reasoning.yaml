@@ -6,7 +6,7 @@ runtime: "langgraph"
 # LLM definitions
 llms:
   chat_llm:
-    _type: "openai"
+    type: "openai"
     model_name: "gpt-4.1-mini"
     temperature: 0.7
     params:
@@ -34,7 +34,7 @@ functions: {}
 
 # Workflow definition
 workflow:
-  _type: "sequential"
+  type: "sequential"
   nodes:
     - id: "chat_step"
       kind: "agent"

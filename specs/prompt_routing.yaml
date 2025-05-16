@@ -4,21 +4,21 @@ runtime: "langgraph" # Specifies the execution engine
 
 llms:
   classifier_llm:
-    _type: "openai_chat" 
-    model_name: "gpt-3.5-turbo"
+    type: "openai" 
+    model_name: "gpt-4.1-mini"
     temperature: 0.2
     # System prompt for classifier: "You are an expert text classifier. Your task is to categorize the user query into 'general_chat' or 'deep_reasoning'. Respond with only the category name."
   general_chat_llm:
-    _type: "openai_chat"
-    model_name: "gpt-3.5-turbo"
+    type: "openai"
+    model_name: "gpt-4.1-mini"
     temperature: 0.7
   deep_reasoning_llm:
-    _type: "openai_chat"
-    model_name: "gpt-4" # Or a more capable model like gpt-4.1-mini if preferred
+    type: "openai"
+    model_name: "gpt-4.1-mini" # Or a more capable model like gpt-4.1-mini if preferred
     temperature: 0.5
 
 workflow:
-  _type: custom_graph # Using custom_graph for explicit edge definition
+  type: custom_graph # Using custom_graph for explicit edge definition
   # entry_point: prompt_classifier # Optional: usually inferred if it's the first node
   nodes:
     - id: prompt_classifier

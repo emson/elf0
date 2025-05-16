@@ -77,7 +77,7 @@ class OpenAIProvider(BaseLLMProvider):
 
 # Placeholder for Anthropic Provider
 class AnthropicProvider(BaseLLMProvider):
-    """LLM Provider for Anthropic models (Placeholder)."""
+    """LLM Provider for Anthropic models."""
     
     def __init__(self, model_name: str, api_key: Optional[str], temperature: float, params: Dict[str, Any]):
         self.model_name = model_name
@@ -88,31 +88,41 @@ class AnthropicProvider(BaseLLMProvider):
         if not self.api_key:
             raise ValueError("Anthropic API key is required.")
         
-        # Placeholder: Initialize Anthropic client here
-        # import anthropic # Example
-        # self.client = anthropic.Anthropic(api_key=self.api_key)
-
+        try:
+            import anthropic
+            self.client = anthropic.Anthropic(api_key=self.api_key)
+        except ImportError:
+            raise ImportError(
+                "The 'anthropic' package is required to use AnthropicProvider. "
+                "Please install it with: pip install anthropic"
+            )
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """Generate response using Anthropic (Placeholder)."""
-        # Placeholder: Implement Anthropic API call
-        # final_system_prompt = self.params.get('system_prompt', system_prompt)
-        # max_tokens = self.params.get('max_tokens', 2048) # Anthropic uses max_tokens_to_sample
-        
-        # response = self.client.messages.create(
-        #     model=self.model_name,
-        #     max_tokens=max_tokens,
-        #     temperature=self.temperature,
-        #     system=final_system_prompt,
-        #     messages=[
-        #         {"role": "user", "content": prompt}
-        #     ]
-        # )
-        # return response.content[0].text
-        raise NotImplementedError(
-            f"AnthropicProvider for model {self.model_name} is not yet implemented. "
-            f"Prompt: {prompt[:100]}..., System Prompt: {system_prompt}"
-        )
+        """Generate response using Anthropic."""
+        try:
+            # Get parameters with sensible defaults
+            max_tokens = self.params.get('max_tokens', 4096)  # Anthropic's default max
+            final_system_prompt = self.params.get('system_prompt', system_prompt)
+            
+            # Prepare messages
+            messages = [{"role": "user", "content": prompt}]
+            
+            # Create the completion
+            response = self.client.messages.create(
+                model=self.model_name,
+                max_tokens=max_tokens,
+                temperature=self.temperature,
+                system=final_system_prompt,
+                messages=messages
+            )
+            
+            # Extract and return the response text
+            return response.content[0].text
+            
+        except Exception as e:
+            raise RuntimeError(
+                f"Error generating response from Anthropic (model {self.model_name}): {str(e)}"
+            )
 
 # Ollama Provider Implementation (Local, no API key)
 class OllamaProvider(BaseLLMProvider):
@@ -226,7 +236,7 @@ class LLMClient:
 # from .config import create_llm_config
 #
 # raw_spec_from_yaml = {
-#     '_type': 'openai',
+#     'type': 'openai',
 #     'model_name': 'gpt-4o-mini',
 #     'temperature': 0.5,
 #     'params': {'max_tokens': 100}
@@ -237,7 +247,7 @@ class LLMClient:
 #
 # # 2. Populate/override API key using create_llm_config
 # # create_llm_config now needs the llm_type to fetch the correct key
-# config_with_api_key = create_llm_config(pydantic_llm_spec.model_dump(), llm_type=pydantic_llm_spec._type)
+# config_with_api_key = create_llm_config(pydantic_llm_spec.model_dump(), llm_type=pydantic_llm_spec.type)
 #
 # # 3. Update the pydantic_llm_spec with the api_key from config_with_api_key
 # # This step is crucial: LLMSpecModel needs an api_key field or create_llm_config needs to return LLMSpecModel

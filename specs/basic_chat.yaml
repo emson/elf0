@@ -6,8 +6,8 @@ runtime: "langgraph"
 # LLM definitions
 llms:
   chat_llm:
-    _type: "openai"
-    model_name: "gpt-4.1-mini"
+    type: "anthropic"
+    model_name: "claude-3-5-haiku-latest"
     temperature: 0.7
     params:
       max_tokens: 1000
@@ -34,7 +34,7 @@ functions: {}
 
 # Workflow definition
 workflow:
-  _type: "sequential"
+  type: "sequential"
   nodes:
     - id: "chat_step"
       kind: "agent"

@@ -59,17 +59,17 @@ def create_llm_config(config: Union[Dict[str, Any], LLMConfig], llm_type: Option
         An LLMConfig instance with API key from environment.
     """
     api_key_to_use = None
-    if llm_type: # llm_type is available (e.g. from spec._type)
+    if llm_type: # llm_type is available (e.g. from spec.type)
         api_key_to_use = get_api_key(llm_type)
-    elif isinstance(config, dict) and '_type' in config: # llm_type not passed, but _type is in dict
-        api_key_to_use = get_api_key(config['_type'])
-    elif not isinstance(config, dict) and hasattr(config, '_type'): # llm_type not passed, config is LLMConfig obj
+    elif isinstance(config, dict) and 'type' in config: # llm_type not passed, but type is in dict
+        api_key_to_use = get_api_key(config['type'])
+    elif not isinstance(config, dict) and hasattr(config, 'type'): # llm_type not passed, config is LLMConfig obj
          # This case might not be hit if llm_type is always passed from spec
-        api_key_to_use = get_api_key(config._type) # type: ignore
+        api_key_to_use = get_api_key(config.type) # type: ignore
     else:
         # Fallback or raise error if API key cannot be determined.
         # For now, let's try OpenAI as a default if no type is specified and key is needed.
-        # This maintains some backward compatibility if an old-style config without _type is passed.
+        # This maintains some backward compatibility if an old-style config without type is passed.
         try:
             api_key_to_use = get_api_key('openai')
         except ValueError:

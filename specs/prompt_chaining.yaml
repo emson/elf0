@@ -6,14 +6,14 @@ llms:
   # Define the LLM client configuration to be used by agent nodes
   # The 'ref' in the nodes will point to 'default_chat_llm'
   default_chat_llm:
-    _type: "openai_chat"  # Placeholder: actual type depends on LLMClient implementation
+    type: "openai_chat"  # Placeholder: actual type depends on LLMClient implementation
     model_name: "gpt-4.1-mini" # Corrected field name, was 'model'
     temperature: 0.7
     # A system message could be part of the LLM config if always applicable
     # system_message: "You are an expert content creator."
 
 workflow:
-  _type: sequential # Indicates nodes process data in sequence
+  type: sequential # Indicates nodes process data in sequence
   nodes:
     - id: outline_generator
       kind: agent         # This node is an LLM-powered agent

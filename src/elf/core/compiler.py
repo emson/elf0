@@ -68,7 +68,7 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
-            logger.info(f"🤖 LLM Processing for node '{node.id}' (using {llm_client.spec._type}:{llm_client.spec.model_name}): {state.get('input', '')[:100]}...")
+            logger.info(f"🤖 LLM Processing for node '{node.id}' (using {llm_client.spec.type}:{llm_client.spec.model_name}): {state.get('input', '')[:100]}...")
             response = llm_client.generate(state["input"])
             logger.info(f"✨ LLM Response from node '{node.id}': {response[:100]}...")
             
@@ -176,7 +176,7 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
 
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
-            logger.info(f"⚖️ Judge LLM Processing for node '{node.id}' (using {judge_llm_client.spec._type}:{judge_llm_client.spec.model_name}): {state.get('input', '')[:100]}...")
+            logger.info(f"⚖️ Judge LLM Processing for node '{node.id}' (using {judge_llm_client.spec.type}:{judge_llm_client.spec.model_name}): {state.get('input', '')[:100]}...")
             # Modify this part to use the judge_llm_client for actual judgment
             # For now, it uses the client to generate, but a judge might have a more complex logic or prompt engineering.
             judgment_prompt = f"Evaluate the following input: {state['input']}" # Example prompt for judge

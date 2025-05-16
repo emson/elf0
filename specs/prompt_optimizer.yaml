@@ -4,7 +4,7 @@ runtime: "langgraph"
 
 llms:
   generator:
-    _type: "openai"
+    type: "openai"
     model_name: "gpt-4.1-mini"
     temperature: 0.5
     params:
@@ -19,7 +19,7 @@ llms:
         Use clear sections (e.g., Task, Context, Requirements, Examples, Constraints) where appropriate.
 
   evaluator:
-    _type: "openai"
+    type: "openai"
     model_name: "gpt-4.1-mini"
     temperature: 0
     params:
@@ -60,7 +60,7 @@ memory: {}
 functions: {}
 
 workflow:
-  _type: "evaluator_optimizer"
+  type: "evaluator_optimizer"
   max_iterations: 7
   nodes:
     - id: "generate"

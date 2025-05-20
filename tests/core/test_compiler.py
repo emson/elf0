@@ -6,6 +6,12 @@ from elf.core.compiler import (
     create_condition_function
 )
 from elf.core.spec import Spec, LLM, WorkflowNode, Edge, Workflow
+from elf.core.config import load_env_file
+
+@pytest.fixture(autouse=True)
+def load_env():
+    """Load environment variables before each test."""
+    load_env_file()
 
 # Test data
 VALID_LLM_CONFIG = {

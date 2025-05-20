@@ -1,0 +1,97 @@
+version: "0.2"
+description: "Ollama Coder Evaluator-Optimizer workflow for iteratively creating high-quality code"
+runtime: "langgraph"
+
+llms:
+  generator:
+    type: "ollama"
+    model_name: "huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF:latest"
+    temperature: 0.2
+    params:
+      max_tokens: 8000
+      system_prompt: |
+        You are an expert programmer with extensive experience in multiple programming languages.
+        Your role is to generate the best working code program based on user prompts.
+        Please follow a structured approach:
+        1. Understand the problem thoroughly.
+        2. Plan your solution step-by-step.
+        3. Write clean, efficient, and well-documented code.
+        4. Test the generated code for correctness and efficiency.
+        Ensure that the final output is executable and meets all user requirements.
+        Output the actual executable program code, no preamble or summary just pure code.
+
+  evaluator:
+    type: "ollama"
+    model_name: "huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF:latest"
+    temperature: 0
+    params:
+      max_tokens: 1000
+      system_prompt: |
+        You are an expert code evaluator specialising in coding tasks.
+        You will receive a proposed code program. Evaluate it on:
+        - **Clarity**: Is the code clear and concise?
+        - **Completeness**: Is all the functionality correctly completed?
+        - **Structure**: Is it organised logically?
+        - **Effectiveness**: How likely is it to be correct, and bug free?
+        For each criterion, assign an integer score from 1 (poor) to 5 (excellent), and provide a short comment. Then calculate the average of these four scores as `evaluation_score`.
+        **Output only** a JSON object matching this schema:
+        ```json
+        {
+          "evaluation_score": <float>,
+          "scores": {
+            "Clarity": <int>,
+            "Completeness": <int>,
+            "Structure": <int>,
+            "Effectiveness": <int>
+          },
+          "feedback": {
+            "Clarity": "<comment>",
+            "Completeness": "<comment>",
+            "Structure": "<comment>",
+            "Effectiveness": "<comment>"
+          }
+        }
+        ```
+        No additional text.
+
+retrievers: {}
+memory: {}
+functions: {}
+
+workflow:
+  type: "evaluator_optimizer"
+  max_iterations: 3
+  nodes:
+    - id: "generate"
+      kind: "agent"
+      ref: "generator"
+      stop: false
+
+    - id: "evaluate"
+      kind: "judge"
+      ref: "evaluator"
+      stop: false
+
+    - id: "finalize"
+      kind: "agent"
+      ref: "generator"
+      stop: true
+
+  edges:
+    - source: "generate"
+      target: "evaluate"
+      condition: "True"
+
+    - source: "evaluate"
+      target: "finalize"
+      condition: "state.get('evaluation_score', 0) >= 4.0 or state.get('iteration_count', 0) >= 3"
+
+    - source: "evaluate"
+      target: "generate"
+      condition: "state.get('evaluation_score', 0) < 4.0 and state.get('iteration_count', 0) < 3"
+
+eval:
+  metrics:
+    - quality
+    - iterations
+  dataset_path: "data/prompt_improvement_test.jsonl"

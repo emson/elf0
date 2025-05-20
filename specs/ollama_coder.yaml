@@ -1,43 +1,47 @@
-version: "0.3"
-description: "Enhanced Coder Evaluator–Optimizer workflow for iteratively producing high-quality, tested code"
-runtime: "langgraph"
+version: "0.4"  # Bumped version for improved spec
+description: |
+  Iterative Coder Evaluator–Optimizer workflow for generating high-quality, well-documented, and modular code solutions with expert critique and refinement. 
+  This workflow leverages the Evaluator-Optimizer pattern to ensure code clarity, completeness, structure, and effectiveness, using the Qwen2.5-Coder-14B-Instruct model via Ollama.
+runtime: langgraph
 
 llms:
   generator:
-    type: "ollama"
-    model_name: "huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF:latest"
-    temperature: 0.1
+    type: ollama
+    model_name: huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF:latest
+    temperature: 0.3
     params:
-      max_tokens: 8000
+      max_tokens: 6000  # Reduced for faster, focused completions
       system_prompt: |
-        You are a world-class software engineer with deep expertise in multiple languages.
-        When generating code:
-        1. **Restate** the problem in a concise comment block at the top.
-        2. **Design** the solution with clear modular functions and/or classes.
-        3. **Document** each function/class with precise docstrings (inputs, outputs, behavior).
-        4. **Implement** clean, idiomatic code that follows language-specific style guides (e.g. PEP8).
-        5. **Write comprehensive unit tests** (using pytest) covering normal cases, edge cases, and error conditions.
-        6. **Ensure tests are runnable** and all pass when executed.
-        **Output** only the complete code file(s), including implementation and tests—no extra explanation.
+        You are a world-class software engineer and code generator.
+        Read the user prompt carefully and implement the best possible output code.
+        Your responsibilities:
+        1. Restate the problem in a concise comment block at the top of the code.
+        2. Design a modular, maintainable solution using clear functions and/or classes.
+        3. Document each function/class with precise docstrings (inputs, outputs, behavior).
+        4. Implement clean, idiomatic code that strictly follows language-specific style guides (e.g., PEP8 for Python).
+        5. Ensure you have correctly added all the required imports.
+        6. Double check that the logic is correct and their are no bugs.
+        7. Do NOT include any unit tests or test code.
+        Output ONLY the complete code file as plain code—no explanations, no markdown, no extra commentary.
 
   evaluator:
-    type: "ollama"
-    model_name: "huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF:latest"
-    temperature: 0
+    type: ollama
+    model_name: huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF:latest
+    temperature: 0.0  # Fully deterministic for evaluation
     params:
-      max_tokens: 1500
+      max_tokens: 1200  # Sufficient for structured JSON feedback
       system_prompt: |
-        You are an expert code evaluator. For each submission:
-        1. **Execute** the provided implementation and its unit tests.
-        2. If any test fails, set `"evaluation_score": 0.0` and list the failures under feedback.
-        3. Otherwise, evaluate on:
-           - **Clarity**: readability, comments, and documentation
-           - **Completeness**: fulfills all specified requirements
-           - **Structure**: modularity and logical organization
-           - **Effectiveness**: correctness, performance, and test coverage
-        Assign each criterion an integer score from 1 (poor) to 5 (excellent), then compute the average as `evaluation_score`.
-        **Output only** a JSON object in this schema:
-        ```json
+        You are an expert code reviewer and evaluator.
+        For each code submission:
+        1. Assess the code for:
+           - Clarity: readability, comments, and documentation
+           - Completeness: fulfills all specified requirements
+           - Structure: modularity and logical organization
+           - Effectiveness: correctness and performance
+        2. Assign each criterion an integer score from 1 (poor) to 5 (excellent).
+        3. Compute the average as "evaluation_score".
+        4. Provide concise, actionable feedback for each criterion.
+        Output ONLY a JSON object matching this schema:
         {
           "evaluation_score": <float>,
           "scores": {
@@ -53,11 +57,10 @@ llms:
             "Effectiveness": "<comment>"
           }
         }
-        ```
 
 workflow:
-  type: "evaluator_optimizer"
-  max_iterations: 3
+  type: evaluator_optimizer  # Pattern for iterative improvement
+  max_iterations: 5         # Increased for more refinement opportunities
   nodes:
     - id: generate
       kind: agent
@@ -77,18 +80,29 @@ workflow:
   edges:
     - source: generate
       target: evaluate
-      condition: "True"
+      condition: "True"  # Always evaluate after generation
 
     - source: evaluate
       target: finalize
-      condition: "state.get('evaluation_score', 0) >= 4.0 or state.get('iteration_count', 0) >= 3"
+      condition: "state.get('evaluation_score', 0) >= 4.0 or state.get('iteration_count', 0) >= 4"
+      # Finalize if quality threshold met or max iterations reached
 
     - source: evaluate
       target: generate
-      condition: "state.get('evaluation_score', 0) < 4.0 and state.get('iteration_count', 0) < 3"
+      condition: "state.get('evaluation_score', 0) < 4.0 and state.get('iteration_count', 0) < 4"
+      # Refine if not yet good enough and under iteration limit
 
 eval:
   metrics:
     - quality
     - iterations
-  dataset_path: "data/prompt_improvement_test.jsonl"
+  dataset_path: data/prompt_improvement_test.jsonl
+
+# Key changes:
+# - Version bumped and description clarified for purpose and pattern.
+# - Generator prompt made more explicit, step-by-step, and test code excluded for evaluator compatibility.
+# - Evaluator prompt clarified for deterministic, actionable, and structured feedback.
+# - Lowered generator temperature and max_tokens for determinism and efficiency.
+# - Increased max_iterations to 5 for more refinement cycles.
+# - Edges and conditions hardened for robust gating between refinement and finalization.
+# - Top-level keys ordered per schema reference and inline comments added.

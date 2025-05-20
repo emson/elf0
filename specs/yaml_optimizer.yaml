@@ -1,0 +1,119 @@
+version: "0.1"
+description: "Evaluator–Optimizer workflow that ingests a LangGraph/AgentIQ spec YAML and outputs an improved spec"
+runtime: "langgraph"
+
+llms:
+  spec_generator:
+    type: "openai"
+    model_name: "gpt-4.1"
+    temperature: 0.2
+    params:
+      max_tokens: 3000
+      stream: true
+      top_p: 0.9
+      presence_penalty: 0.0
+      frequency_penalty: 0.0
+      system_prompt: |
+        You are a world-class prompt and YAML spec engineer.  
+        **Input**: A complete LangGraph or AgentIQ workflow spec in YAML.  
+        **Task**: Produce an improved version of that spec, applying best practices and the latest schema rules.  
+        Follow these steps:
+        1. **Parse & Validate** the original spec against the reference schema:
+           - Ensure required fields (`version`, `runtime`, `llms`, `workflow`) are present.
+           - Validate `llms`, `retrievers`, `memory`, `functions` sections for correct types and keys.
+           - Check `workflow` nodes and edges for consistency (unique IDs, valid refs, no dead ends).
+        2. **Refine Metadata**:
+           - Bump the `version` (e.g. “0.1” → “0.2”).
+           - Enhance `description` to clearly state the purpose.
+        3. **Optimize LLM Prompts**:
+           - Clarify system prompts for each LLM: explicit roles, step-by-step instructions, desired output format.
+           - Adjust `temperature`, `max_tokens`, and other `params` for determinism and coverage.
+        4. **Harden Workflow**:
+           - Use the `evaluator_optimizer` pattern.
+           - Set a sensible `max_iterations` (e.g. 5).
+           - Ensure edges’ conditions correctly gate refinement vs. finalization.
+        5. **Format & Annotate**:
+           - Order top-level keys as per spec reference.
+           - Insert inline comments (YAML `#`) summarizing key changes.
+        6. **Output** only the final, valid YAML spec. No additional explanations.
+
+  spec_evaluator:
+    type: "openai"
+    model_name: "gpt-4.1-mini"
+    temperature: 0.0
+    params:
+      max_tokens: 1500
+      system_prompt: |
+        You are an expert YAML spec auditor.  
+        **Input**: 
+          - `original_spec`: the user’s initial YAML.
+          - `improved_spec`: the generator’s proposed YAML.  
+        **Task**: Evaluate `improved_spec` against `original_spec` and the official schema.  
+        Score each criterion 1–5, then average into `evaluation_score`:
+        - **Compliance**: Adherence to the required schema (fields, types, order).
+        - **Completeness**: Inclusion of all logical sections and metadata.
+        - **Clarity**: Readability, comments, and descriptive text.
+        - **Robustness**: Workflow consistency (no broken nodes/edges, sensible defaults).
+        - **Precision**: Prompts’ specificity and technical correctness.  
+        **Output only** a JSON object:
+        ```json
+        {
+          "evaluation_score": <float>,
+          "scores": {
+            "Compliance": <int>,
+            "Completeness": <int>,
+            "Clarity": <int>,
+            "Robustness": <int>,
+            "Precision": <int>
+          },
+          "feedback": {
+            "Compliance": "<comment>",
+            "Completeness": "<comment>",
+            "Clarity": "<comment>",
+            "Robustness": "<comment>",
+            "Precision": "<comment>"
+          }
+        }
+        ```
+
+retrievers: {}
+memory: {}
+functions: {}
+
+workflow:
+  type: "evaluator_optimizer"
+  max_iterations: 5
+  nodes:
+    - id: generate
+      kind: agent
+      ref: spec_generator
+      stop: false
+
+    - id: evaluate
+      kind: judge
+      ref: spec_evaluator
+      stop: false
+
+    - id: finalize
+      kind: agent
+      ref: spec_generator
+      stop: true
+
+  edges:
+    - source: generate
+      target: evaluate
+      condition: "True"
+
+    - source: evaluate
+      target: finalize
+      condition: "state.get('evaluation_score', 0) >= 4.0 or state.get('iteration_count', 0) >= 5"
+
+    - source: evaluate
+      target: generate
+      condition: "state.get('evaluation_score', 0) < 4.0 and state.get('iteration_count', 0) < 5"
+
+eval:
+  metrics:
+    - quality
+    - iterations
+  dataset_path: "data/spec_improvement_tests.jsonl"

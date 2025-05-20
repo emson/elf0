@@ -7,13 +7,20 @@ from .config import create_llm_config
 import logging
 from pydantic import BaseModel, Field
 import json
+from rich.logging import RichHandler
 
 # Configure logging
+# Default max iterations if not specified in the spec's workflow
+DEFAULT_MAX_ITERATIONS = 7
+
+# Configure RichHandler for beautiful logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format="%(message)s", # RichHandler takes care of formatting
+    datefmt="[%X]", # Time format, RichHandler might use its own or this as a hint
+    handlers=[RichHandler(rich_tracebacks=True, show_path=False, log_time_format="[%X]", markup=True)]
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) # Standard way to get a logger instance
 
 class WorkflowState(TypedDict):
     input: str
@@ -69,9 +76,13 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
-            logger.info(f"🤖 LLM Processing for node '{node.id}' (using {llm_client.spec.type}:{llm_client.spec.model_name}): {state.get('input', '')[:100]}...")
+            current_iter_display = state.get('iteration_count', 0) + 1
+            max_iter_display = spec.workflow.max_iterations or DEFAULT_MAX_ITERATIONS
+            iteration_str = f"Iteration {current_iter_display}/{max_iter_display}"
+            
+            logger.info(f"🤖 [Node: [cyan]{node.id}[/]] ({iteration_str}) (LLM: {llm_client.spec.type}:{llm_client.spec.model_name}) Processing: '{str(state.get('input', ''))[:70]}...'")
             response = llm_client.generate(state["input"])
-            logger.info(f"✨ LLM Response from node '{node.id}': {response[:100]}...")
+            logger.info(f"✨ [Node: [cyan]{node.id}[/]] LLM Response: '{response[:70]}...'")
             
             new_state = {
                 **state,  # Preserve all existing state
@@ -82,13 +93,13 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             # This is specific to the logic in orchestration_workers.yaml where breakdown_worker
             # completes a cycle before returning to the orchestrator.
             if node.id == "breakdown_worker":
-                current_iteration = state.get('iteration_count', 0)
-                new_state['iteration_count'] = current_iteration + 1
-                logger.info(f"🔄 Node '{node.id}' (breakdown_worker) incremented iteration_count to {new_state['iteration_count']}")
+                current_iteration_for_node = state.get('iteration_count', 0)
+                new_state['iteration_count'] = current_iteration_for_node + 1
+                logger.info(f"🔄 [Node: [cyan]{node.id}[/]] Incremented iteration_count to {new_state['iteration_count']}")
             
             return new_state
         except Exception as e:
-            logger.error(f"❌ LLM Error in node '{node.id}': {str(e)}")
+            logger.error(f"❌ [Node: [cyan]{node.id}[/]] LLM Error: {str(e)}", exc_info=True)
             # Preserve original state from before this node's execution on error
             return {
                 **state, 
@@ -177,27 +188,25 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
 
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
-            # The input to the judge is the output of the previous 'generate' node.
+            # Determine input for the judge
             input_to_judge = state.get("output")
             if input_to_judge is None:
-                # If state['output'] is None (e.g., if 'generate' node had an issue or it's the very start of a sub-graph not chained well),
-                # fall back to state['input']. This might happen if 'generate' failed to produce output.
-                logger.warning(f"⚖️ Judge LLM Node '{node.id}': Input from previous node (state['output']) is None. Using state['input'] as fallback: {str(state.get('input', ''))[:100]}...")
+                logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] Input from previous node (state['output']) is None. Using state['input'] as fallback: '{str(state.get('input', ''))[:70]}...'")
                 input_to_judge = state.get("input", "") 
-            else:
-                logger.info(f"⚖️ Judge LLM Node '{node.id}': Received input from state['output']: {str(input_to_judge)[:100]}...")
-
-
-            logger.info(f"⚖️ Judge LLM Processing for node '{node.id}' (using {judge_llm_client.spec.type}:{judge_llm_client.spec.model_name}): {str(input_to_judge)[:100]}...")
             
-            # Construct prompt for the judge LLM
-            # The judge's system prompt should guide it on how to evaluate.
-            # Here, we pass the content to be evaluated directly as the user message to the judge.
-            judgment_prompt = str(input_to_judge) # Pass the content to be judged
+            # Iteration display
+            # iteration_count in state is completed iterations. Current is +1.
+            # The judge node itself will increment iteration_count for the *next* state.
+            # So for *this* run, current_iter_display is based on the incoming state.
+            current_iter_display = state.get('iteration_count', 0) + 1 
+            max_iter_display = spec.workflow.max_iterations or DEFAULT_MAX_ITERATIONS
+            iteration_str = f"Iteration {current_iter_display}/{max_iter_display}"
 
+            logger.info(f"⚖️ [Node: [cyan]{node.id}[/]] ({iteration_str}) (LLM: {judge_llm_client.spec.type}:{judge_llm_client.spec.model_name}) Evaluating: '{str(input_to_judge)[:70]}...'")
+            
+            judgment_prompt = str(input_to_judge)
             raw_llm_output = judge_llm_client.generate(judgment_prompt)
-            # Log more of the raw output for easier debugging of JSON issues
-            logger.info(f"📊 Judge LLM raw output for node '{node.id}': {raw_llm_output[:500]}...")
+            logger.info(f"📊 [Node: [cyan]{node.id}[/]] Judge Raw Output: '{raw_llm_output[:200]}...'") # Show a bit more for JSON
 
             parsed_score_value: Optional[float] = None
             
@@ -206,7 +215,6 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 cleaned_json_str = raw_llm_output.strip()
                 if cleaned_json_str.startswith("```json"):
                     cleaned_json_str = cleaned_json_str[len("```json"):] 
-                # Also handle cases where it might just start with ```
                 elif cleaned_json_str.startswith("```"):
                      cleaned_json_str = cleaned_json_str[len("```"):]
 
@@ -215,53 +223,43 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 cleaned_json_str = cleaned_json_str.strip()
                 
                 if not cleaned_json_str:
-                    # This case can happen if the LLM output is empty after stripping fences.
-                    logger.warning(f"⚠️ Judge node '{node.id}': Cleaned JSON string is empty. Raw output: '{raw_llm_output}'")
+                    logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] Cleaned JSON string is empty. Raw: '{raw_llm_output}'")
                     raise ValueError("Cleaned JSON string is empty.")
 
                 data = json.loads(cleaned_json_str)
                 if isinstance(data, dict) and 'evaluation_score' in data:
-                    # Ensure the extracted score is actually a number, robustly.
                     score_from_json = data['evaluation_score']
                     if isinstance(score_from_json, (int, float)):
                         parsed_score_value = float(score_from_json)
                     else:
-                        logger.warning(f"⚠️ Judge node '{node.id}': 'evaluation_score' in JSON is not a number: {score_from_json}. Type: {type(score_from_json)}")
+                        logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] 'evaluation_score' in JSON is not a number: {score_from_json}. Type: {type(score_from_json)}")
                 else:
-                    logger.warning(f"⚠️ Judge node '{node.id}': 'evaluation_score' not found in JSON output or output is not a dict. Parsed JSON data: {data}")
+                    logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] 'evaluation_score' not found in JSON or output is not a dict. Parsed JSON: {data}")
             except (json.JSONDecodeError, ValueError, TypeError) as e:
-                # Catches errors from json.loads, float(), or if cleaned_json_str is empty.
-                logger.error(f"❌ Judge node '{node.id}': Failed to parse 'evaluation_score' from LLM output. Error: {type(e).__name__} - {e}. Raw output: '{raw_llm_output}'")
+                logger.error(f"❌ [Node: [cyan]{node.id}[/]] Failed to parse 'evaluation_score'. Error: {type(e).__name__} - {e}. Raw: '{raw_llm_output}'")
 
-            current_iteration = state.get('iteration_count', 0) + 1
+            # This is the iteration_count for the *output* state of this node.
+            iteration_count_for_next_state = state.get('iteration_count', 0) + 1
             
             final_score_for_state: float
             if parsed_score_value is not None:
                 final_score_for_state = parsed_score_value
             else:
-                # If parsing failed or score was None, default to 0.0.
-                # This ensures conditions always have a float to compare against.
                 final_score_for_state = 0.0
-                logger.warning(f"Judge node '{node.id}': Defaulting 'evaluation_score' to 0.0 in state due to parsing failure or missing key in LLM response.")
+                logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] Defaulting 'evaluation_score' to 0.0 due to parsing failure or missing key.")
 
-            # The 'output' field of the state will be updated with this judge's raw LLM output.
-            # Other fields like 'input' are preserved from the incoming state unless explicitly changed.
             return {
                 **state,
-                "output": raw_llm_output, # This node's (judge's) own output (the JSON string)
-                "iteration_count": current_iteration,
-                "evaluation_score": final_score_for_state # The crucial score for conditions
+                "output": raw_llm_output, 
+                "iteration_count": iteration_count_for_next_state, # Update iteration count for the next node
+                "evaluation_score": final_score_for_state
             }
         except Exception as e:
-            # Catch any other unexpected errors during node execution
-            logger.error(f"❌ Unhandled Exception in Judge LLM Node '{node.id}': {type(e).__name__} - {str(e)}", exc_info=True)
-            # Preserve state as much as possible, ensure critical fields for conditions are sensible
+            logger.error(f"❌ [Node: [cyan]{node.id}[/]] Unhandled Exception: {type(e).__name__} - {str(e)}", exc_info=True)
             return {
                 **state,
                 "output": f"Error in Judge Node '{node.id}': {type(e).__name__} - {str(e)}",
-                # Increment iteration even on error to potentially break out of loops if the error is persistent
                 "iteration_count": state.get('iteration_count', 0) + 1,
-                # Try to keep the last known score, or default to 0.0, to avoid NoneType errors in subsequent condition checks.
                 "evaluation_score": state.get("evaluation_score") if isinstance(state.get("evaluation_score"), float) else 0.0
             }
     return node_fn
@@ -365,6 +363,8 @@ def create_workflow_graph(spec: Spec) -> StateGraph:
     Returns:
         A configured StateGraph instance
     """
+    logger.info("[bold green]🚀 Compiling workflow...[/bold green]")
+    
     # Create the graph
     graph = StateGraph()
     
@@ -375,8 +375,11 @@ def create_workflow_graph(spec: Spec) -> StateGraph:
     add_edges_to_graph(graph, spec)
     
     # Set the entry point
-    graph.set_entry_point(spec.workflow.nodes[0].id)
+    if spec.workflow.nodes:
+        logger.info(f"🎯 Setting entry point: [bright_blue]{spec.workflow.nodes[0].id}[/]")
+        graph.set_entry_point(spec.workflow.nodes[0].id)
     
+    logger.info("[bold green]✅ Workflow compilation complete[/bold green]")
     return graph
 
 def add_nodes_to_graph(graph: StateGraph, spec: Spec) -> None:
@@ -389,7 +392,7 @@ def add_nodes_to_graph(graph: StateGraph, spec: Spec) -> None:
     """
     logger.info("🔄 Building workflow nodes...")
     for node in spec.workflow.nodes:
-        logger.info(f"📝 Adding node: {node.id} ({node.kind})")
+        logger.info(f"🔩 Adding Node: [bright_blue]{node.id}[/] ({node.kind})")
         factory = NodeFactoryRegistry.get(node.kind)
         node_fn = factory(spec, node)
         graph.add_node(node.id, node_fn)
@@ -413,7 +416,7 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
         edges_by_source.setdefault(edge.source, []).append(edge)
     
     for source, edges_from_source in edges_by_source.items():
-        logger.info(f"📝 Processing edges from node: {source}")
+        logger.info(f"🔗 Processing edges from Node: [bright_blue]{source}[/]")
         
         conditional_edges = [e for e in edges_from_source if e.condition]
         unconditional_edges = [e for e in edges_from_source if not e.condition]
@@ -421,7 +424,7 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
         if conditional_edges:
             # If there are any conditional edges, all decisions from this node
             # must go through a single conditional router.
-            logger.info(f"  → Node {source} has conditional logic. All outgoing edges managed by a router.")
+            logger.info(f"  路由: Node [bright_blue]{source}[/] has conditional logic. All outgoing edges managed by a router.") # Using Rich markup for node name
 
             default_target: Optional[str] = None
             if len(unconditional_edges) > 1:
@@ -453,21 +456,21 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
                     for condition_fn, target_node_name in condition_target_pairs:
                         try:
                             if condition_fn(state): # condition_fn should return boolean
-                                logger.info(f"  Router for {source_node_id}: Condition met, routing to '{target_node_name}'")
+                                logger.info(f"  路由: [bright_blue]{source_node_id}[/] -> Condition met, routing to '[green]{target_node_name}[/]'")
                                 return target_node_name # Router returns the key for the ends_map
                         except Exception as e:
                             logger.error(
-                                f"❌ Routing Error for {source_node_id} evaluating condition for {target_node_name}: {str(e)}. "
+                                f"❌ Routing Error for [bright_blue]{source_node_id}[/] evaluating condition for [green]{target_node_name}[/]: {str(e)}. "
                                 "Attempting to continue with other conditions or fallback."
                             )
                             # In a production system, you might want to raise or handle this more specifically
                     
                     if def_target:
-                        logger.info(f"  Router for {source_node_id}: No conditional route taken, routing to default target '{def_target}'")
+                        logger.info(f"  路由: [bright_blue]{source_node_id}[/] -> No conditional route, routing to default '[green]{def_target}[/]'")
                         return def_target
                     
                     logger.warning(
-                        f"  Router for {source_node_id}: No condition met and no default target. Routing to END. "
+                        f"  ⚠️ Router for [bright_blue]{source_node_id}[/]: No condition met and no default target. Routing to [yellow]END[/]. "
                         "Ensure graph logic correctly leads to a defined state or END."
                     )
                     return END # LangGraph's END sentinel if no path is chosen
@@ -491,16 +494,15 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
             )
         
         elif unconditional_edges: # No conditional edges from this source, only unconditional ones.
-            logger.info(f"  → Node {source} has only unconditional edges.")
+            logger.info(f"  🛑 Node [bright_blue]{source}[/] has no outgoing edges defined in the spec.") # Rich markup
             if len(unconditional_edges) > 1:
-                 logger.info(f"    Node {source} has multiple unconditional edges (fan-out): {[e.target for e in unconditional_edges]}")
+                 logger.info(f"    扇出: Node [bright_blue]{source}[/] has multiple unconditional edges (fan-out): {[e.target for e in unconditional_edges]}") # Rich markup
             for edge in unconditional_edges:
-                logger.info(f"    → Adding direct edge from {source} to: {edge.target}")
-                graph.add_edge(edge.source, edge.target)
+                logger.info(f"    → Adding direct edge from [bright_blue]{source}[/] to: [green]{edge.target}[/]") # Rich markup
         else:
             # This case means the node is a leaf node in terms of defined edges.
             # If it's not a 'stop: true' node, the graph might halt here if no global end is reached.
-            logger.info(f"  → Node {source} has no outgoing edges defined in the spec.")
+            logger.info(f"  🛑 Node [bright_blue]{source}[/] has no outgoing edges defined in the spec.") # Rich markup
 
 
 def compile_to_langgraph(spec: Spec) -> StateGraph:
@@ -513,7 +515,7 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
     Returns:
         A configured StateGraph ready for execution
     """
-    logger.info("🚀 Compiling workflow...")
+    logger.info("[bold green]🚀 Compiling workflow...[/bold green]")
     
     # Define the state schema using Pydantic
     class WorkflowStateSchema(BaseModel):
@@ -534,8 +536,8 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
     
     # Set the entry point
     if spec.workflow.nodes:
-        logger.info(f"🎯 Setting entry point: {spec.workflow.nodes[0].id}")
+        logger.info(f"🎯 Setting entry point: [bright_blue]{spec.workflow.nodes[0].id}[/]")
         graph.set_entry_point(spec.workflow.nodes[0].id)
     
-    logger.info("✅ Workflow compilation complete")
+    logger.info("[bold green]✅ Workflow compilation complete[/bold green]")
     return graph

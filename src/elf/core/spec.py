@@ -76,6 +76,7 @@ class Workflow(BaseModel):
     type: Literal['sequential', 'react', 'evaluator_optimizer', 'custom_graph']
     nodes: List[WorkflowNode]
     edges: List[Edge]
+    max_iterations: Optional[int] = Field(default=None, description="Maximum number of iterations for the workflow loop.")
     
     @model_validator(mode='after')
     def validate_workflow_structure(self) -> 'Workflow':

@@ -6,6 +6,7 @@ from .spec import Spec, WorkflowNode, Edge, LLM as LLMSpecModel
 from .config import create_llm_config
 import logging
 from pydantic import BaseModel, Field
+import json
 
 # Configure logging
 logging.basicConfig(
@@ -176,36 +177,92 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
 
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
-            logger.info(f"⚖️ Judge LLM Processing for node '{node.id}' (using {judge_llm_client.spec.type}:{judge_llm_client.spec.model_name}): {state.get('input', '')[:100]}...")
-            # Modify this part to use the judge_llm_client for actual judgment
-            # For now, it uses the client to generate, but a judge might have a more complex logic or prompt engineering.
-            judgment_prompt = f"Evaluate the following input: {state['input']}" # Example prompt for judge
-            result = judge_llm_client.generate(judgment_prompt)
+            # The input to the judge is the output of the previous 'generate' node.
+            input_to_judge = state.get("output")
+            if input_to_judge is None:
+                # If state['output'] is None (e.g., if 'generate' node had an issue or it's the very start of a sub-graph not chained well),
+                # fall back to state['input']. This might happen if 'generate' failed to produce output.
+                logger.warning(f"⚖️ Judge LLM Node '{node.id}': Input from previous node (state['output']) is None. Using state['input'] as fallback: {str(state.get('input', ''))[:100]}...")
+                input_to_judge = state.get("input", "") 
+            else:
+                logger.info(f"⚖️ Judge LLM Node '{node.id}': Received input from state['output']: {str(input_to_judge)[:100]}...")
+
+
+            logger.info(f"⚖️ Judge LLM Processing for node '{node.id}' (using {judge_llm_client.spec.type}:{judge_llm_client.spec.model_name}): {str(input_to_judge)[:100]}...")
             
-            logger.info(f"📊 Judge evaluation result for node '{node.id}': {result[:100]}...")
+            # Construct prompt for the judge LLM
+            # The judge's system prompt should guide it on how to evaluate.
+            # Here, we pass the content to be evaluated directly as the user message to the judge.
+            judgment_prompt = str(input_to_judge) # Pass the content to be judged
+
+            raw_llm_output = judge_llm_client.generate(judgment_prompt)
+            # Log more of the raw output for easier debugging of JSON issues
+            logger.info(f"📊 Judge LLM raw output for node '{node.id}': {raw_llm_output[:500]}...")
+
+            parsed_score_value: Optional[float] = None
             
-            # Assuming the judgment result itself is the output, or it modifies a score, etc.
-            # For simplicity, let's put the raw judgment in 'output'
-            # and also update 'evaluation_score' if the result can be parsed to a float.
+            try:
+                # Clean the string: remove markdown fences and trim whitespace
+                cleaned_json_str = raw_llm_output.strip()
+                if cleaned_json_str.startswith("```json"):
+                    cleaned_json_str = cleaned_json_str[len("```json"):] 
+                # Also handle cases where it might just start with ```
+                elif cleaned_json_str.startswith("```"):
+                     cleaned_json_str = cleaned_json_str[len("```"):]
+
+                if cleaned_json_str.endswith("```"):
+                    cleaned_json_str = cleaned_json_str[:-len("```")]
+                cleaned_json_str = cleaned_json_str.strip()
+                
+                if not cleaned_json_str:
+                    # This case can happen if the LLM output is empty after stripping fences.
+                    logger.warning(f"⚠️ Judge node '{node.id}': Cleaned JSON string is empty. Raw output: '{raw_llm_output}'")
+                    raise ValueError("Cleaned JSON string is empty.")
+
+                data = json.loads(cleaned_json_str)
+                if isinstance(data, dict) and 'evaluation_score' in data:
+                    # Ensure the extracted score is actually a number, robustly.
+                    score_from_json = data['evaluation_score']
+                    if isinstance(score_from_json, (int, float)):
+                        parsed_score_value = float(score_from_json)
+                    else:
+                        logger.warning(f"⚠️ Judge node '{node.id}': 'evaluation_score' in JSON is not a number: {score_from_json}. Type: {type(score_from_json)}")
+                else:
+                    logger.warning(f"⚠️ Judge node '{node.id}': 'evaluation_score' not found in JSON output or output is not a dict. Parsed JSON data: {data}")
+            except (json.JSONDecodeError, ValueError, TypeError) as e:
+                # Catches errors from json.loads, float(), or if cleaned_json_str is empty.
+                logger.error(f"❌ Judge node '{node.id}': Failed to parse 'evaluation_score' from LLM output. Error: {type(e).__name__} - {e}. Raw output: '{raw_llm_output}'")
+
             current_iteration = state.get('iteration_count', 0) + 1
             
-            # Placeholder: try to parse a score if the judgment is numeric
-            try:
-                score = float(result.strip())
-            except ValueError:
-                score = None # Or some default / error indicator
+            final_score_for_state: float
+            if parsed_score_value is not None:
+                final_score_for_state = parsed_score_value
+            else:
+                # If parsing failed or score was None, default to 0.0.
+                # This ensures conditions always have a float to compare against.
+                final_score_for_state = 0.0
+                logger.warning(f"Judge node '{node.id}': Defaulting 'evaluation_score' to 0.0 in state due to parsing failure or missing key in LLM response.")
 
+            # The 'output' field of the state will be updated with this judge's raw LLM output.
+            # Other fields like 'input' are preserved from the incoming state unless explicitly changed.
             return {
-                **state,  # Preserve all existing state
+                **state,
+                "output": raw_llm_output, # This node's (judge's) own output (the JSON string)
                 "iteration_count": current_iteration,
-                "output": result,
-                "evaluation_score": score if score is not None else state.get("evaluation_score") # Keep old score if new one is not parseable
+                "evaluation_score": final_score_for_state # The crucial score for conditions
             }
         except Exception as e:
-            logger.error(f"❌ Judge LLM Error in node '{node.id}': {str(e)}")
+            # Catch any other unexpected errors during node execution
+            logger.error(f"❌ Unhandled Exception in Judge LLM Node '{node.id}': {type(e).__name__} - {str(e)}", exc_info=True)
+            # Preserve state as much as possible, ensure critical fields for conditions are sensible
             return {
-                **state,  # Preserve all existing state
-                "output": f"Error in Judge Node '{node.id}': {str(e)}"
+                **state,
+                "output": f"Error in Judge Node '{node.id}': {type(e).__name__} - {str(e)}",
+                # Increment iteration even on error to potentially break out of loops if the error is persistent
+                "iteration_count": state.get('iteration_count', 0) + 1,
+                # Try to keep the last known score, or default to 0.0, to avoid NoneType errors in subsequent condition checks.
+                "evaluation_score": state.get("evaluation_score") if isinstance(state.get("evaluation_score"), float) else 0.0
             }
     return node_fn
 

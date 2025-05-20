@@ -1,40 +1,42 @@
-version: "0.2"
-description: "Ollama Coder Evaluator-Optimizer workflow for iteratively creating high-quality code"
+version: "0.3"
+description: "Enhanced Coder Evaluator–Optimizer workflow for iteratively producing high-quality, tested code"
 runtime: "langgraph"
 
 llms:
   generator:
     type: "ollama"
     model_name: "huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF:latest"
-    temperature: 0.2
+    temperature: 0.1
     params:
       max_tokens: 8000
       system_prompt: |
-        You are an expert programmer with extensive experience in multiple programming languages.
-        Your role is to generate the best working code program based on user prompts.
-        Please follow a structured approach:
-        1. Understand the problem thoroughly.
-        2. Plan your solution step-by-step.
-        3. Write clean, efficient, and well-documented code.
-        4. Test the generated code for correctness and efficiency.
-        Ensure that the final output is executable and meets all user requirements.
-        Output the actual executable program code, no preamble or summary just pure code.
+        You are a world-class software engineer with deep expertise in multiple languages.
+        When generating code:
+        1. **Restate** the problem in a concise comment block at the top.
+        2. **Design** the solution with clear modular functions and/or classes.
+        3. **Document** each function/class with precise docstrings (inputs, outputs, behavior).
+        4. **Implement** clean, idiomatic code that follows language-specific style guides (e.g. PEP8).
+        5. **Write comprehensive unit tests** (using pytest) covering normal cases, edge cases, and error conditions.
+        6. **Ensure tests are runnable** and all pass when executed.
+        **Output** only the complete code file(s), including implementation and tests—no extra explanation.
 
   evaluator:
     type: "ollama"
     model_name: "huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF:latest"
     temperature: 0
     params:
-      max_tokens: 1000
+      max_tokens: 1500
       system_prompt: |
-        You are an expert code evaluator specialising in coding tasks.
-        You will receive a proposed code program. Evaluate it on:
-        - **Clarity**: Is the code clear and concise?
-        - **Completeness**: Is all the functionality correctly completed?
-        - **Structure**: Is it organised logically?
-        - **Effectiveness**: How likely is it to be correct, and bug free?
-        For each criterion, assign an integer score from 1 (poor) to 5 (excellent), and provide a short comment. Then calculate the average of these four scores as `evaluation_score`.
-        **Output only** a JSON object matching this schema:
+        You are an expert code evaluator. For each submission:
+        1. **Execute** the provided implementation and its unit tests.
+        2. If any test fails, set `"evaluation_score": 0.0` and list the failures under feedback.
+        3. Otherwise, evaluate on:
+           - **Clarity**: readability, comments, and documentation
+           - **Completeness**: fulfills all specified requirements
+           - **Structure**: modularity and logical organization
+           - **Effectiveness**: correctness, performance, and test coverage
+        Assign each criterion an integer score from 1 (poor) to 5 (excellent), then compute the average as `evaluation_score`.
+        **Output only** a JSON object in this schema:
         ```json
         {
           "evaluation_score": <float>,
@@ -52,42 +54,37 @@ llms:
           }
         }
         ```
-        No additional text.
-
-retrievers: {}
-memory: {}
-functions: {}
 
 workflow:
   type: "evaluator_optimizer"
   max_iterations: 3
   nodes:
-    - id: "generate"
-      kind: "agent"
-      ref: "generator"
+    - id: generate
+      kind: agent
+      ref: generator
       stop: false
 
-    - id: "evaluate"
-      kind: "judge"
-      ref: "evaluator"
+    - id: evaluate
+      kind: judge
+      ref: evaluator
       stop: false
 
-    - id: "finalize"
-      kind: "agent"
-      ref: "generator"
+    - id: finalize
+      kind: agent
+      ref: generator
       stop: true
 
   edges:
-    - source: "generate"
-      target: "evaluate"
+    - source: generate
+      target: evaluate
       condition: "True"
 
-    - source: "evaluate"
-      target: "finalize"
+    - source: evaluate
+      target: finalize
       condition: "state.get('evaluation_score', 0) >= 4.0 or state.get('iteration_count', 0) >= 3"
 
-    - source: "evaluate"
-      target: "generate"
+    - source: evaluate
+      target: generate
       condition: "state.get('evaluation_score', 0) < 4.0 and state.get('iteration_count', 0) < 3"
 
 eval:

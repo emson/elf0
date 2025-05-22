@@ -2,7 +2,7 @@
 from typing import Callable, Any, Dict, TypedDict, Protocol, List, Optional
 from langgraph.graph import StateGraph, END
 from .llm_client import LLMClient
-from .spec import Spec, WorkflowNode, Edge, LLM as LLMSpecModel
+from .spec import Spec, WorkflowNode, Edge
 from .config import create_llm_config
 import logging
 from pydantic import BaseModel, Field
@@ -27,6 +27,10 @@ class WorkflowState(TypedDict):
     output: str | None
     iteration_count: Optional[int]
     evaluation_score: Optional[float]
+    # Optional workflow metadata fields for enhanced tracking
+    workflow_id: Optional[str]
+    current_node: Optional[str]
+    error_context: Optional[str]
 
 class NodeFunction(Protocol):
     """Protocol defining the interface for node functions."""
@@ -36,18 +40,20 @@ class NodeFactory(Protocol):
     """Protocol defining the interface for node factory functions."""
     def __call__(self, spec: Spec, node: WorkflowNode) -> NodeFunction: ...
 
-def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
+def _create_llm_client(spec: Spec, node: WorkflowNode) -> LLMClient:
     """
-    Create a node function that uses an LLM to process input and generate output.
+    Create an LLM client from spec and node configuration.
     
     Args:
         spec: The full workflow specification.
-        node: The WorkflowNode object, used here to access node.id and node.ref.
+        node: The WorkflowNode with LLM reference.
         
     Returns:
-        A function that processes state using the LLM.
+        Configured LLMClient instance.
+        
+    Raises:
+        ValueError: If LLM reference is invalid or missing required fields.
     """
-    # 1. Get the specific LLM model configuration from the spec
     if node.ref not in spec.llms:
         raise ValueError(f"LLM reference '{node.ref}' in node '{node.id}' not found in spec.llms")
     
@@ -62,21 +68,34 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             f"Ensure the LLM spec includes 'type'. LLM details: {llm_pydantic_model_instance.model_dump(exclude_none=True)}"
         )
 
-    # 2. Use create_llm_config to get a config object that includes the resolved API key.
+    # Use create_llm_config to get a config object that includes the resolved API key
     populated_config_obj = create_llm_config(
         config=llm_pydantic_model_instance.model_dump(), 
-        llm_type=llm_instance_type # Use the safely retrieved type
+        llm_type=llm_instance_type
     )
 
-    # 3. Update the original Pydantic model instance from spec.llms with the resolved API key.
+    # Update the original Pydantic model instance with the resolved API key
     llm_pydantic_model_instance.api_key = populated_config_obj.api_key
     
-    # 4. Instantiate LLMClient with the updated Pydantic model instance
-    llm_client = LLMClient(llm_pydantic_model_instance)
+    # Return configured LLMClient
+    return LLMClient(llm_pydantic_model_instance)
+
+def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
+    """
+    Create a node function that uses an LLM to process input and generate output.
+    
+    Args:
+        spec: The full workflow specification.
+        node: The WorkflowNode object, used here to access node.id and node.ref.
+        
+    Returns:
+        A function that processes state using the LLM.
+    """
+    llm_client = _create_llm_client(spec, node)
     
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
-            current_iter_display = state.get('iteration_count', 0) + 1
+            current_iter_display = (state.get('iteration_count') or 0) + 1
             max_iter_display = spec.workflow.max_iterations or DEFAULT_MAX_ITERATIONS
             iteration_str = f"Iteration {current_iter_display}/{max_iter_display}"
             
@@ -84,26 +103,33 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             response = llm_client.generate(state["input"])
             logger.info(f"✨ [Node: [cyan]{node.id}[/]] LLM Response: '{response[:70]}...'")
             
-            new_state = {
-                **state,  # Preserve all existing state
-                "output": response
-            }
-
             # If this node is 'breakdown_worker', increment iteration_count.
             # This is specific to the logic in orchestration_workers.yaml where breakdown_worker
             # completes a cycle before returning to the orchestrator.
             if node.id == "breakdown_worker":
-                current_iteration_for_node = state.get('iteration_count', 0)
-                new_state['iteration_count'] = current_iteration_for_node + 1
-                logger.info(f"🔄 [Node: [cyan]{node.id}[/]] Incremented iteration_count to {new_state['iteration_count']}")
+                current_iteration_for_node = state.get('iteration_count') or 0
+                return WorkflowState({
+                    **state,
+                    "output": response,
+                    "iteration_count": current_iteration_for_node + 1,
+                    "current_node": node.id,
+                    "error_context": None
+                })
             
-            return new_state
+            return WorkflowState({
+                **state,  # Preserve all existing state
+                "output": response,
+                "current_node": node.id,
+                "error_context": None
+            })
         except Exception as e:
             logger.error(f"❌ [Node: [cyan]{node.id}[/]] LLM Error: {str(e)}", exc_info=True)
             # Preserve original state from before this node's execution on error
             return {
                 **state, 
-                "output": f"Error: {str(e)}"
+                "output": f"Error: {str(e)}",
+                "current_node": node.id,
+                "error_context": f"LLM error in node {node.id}: {type(e).__name__}"
             }
     return node_fn
 
@@ -119,36 +145,49 @@ def load_tool(fn: Any) -> NodeFunction:
     """
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
-            logger.info("🔍 Evaluating prompt quality...")
-            # Increment iteration count
-            iteration_count = state.get('iteration_count', 0) + 1
+            if fn is None:
+                logger.warning("⚠️ Tool function is None, returning input as output")
+                return {
+                    **state,
+                    "output": state.get("input", "")
+                }
             
-            # Mock evaluation score logic for testing
-            # This ensures the score changes and can meet exit conditions.
-            mock_score: float = 0.0
-            if iteration_count == 1:
-                mock_score = 1.0
-            elif iteration_count == 2:
-                mock_score = 4.0 # This should meet the ">= 4" condition on the 2nd attempt
+            logger.info(f"🔧 Executing tool function: {getattr(fn, '__name__', 'unknown')}")
+            
+            # Execute the tool function with the current state
+            if callable(fn):
+                result = fn(state)
+                
+                # If the tool returns a string, use it as output
+                if isinstance(result, str):
+                    return {
+                        **state,
+                        "output": result
+                    }
+                # If the tool returns a dict, merge it with state
+                elif isinstance(result, dict):
+                    return {
+                        **state,
+                        **result
+                    }
+                # Otherwise convert to string
+                else:
+                    return {
+                        **state,
+                        "output": str(result)
+                    }
             else:
-                mock_score = 5.0 # For any subsequent attempts
-
-            logger.info(f"🔄 Iteration {iteration_count} of 3 (target for prompt improvement loop)")
-            logger.info(f"📊 Evaluation result: Mock Score = {mock_score}")
-            
-            result_message = f"Judgment for: {state.get('input','')} - Iteration: {iteration_count}, Mock Score: {mock_score}"
-            
-            return {
-                **state,  # Preserve all existing state
-                "iteration_count": iteration_count,
-                "evaluation_score": mock_score,
-                "output": result_message
-            }
+                logger.warning("⚠️ Tool function is not callable")
+                return {
+                    **state,
+                    "output": f"Tool function {fn} is not callable"
+                }
+                
         except Exception as e:
-            logger.error(f"❌ Evaluation Error: {str(e)}")
+            logger.error(f"❌ Tool execution error: {str(e)}")
             return {
-                **state,  # Preserve all existing state
-                "output": f"Error: {str(e)}"
+                **state,
+                "output": f"Tool error: {str(e)}"
             }
     return node_fn
 
@@ -163,28 +202,7 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     Returns:
         A node function that performs judgment
     """
-    # Similar logic to make_llm_node for instantiating the LLMClient
-    if node.ref not in spec.llms:
-        raise ValueError(f"LLM reference '{node.ref}' in judge node '{node.id}' not found in spec.llms")
-
-    llm_pydantic_model_instance = spec.llms[node.ref]
-
-    # Safely get the type attribute
-    llm_instance_type = getattr(llm_pydantic_model_instance, 'type', None)
-    if not llm_instance_type:
-        raise ValueError(
-            f"LLM configuration for reference '{node.ref}' (used in judge node '{node.id}') "
-            f"is missing the required 'type' attribute. "
-            f"Ensure the LLM spec includes 'type'. LLM details: {llm_pydantic_model_instance.model_dump(exclude_none=True)}"
-        )
-        
-    populated_config_obj = create_llm_config(
-        config=llm_pydantic_model_instance.model_dump(),
-        llm_type=llm_instance_type # Use the safely retrieved type
-    )
-    llm_pydantic_model_instance.api_key = populated_config_obj.api_key
-
-    judge_llm_client = LLMClient(llm_pydantic_model_instance)
+    judge_llm_client = _create_llm_client(spec, node)
 
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
@@ -198,7 +216,7 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             # iteration_count in state is completed iterations. Current is +1.
             # The judge node itself will increment iteration_count for the *next* state.
             # So for *this* run, current_iter_display is based on the incoming state.
-            current_iter_display = state.get('iteration_count', 0) + 1 
+            current_iter_display = (state.get('iteration_count') or 0) + 1 
             max_iter_display = spec.workflow.max_iterations or DEFAULT_MAX_ITERATIONS
             iteration_str = f"Iteration {current_iter_display}/{max_iter_display}"
 
@@ -239,7 +257,7 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 logger.error(f"❌ [Node: [cyan]{node.id}[/]] Failed to parse 'evaluation_score'. Error: {type(e).__name__} - {e}. Raw: '{raw_llm_output}'")
 
             # This is the iteration_count for the *output* state of this node.
-            iteration_count_for_next_state = state.get('iteration_count', 0) + 1
+            iteration_count_for_next_state = (state.get('iteration_count') or 0) + 1
             
             final_score_for_state: float
             if parsed_score_value is not None:
@@ -259,7 +277,7 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             return {
                 **state,
                 "output": f"Error in Judge Node '{node.id}': {type(e).__name__} - {str(e)}",
-                "iteration_count": state.get('iteration_count', 0) + 1,
+                "iteration_count": (state.get('iteration_count') or 0) + 1,
                 "evaluation_score": state.get("evaluation_score") if isinstance(state.get("evaluation_score"), float) else 0.0
             }
     return node_fn
@@ -277,7 +295,7 @@ def make_branch_node(node: Any) -> NodeFunction:
     def node_fn(state: WorkflowState) -> WorkflowState:
         # TODO: Implement actual branching logic
         return {
-            "input": state["input"],
+            **state,
             "output": f"Branch result for: {state['input']}"
         }
     return node_fn
@@ -324,63 +342,107 @@ class NodeFactoryRegistry:
 
 def create_condition_function(expr: str) -> Callable[[Dict[str, Any]], Any]:
     """
-    Create a condition function from a Python expression string.
+    Create a condition function from a safe expression string.
     
     Args:
-        expr: Python expression that evaluates to a boolean or returns a target node name
+        expr: Expression string with limited operations for safety
         
     Returns:
         A function that evaluates the expression against the state
         
     Note:
-        This uses eval(), which has security implications. In production code,
-        consider using a more secure expression parser.
+        Uses a safe expression evaluator instead of eval() for security.
+        Supports: state.get('key', default) comparisons with >=, <=, >, <, ==, !=
+        Also supports 'and' and 'or' operators for combining conditions.
     """
-    # Pre-process the expression to handle state dictionary access
-    # Replace state.get() with direct dictionary access
-    processed_expr = expr.replace("state.get('", "state.get('")
+    import re
+    import operator
+    
+    # Define allowed operators
+    ops = {
+        '>=': operator.ge,
+        '<=': operator.le,
+        '>': operator.gt,
+        '<': operator.lt,
+        '==': operator.eq,
+        '!=': operator.ne,
+    }
+    
+    def _parse_value(val_str: str) -> Any:
+        """Parse a string value to int, float, or string."""
+        val_str = val_str.strip()
+        if val_str.isdigit() or (val_str.startswith('-') and val_str[1:].isdigit()):
+            return int(val_str)
+        try:
+            return float(val_str)
+        except ValueError:
+            return val_str.strip('"\'')
+    
+    def _evaluate_single_condition(condition_str: str, state: Dict[str, Any]) -> Any:
+        """Evaluate a single condition like 'state.get('key', default) op value'."""
+        pattern = r"state\.get\(['\"](.*?)['\"]\s*,\s*(.*?)\)\s*([><=!]+)\s*(.*)"
+        match = re.match(pattern, condition_str.strip())
+        
+        if not match:
+            # Handle simple boolean expressions
+            if condition_str.lower() in ('true', 'false'):
+                return condition_str.lower() == 'true'
+            
+            # Handle direct state key access: state['key'] or state.get('key')
+            if condition_str.startswith('state[') or condition_str.startswith('state.get('):
+                key_match = re.search(r"['\"](.*?)['\"]", condition_str)
+                if key_match:
+                    key = key_match.group(1)
+                    return bool(state.get(key))
+            
+            # Treat as string literal (for target node names)
+            return condition_str.strip('"\'')
+        
+        key, default_val, op, value = match.groups()
+        
+        # Parse default value and comparison value
+        default = _parse_value(default_val)
+        comp_value = _parse_value(value)
+        
+        # Get state value
+        state_value = state.get(key, default)
+        
+        # Perform comparison
+        if op in ops:
+            return ops[op](state_value, comp_value)
+        else:
+            raise ValueError(f"Unsupported operator: {op}")
     
     def condition(state: Dict[str, Any]) -> Any:
         try:
-            # Create a context with state as a local variable
-            context = {
-                "__builtins__": {},
-                "state": state,
-                "get": lambda d, k, default=None: d.get(k, default)
-            }
-            return eval(processed_expr, context)
+            # Handle complex expressions with 'and' and 'or'
+            if ' and ' in expr or ' or ' in expr:
+                # Split by 'and' and 'or' operators
+                # For simplicity, we'll handle left-to-right evaluation
+                
+                # Split by 'and' first (higher precedence)
+                and_parts = expr.split(' and ')
+                and_results = []
+                
+                for and_part in and_parts:
+                    # Handle 'or' within each 'and' part
+                    if ' or ' in and_part:
+                        or_parts = and_part.split(' or ')
+                        or_result = any(_evaluate_single_condition(part.strip(), state) for part in or_parts)
+                        and_results.append(or_result)
+                    else:
+                        and_results.append(_evaluate_single_condition(and_part.strip(), state))
+                
+                return all(and_results)
+            
+            # Handle single condition
+            return _evaluate_single_condition(expr, state)
+            
         except Exception as e:
             raise ValueError(f"Failed to evaluate condition '{expr}': {str(e)}")
+    
     return condition
 
-def create_workflow_graph(spec: Spec) -> StateGraph:
-    """
-    Create a LangGraph workflow from a specification.
-    
-    Args:
-        spec: The workflow specification
-        
-    Returns:
-        A configured StateGraph instance
-    """
-    logger.info("[bold green]🚀 Compiling workflow...[/bold green]")
-    
-    # Create the graph
-    graph = StateGraph()
-    
-    # Add nodes
-    add_nodes_to_graph(graph, spec)
-    
-    # Add edges
-    add_edges_to_graph(graph, spec)
-    
-    # Set the entry point
-    if spec.workflow.nodes:
-        logger.info(f"🎯 Setting entry point: [bright_blue]{spec.workflow.nodes[0].id}[/]")
-        graph.set_entry_point(spec.workflow.nodes[0].id)
-    
-    logger.info("[bold green]✅ Workflow compilation complete[/bold green]")
-    return graph
 
 def add_nodes_to_graph(graph: StateGraph, spec: Spec) -> None:
     """
@@ -448,7 +510,7 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
             ) -> Callable[[Dict[str, Any]], str]:
                 
                 condition_target_pairs = [
-                    (create_condition_function(e.condition), e.target)
+                    (create_condition_function(e.condition or "true"), e.target)
                     for e in cond_edges
                 ]
 
@@ -482,7 +544,7 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
             # The conditional_edge_mapping keys are what the router returns.
             # The values are the actual node IDs (or special targets like END).
             # Our router is designed to return actual target node names or END.
-            edge_mapping = {e.target: e.target for e in conditional_edges}
+            edge_mapping: Dict[Any, Any] = {e.target: e.target for e in conditional_edges}
             if default_target:
                 edge_mapping[default_target] = default_target # Add default target to map
             edge_mapping[END] = END # Ensure END is always a valid target if router returns it
@@ -524,6 +586,10 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
         output: Optional[str] = None
         iteration_count: Optional[int] = Field(default=0)
         evaluation_score: Optional[float] = None
+        # Enhanced workflow metadata for better tracking
+        workflow_id: Optional[str] = None
+        current_node: Optional[str] = None
+        error_context: Optional[str] = None
     
     # Create a new graph with explicit state schema
     graph = StateGraph(

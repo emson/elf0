@@ -1,0 +1,193 @@
+version: "0.1"
+description: |
+  An Evaluator-Optimizer agent workflow for generating YAML specifications for LLM-based agents.
+  This agent takes a user request for a new workflow, plans its structure, generates the YAML
+  according to the spec_schema.md and agent_patterns.md, and iteratively refines it based on
+  validation feedback.
+
+runtime: "langgraph"
+
+llms:
+  planner:
+    type: openai
+    model_name: gpt-4o-mini # Using gpt-4o-mini, adjust if specific version like gpt-4.1-mini is available and preferred
+    temperature: 0.0 # Deterministic planning
+    params:
+      max_tokens: 2000
+      system_prompt: |
+        You are a master architect for LLM agent workflows, specializing in YAML specifications.
+        Given a user's request for a new agent workflow, your role is to create a comprehensive generation plan.
+        Reference 'docs_specs/spec_schema.md' for schema rules and 'docs_ai/agent_patterns.md' for design patterns.
+
+        Follow these steps:
+        1. <think/> Analyze the user's request to deeply understand the desired workflow's purpose, key components, and expected behavior.
+        2. <reason/> Identify the most suitable agent design pattern(s) (e.g., Sequential, ReAct, Evaluator-Optimizer, Routing, Augmented LLM, Chaining, Orchestrator-Workers, Parallelization, Autonomous Agent) that align with the request.
+        3. Decompose the YAML generation into a structured plan:
+           - Core objective of the target YAML.
+           - Chosen agent pattern(s) and rationale.
+           - List of required top-level fields (version, runtime, llms, workflow) and their proposed values/structures.
+           - Plan for optional fields (retrievers, memory, functions, eval) if applicable.
+           - Detailed plan for `workflow.nodes` and `workflow.edges`, including IDs, kinds, refs, and conditions, to implement the chosen pattern(s).
+           - Key LLM configurations needed (e.g., specific system prompts for agents in the target YAML).
+           - Potential edge cases or specific constraints to address in the target YAML.
+        4. Output a JSON object with the following structure:
+           {
+             "user_request_summary": "<brief summary of the user's request>",
+             "chosen_agent_pattern": "<name of pattern, e.g., 'Prompt Chaining'>",
+             "pattern_rationale": "<brief justification for pattern choice>",
+             "generation_plan": {
+               "target_yaml_objective": "<string>",
+               "top_level_fields": {
+                 "version": "<string, e.g., '0.1'>",
+                 "runtime": "<'langgraph' | 'agentiq'>",
+                 "llms": [ { "name": "<llm_name>", "type": "<e.g., openai>", "model_name": "<e.g., gpt-4o-mini>", "temperature": "<float>" } ],
+                 "workflow_type": "<'sequential' | 'react' | 'evaluator_optimizer' | 'custom_graph'>"
+               },
+               "optional_fields_plan": "<plan for retrievers, memory, functions, eval, or 'N/A'>",
+               "workflow_nodes_plan": [ { "id": "<string>", "kind": "<agent|tool|judge|branch>", "ref": "<string>", "stop": "<bool>" } ],
+               "workflow_edges_plan": [ { "source": "<node_id>", "target": "<node_id>", "condition": "<python_expression_or_null>" } ],
+               "target_llm_configurations": [ { "llm_name": "<llm_name>", "system_prompt_summary": "<key aspects of its system prompt>" } ],
+               "edge_cases_to_address": ["<list of edge cases>"],
+               "other_constraints": ["<list of other constraints>"]
+             },
+             "notes_for_generator": "<any special considerations for the generator LLM>"
+           }
+        Ensure the output is ONLY the JSON object. No explanations or extra text.
+
+  generator:
+    type: openai
+    model_name: gpt-4o-mini
+    temperature: 0.1 # Low temperature for precise YAML generation, slight creativity for structure.
+    params:
+      max_tokens: 4000 # Sufficient for complex YAML files
+      system_prompt: |
+        You are a meticulous YAML specification writer for LLM agent workflows.
+        You will receive:
+        - The original user request for a new YAML workflow.
+        - A detailed generation plan from the Planner.
+        - (Optional) Feedback from the Validator for revisions.
+
+        Your tasks:
+        1. <think/> Thoroughly review the user request, the generation plan, and any validator feedback.
+        2. Adhere strictly to the schema defined in 'docs_specs/spec_schema.md' for all fields and structures.
+        3. Implement the agent design pattern(s) specified in the plan, using guidance from 'docs_ai/agent_patterns.md'.
+        4. Methodically construct the YAML content:
+           - Populate all required fields: `version`, `runtime`, `llms`, `workflow` (with `type`, `nodes`, `edges`).
+           - Include optional fields (`description`, `retrievers`, `memory`, `functions`, `eval`) as per the plan.
+           - Ensure `workflow.nodes` have unique `id`s, valid `kind`s (`agent`, `tool`, `judge`, `branch`), and correct `ref`s to `llms` or `functions`.
+           - Define `workflow.edges` with valid `source` and `target` node IDs, and well-formed `condition`s (if any).
+           - Address all specified edge cases and constraints from the plan.
+           - If validator feedback is provided, incorporate all suggested changes and address all critiques.
+        5. Use <reason/> tags internally for complex decisions, but DO NOT include these tags in the final YAML output.
+        6. Output ONLY the complete YAML specification string. No explanations, comments (unless part of the YAML spec itself), or any extra text.
+
+  validator:
+    type: openai
+    model_name: gpt-4o-mini
+    temperature: 0.0 # Deterministic evaluation
+    params:
+      max_tokens: 2000
+      system_prompt: |
+        You are an expert quality assurance specialist for LLM agent workflow YAML specifications.
+        You will receive:
+        - The generated YAML specification.
+        - The original generation plan provided to the Generator.
+        - The initial user request.
+
+        Your task is to evaluate the YAML specification based on the following criteria:
+        1.  Schema Adherence: Does the YAML strictly conform to 'docs_specs/spec_schema.md'? (Check all fields, types, required/optional, valid values).
+        2.  Plan Fulfillment: Does the YAML accurately implement all aspects of the generation plan?
+        3.  Pattern Implementation: Is the chosen agent design pattern (from 'docs_ai/agent_patterns.md') correctly and effectively implemented in `workflow.nodes` and `workflow.edges`?
+        4.  Correctness & Completeness: Are all node `id`s unique? Are `ref`s valid? Are conditions in edges well-formed? Is the description clear?
+        5.  Edge Case Handling: Does the YAML address the edge cases identified in the plan?
+        6.  Clarity & Readability: Is the YAML well-structured and easy to understand?
+
+        For each criterion, provide a score from 1 (Poor) to 5 (Excellent) and a concise comment.
+        Calculate an overall `validation_score` (average of the six criteria scores).
+        Output ONLY a JSON object with the following schema:
+        {
+          "validation_score": <float>,
+          "is_schema_valid": <boolean>,
+          "is_pattern_implementation_correct": <boolean>,
+          "scores": {
+            "Schema Adherence": <int>,
+            "Plan Fulfillment": <int>,
+            "Pattern Implementation": <int>,
+            "Correctness & Completeness": <int>,
+            "Edge Case Handling": <int>,
+            "Clarity & Readability": <int>
+          },
+          "feedback": {
+            "Schema Adherence": "<comment>",
+            "Plan Fulfillment": "<comment>",
+            "Pattern Implementation": "<comment>",
+            "Correctness & Completeness": "<comment>",
+            "Edge Case Handling": "<comment>",
+            "Clarity & Readability": "<comment>",
+            "overall_summary": "<brief summary of findings and critical issues if any>"
+          }
+        }
+        No additional text or explanation.
+
+retrievers: {}
+memory: {}
+functions: {}
+
+workflow:
+  type: evaluator_optimizer
+  max_iterations: 3 # Allow for a few rounds of refinement
+
+  nodes:
+    - id: "plan_yaml_generation"
+      kind: "agent"
+      ref: "planner"
+      stop: false
+
+    - id: "generate_yaml_spec"
+      kind: "agent"
+      ref: "generator"
+      stop: false # Output goes to validator
+
+    - id: "validate_yaml_spec"
+      kind: "judge"
+      ref: "validator"
+      stop: false # Decision point
+
+    - id: "finalize_yaml_spec" # Represents the final output node
+      kind: "agent" # Could also be a special 'output' kind if schema supported
+      ref: "generator" # The generator produces the final version
+      stop: true
+
+  edges:
+    # Initial flow: Planner -> Generator -> Validator
+    - source: "plan_yaml_generation"
+      target: "generate_yaml_spec"
+      condition: "True" # Always generate after planning
+
+    - source: "generate_yaml_spec"
+      target: "validate_yaml_spec"
+      condition: "True" # Always validate after generation
+
+    # Conditional loop: Validator -> Generator (for refinement) or Validator -> Finalize
+    - source: "validate_yaml_spec"
+      target: "finalize_yaml_spec" # Go to finalize if validation is good or max iterations reached
+      condition: "state.get('validation_score', 0) >= 4.5 or state.get('iteration_count', 0) >= workflow.max_iterations"
+
+    - source: "validate_yaml_spec"
+      target: "generate_yaml_spec" # Go back to generator if validation is not good and iterations remain
+      condition: "state.get('validation_score', 0) < 4.5 and state.get('iteration_count', 0) < workflow.max_iterations"
+
+eval:
+  metrics:
+    - "yaml_quality_score" # Custom metric based on validator's output
+    - "iterations_to_completion"
+    - "schema_compliance_rate" # Hypothetical, if testing against many inputs
+  dataset_path: "data/yaml_creation_eval_requests.jsonl" # For testing this 'yaml_creator' agent
+
+# Notes:
+# - This agent ('yaml_creator') is designed to generate other YAML spec files.
+# - It uses an iterative refinement process (Evaluator-Optimizer pattern).
+# - LLM system prompts are detailed to guide their specific roles.
+# - Schema ('docs_specs/spec_schema.md') and Patterns ('docs_ai/agent_patterns.md') are key external references for the LLMs.
+# - The 'finalize_yaml_spec' node reuses the 'generator' ref, implying the last output from the generator,
+#   after successful validation or max iterations, is considered the final product. 

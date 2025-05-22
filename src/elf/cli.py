@@ -26,7 +26,6 @@ def parse_context_files(context_files: Optional[List[Path]]) -> str:
     if not context_files:
         return ""
         
-    all_files_content = []
     actual_files_to_read: List[Path] = []
 
     for file_or_list in context_files:

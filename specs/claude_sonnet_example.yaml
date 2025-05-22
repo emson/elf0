@@ -1,0 +1,34 @@
+version: "0.1"
+description: "Example workflow using Claude Sonnet 4 for high-quality text generation"
+runtime: "langgraph"
+
+llms:
+  claude_sonnet:
+    type: "anthropic"
+    model_name: "claude-3-sonnet-20240229"
+    temperature: 0.7
+    params:
+      max_tokens: 4096
+      system_prompt: |
+        You are a helpful AI assistant powered by Claude Sonnet 4.
+        You provide clear, accurate, and well-structured responses.
+        When asked questions, you:
+        1. Understand the core question
+        2. Provide relevant context
+        3. Give a direct answer
+        4. Explain your reasoning
+        5. Include examples when helpful
+
+workflow:
+  type: "sequential"
+  nodes:
+    - id: "start"
+      kind: "agent"
+      ref: "claude_sonnet"
+    - id: "end"
+      kind: "agent"
+      ref: "claude_sonnet"
+      stop: true
+  edges:
+    - source: "start"
+      target: "end" 

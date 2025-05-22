@@ -1,5 +1,5 @@
 # src/elf/core/config.py
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, Literal, Set
 from pathlib import Path
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -9,8 +9,16 @@ import logging # Added logger
 # Configure a logger for this module
 logger = logging.getLogger(__name__)
 
+# Central provider configuration
+PROVIDER_CONFIG = {
+    'openai': {'requires_api_key': True},
+    'anthropic': {'requires_api_key': True},
+    'ollama': {'requires_api_key': False}
+}
+
 class LLMConfig(BaseModel):
     """Configuration for an LLM client."""
+    type: Literal['openai', 'anthropic', 'ollama']  # Added type field
     model_name: str
     temperature: float = 0.7
     params: Dict[str, Any] = {}
@@ -54,19 +62,24 @@ def get_api_key(provider_name: str) -> Optional[str]:
     Raises:
         ValueError: If the provider requires an API key but none is found in the environment.
     """
-    # Providers that don't require API keys
-    NO_API_KEY_PROVIDERS = {'ollama'}
-    
     provider_name_lower = provider_name.lower()
-    if provider_name_lower in NO_API_KEY_PROVIDERS:
+    
+    # Check if provider exists in configuration
+    if provider_name_lower not in PROVIDER_CONFIG:
+        raise ValueError(f"Unknown provider: {provider_name}")
+    
+    # Check if provider requires API key
+    if not PROVIDER_CONFIG[provider_name_lower]['requires_api_key']:
         logger.info(f"Provider '{provider_name}' does not require an API key.")
         return None
         
     env_var_name = f"{provider_name.upper()}_API_KEY"
     api_key = os.getenv(env_var_name)
-    if not api_key:
-        # This error should propagate if the key is genuinely required and missing.
-        raise ValueError(f"Required API key {env_var_name} for provider '{provider_name}' not found in environment variables.")
+    
+    # Explicitly check for missing API key
+    if api_key is None or api_key.strip() == "":
+        raise ValueError(f"Required API key {env_var_name}")
+        
     logger.info(f"API key found for provider '{provider_name}' using environment variable {env_var_name}.")
     return api_key
 
@@ -80,13 +93,14 @@ def create_llm_config(config: Union[Dict[str, Any], LLMConfig], llm_type: Option
         llm_type: The type of the LLM provider (e.g., 'openai', 'anthropic'), 
                   used to fetch the correct API key if not already in `config`.
                   If `config` is a dict, `llm_type` can also be inferred from `config['type']`.
-                  If `config` is an `LLMConfig` object, `llm_type` can be inferred from `config.type` (if `type` attr exists).
+                  If `config` is an `LLMConfig` object, `llm_type` can be inferred from `config.type`.
         
     Returns:
         An LLMConfig object with the API key populated if required and found.
         
     Raises:
         ValueError: If a required API key is not found (propagated from get_api_key).
+        ValueError: If llm_type is not provided and cannot be inferred from config.
     """
     if isinstance(config, dict):
         current_config_dict = config.copy()
@@ -94,23 +108,26 @@ def create_llm_config(config: Union[Dict[str, Any], LLMConfig], llm_type: Option
         effective_llm_type = llm_type or current_config_dict.get('type')
     elif isinstance(config, LLMConfig):
         current_config_dict = config.model_dump() # Get dict from Pydantic model
-        # Try to determine llm_type if not explicitly passed but available in the config object (assuming it has a 'type' field)
-        effective_llm_type = llm_type or getattr(config, 'type', None) 
+        # Try to determine llm_type if not explicitly passed but available in the config object
+        effective_llm_type = llm_type or getattr(config, 'type', None)
     else:
         raise TypeError("Input 'config' must be a dictionary or an LLMConfig instance.")
 
-    api_key_to_use: Optional[str] = current_config_dict.get('api_key')
+    if not effective_llm_type:
+        raise ValueError("llm_type must be provided or present in config")
 
-    if not api_key_to_use and effective_llm_type: # API key not in spec, try to load from env
-        # get_api_key will return None if not required (e.g., for 'ollama')
-        # or raise ValueError if required but not found.
+    # Ensure type is set in the config
+    current_config_dict['type'] = effective_llm_type
+
+    # Handle API key
+    api_key_to_use: Optional[str] = current_config_dict.get('api_key')
+    
+    # Always try to get API key - get_api_key will handle the validation
+    if not api_key_to_use:
         api_key_to_use = get_api_key(effective_llm_type)
     
-    # Update the dictionary with the resolved API key if found (or if it was None for non-key providers)
-    if api_key_to_use is not None:
-        current_config_dict['api_key'] = api_key_to_use
-    elif 'api_key' not in current_config_dict: # Ensure api_key field exists for LLMConfig if not set
-        current_config_dict['api_key'] = None
+    # Update the dictionary with the resolved API key
+    current_config_dict['api_key'] = api_key_to_use
 
     return LLMConfig(**current_config_dict)
 

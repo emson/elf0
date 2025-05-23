@@ -1,0 +1,229 @@
+[
+    {
+      "provider": "openai",
+      "name": "GPT-4.1",
+      "model_api_name": "gpt-4.1-20250414",
+      "model_api_alias": "gpt-4.1",
+      "desc": "Smartest model for complex tasks",
+      "ctx": 1000000,
+      "input_cost_per_mil": 2.0,
+      "cache_write_per_mil": 0.5,
+      "cache_read_per_mil": 0.5,
+      "output_cost_per_mil": 8.0,
+      "batch_discount": 0.5,
+      "use_cases": [
+        "Advanced coding tasks",
+        "Complex reasoning and analysis",
+        "High-context document understanding",
+        "Creative writing with detailed narrative structures"
+      ]
+    },
+    {
+      "provider": "openai",
+      "name": "GPT-4.1 Mini",
+      "model_api_name": "gpt-4.1-mini-20250414",
+      "model_api_alias": "gpt-4.1-mini",
+      "desc": "Affordable model balancing speed and intelligence",
+      "ctx": 1000000,
+      "input_cost_per_mil": 0.4,
+      "cache_write_per_mil": 0.1,
+      "cache_read_per_mil": 0.1,
+      "output_cost_per_mil": 1.6,
+      "batch_discount": 0.5,
+      "use_cases": [
+        "General-purpose text generation",
+        "Efficient summarisation and extraction",
+        "Customer support agents",
+        "Balanced performance for business applications"
+      ]
+    },
+    {
+      "provider": "openai",
+      "name": "GPT-4.1 Nano",
+      "model_api_name": "gpt-4.1-nano-20250414",
+      "model_api_alias": "gpt-4.1-nano",
+      "desc": "Fastest, most cost-effective model for low-latency tasks",
+      "ctx": 1000000,
+      "input_cost_per_mil": 0.1,
+      "cache_write_per_mil": 0.025,
+      "cache_read_per_mil": 0.025,
+      "output_cost_per_mil": 0.4,
+      "batch_discount": 0.5,
+      "use_cases": [
+        "High-volume, low-cost tasks",
+        "Real-time applications and chat",
+        "Rapid prototyping",
+        "Simple question answering"
+      ]
+    },
+    {
+      "provider": "openai",
+      "name": "GPT-4.5 Preview",
+      "model_api_name": "gpt-4.5-preview-20250227",
+      "model_api_alias": "gpt-4.5-preview",
+      "desc": "Particularly large GPT model with improved natural conversation",
+      "ctx": 128000,
+      "input_cost_per_mil": 75.0,
+      "cache_write_per_mil": null,
+      "cache_read_per_mil": null,
+      "output_cost_per_mil": 150.0,
+      "batch_discount": null,
+      "use_cases": [
+        "Writing and communication tasks",
+        "Brainstorming",
+        "Advanced natural language understanding"
+      ]
+    },
+    {
+      "provider": "openai",
+      "name": "GPT-4o",
+      "model_api_name": "gpt-4o-20240513",
+      "model_api_alias": "gpt-4o",
+      "desc": "Multimodal model capable of processing text, image, audio, and video",
+      "ctx": 128000,
+      "input_cost_per_mil": 2.5,
+      "cache_write_per_mil": 0.625,
+      "cache_read_per_mil": 0.625,
+      "output_cost_per_mil": 10.0,
+      "batch_discount": 0.5,
+      "use_cases": [
+        "Multimodal tasks",
+        "Voice and image processing",
+        "Real-time applications",
+        "Interactive AI experiences"
+      ]
+    },
+    {
+      "provider": "openai",
+      "name": "GPT-4o Mini",
+      "model_api_name": "gpt-4o-mini-20240718",
+      "model_api_alias": "gpt-4o-mini",
+      "desc": "Smaller and cheaper multimodal AI model",
+      "ctx": 128000,
+      "input_cost_per_mil": 0.15,
+      "cache_write_per_mil": 0.0375,
+      "cache_read_per_mil": 0.0375,
+      "output_cost_per_mil": 0.6,
+      "batch_discount": 0.5,
+      "use_cases": [
+        "Cost-effective multimodal tasks",
+        "High-volume image generation",
+        "Real-time chat applications",
+        "Interactive AI experiences"
+      ]
+    },
+    {
+      "provider": "openai",
+      "name": "OpenAI o3",
+      "model_api_name": "o3-20250416",
+      "model_api_alias": "o3",
+      "desc": "Powerful reasoning model with leading performance on coding, math, science, and vision",
+      "ctx": 200000,
+      "input_cost_per_mil": 10.0,
+      "cache_write_per_mil": 2.5,
+      "cache_read_per_mil": 2.5,
+      "output_cost_per_mil": 40.0,
+      "batch_discount": 0.5,
+      "use_cases": [
+        "Advanced reasoning tasks",
+        "Scientific research",
+        "Complex problem-solving",
+        "Multimodal data analysis"
+      ]
+    },
+    {
+      "provider": "openai",
+      "name": "OpenAI o3 Mini",
+      "model_api_name": "o3-mini-20250416",
+      "model_api_alias": "o3-mini",
+      "desc": "Faster and more accurate performance in tasks related to math, coding, and science",
+      "ctx": 200000,
+      "input_cost_per_mil": 1.1,
+      "cache_write_per_mil": 0.275,
+      "cache_read_per_mil": 0.275,
+      "output_cost_per_mil": 4.4,
+      "batch_discount": 0.5,
+      "use_cases": [
+        "Mathematical computations",
+        "Scientific data analysis",
+        "Efficient coding tasks",
+        "Educational applications"
+      ]
+    },
+    {
+      "provider": "openai",
+      "name": "OpenAI o4 Mini",
+      "model_api_name": "o4-mini-20250416",
+      "model_api_alias": "o4-mini",
+      "desc": "Compact, high-efficiency reasoning model optimized for lower latency and lighter compute requirements",
+      "ctx": 128000,
+      "input_cost_per_mil": 1.1,
+      "cache_write_per_mil": 0.275,
+      "cache_read_per_mil": 0.275,
+      "output_cost_per_mil": 4.4,
+      "batch_discount": 0.5,
+      "use_cases": [
+        "Decision-making support",
+        "Healthcare diagnostics",
+        "Financial risk assessment",
+        "Real-time data processing"
+      ]
+    },
+    {
+      "provider": "openai",
+      "name": "GPT-Image-1",
+      "model_api_name": "gpt-image-1-20250423",
+      "model_api_alias": "gpt-image-1",
+      "desc": "High-fidelity image generation and editing model",
+      "ctx": 128000,
+      "input_cost_per_mil": 10.0,
+      "cache_write_per_mil": 2.5,
+      "cache_read_per_mil": 2.5,
+      "output_cost_per_mil": 40.0,
+      "batch_discount": 0.5,
+      "use_cases": [
+        "Image generation",
+        "Graphic design",
+        "Creative content creation",
+        "Visual data analysis"
+      ]
+    },
+    {
+      "provider": "openai",
+      "name": "Text Embedding 3 Small",
+      "model_api_name": "text-embedding-3-small-20250423",
+      "model_api_alias": "text-embedding-3-small",
+      "desc": "Efficient model for generating text embeddings",
+      "ctx": 8192,
+      "input_cost_per_mil": 0.02,
+      "cache_write_per_mil": null,
+      "cache_read_per_mil": null,
+      "output_cost_per_mil": null,
+      "batch_discount": null,
+      "use_cases": [
+        "Semantic search",
+        "Text similarity analysis",
+        "Recommendation systems",
+        "Natural language processing tasks"
+      ]
+    },
+    {
+      "provider": "openai",
+      "name": "Text Embedding 3 Large",
+      "model_api_name": "text-embedding-3-large-20250423",
+      "model_api_alias": "text-embedding-3-large",
+      "desc": "High-accuracy model for generating text embeddings",
+      "ctx": 8192,
+      "input_cost_per_mil": 0.13,
+      "cache_write_per_mil": null,
+      "cache_read_per_mil": null,
+      "output_cost_per_mil": null,
+      "batch_discount": null,
+      "use_cases": [
+        "Advanced semantic search",
+        "High-precision text similarity analysis",
+        "Complex recommendation systems",
+        "In-depth natural language understanding"
+      ]
+    }
+  ]

@@ -92,32 +92,68 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     Creates a node function that uses an LLM to process input and generate output.
     
     The returned node function takes a `WorkflowState`, uses an LLM (configured via `spec`
-    and `node.ref`) to process `state['input']`, and returns an updated `WorkflowState`
-    with the LLM's response in `state['output']`. It also handles iteration counting
-    for specific node IDs (e.g., 'breakdown_worker') and error handling.
+    and `node.ref`) to process `state['input']` (after formatting it with `node.config.prompt`
+    if available), and returns an updated `WorkflowState` with the LLM's response
+    in `state['output']`. It also handles iteration counting and error handling.
 
     Args:
         spec: The full workflow specification.
-        node: The WorkflowNode object, used here to access node.id and node.ref for LLM configuration.
+        node: The WorkflowNode object, used here to access node.id, node.ref for LLM configuration,
+              and node.config.prompt for the prompt template.
         
     Returns:
         A node function that processes state using the LLM.
     """
     llm_client = _create_llm_client(spec, node)
     
+    prompt_template_str: Optional[str] = None
+    # node.config is now a field in WorkflowNode, defaulting to an empty dict if not in YAML.
+    potential_prompt = node.config.get('prompt') 
+    if isinstance(potential_prompt, str):
+        prompt_template_str = potential_prompt
+    elif potential_prompt is not None: # 'prompt' key exists in config but its value is not a string
+        logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] 'prompt' in node config is not a string (type: {type(potential_prompt).__name__}). Will ignore node-specific prompt template.")
+
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
             current_iter_display = (state.get('iteration_count') or 0) + 1
-            max_iter_display = spec.workflow.max_iterations or DEFAULT_MAX_ITERATIONS
+            max_iter_display = getattr(spec.workflow, 'max_iterations', None) or DEFAULT_MAX_ITERATIONS
             iteration_str = f"Iteration {current_iter_display}/{max_iter_display}"
             
-            logger.info(f"🤖 [Node: [cyan]{node.id}[/]] ({iteration_str}) (LLM: {llm_client.spec.type}:{llm_client.spec.model_name}) Processing: '{str(state.get('input', ''))[:70]}...'")
-            response = llm_client.generate(state["input"])
+            user_provided_input = state.get("input", "") 
+
+            final_prompt_to_llm: str
+            if prompt_template_str:
+                if "{input}" in prompt_template_str:
+                    final_prompt_to_llm = prompt_template_str.format(input=user_provided_input)
+                else:
+                    final_prompt_to_llm = prompt_template_str
+                    if user_provided_input:
+                        logger.warning(
+                            f"⚠️ [Node: [cyan]{node.id}[/]] Prompt template lacks '{{input}}' placeholder. "
+                            f"User input ('{user_provided_input[:70]}...') will be appended to the template. "
+                            "Consider adding '{input}' to your prompt template for explicit placement."
+                        )
+                        final_prompt_to_llm += "\n\nUser Input: " + user_provided_input
+            elif user_provided_input:
+                final_prompt_to_llm = user_provided_input
+            else:
+                error_msg = f"Node {node.id} (type: {node.kind}) has no prompt template in config and no 'input' in state. Cannot proceed."
+                logger.error(f"❌ [Node: [cyan]{node.id}[/]] {error_msg}")
+                return WorkflowState({
+                    **state,
+                    "output": f"ConfigurationError: {error_msg}",
+                    "current_node": node.id,
+                    "error_context": error_msg
+                })
+
+            logger.info(
+                f"🤖 [Node: [cyan]{node.id}[/]] ({iteration_str}) (LLM: {llm_client.spec.type}:{llm_client.spec.model_name}) "
+                f"Sending to LLM (first 200 chars): '{final_prompt_to_llm[:200]}...'"
+            )
+            response = llm_client.generate(final_prompt_to_llm)
             logger.info(f"✨ [Node: [cyan]{node.id}[/]] LLM Response: '{response[:70]}...'")
             
-            # If this node is 'breakdown_worker', increment iteration_count.
-            # This is specific to the logic in orchestration_workers.yaml where breakdown_worker
-            # completes a cycle before returning to the orchestrator.
             if node.id == "breakdown_worker":
                 current_iteration_for_node = state.get('iteration_count') or 0
                 return WorkflowState({
@@ -243,7 +279,7 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             # The judge node itself will increment iteration_count for the *next* state.
             # So for *this* run, current_iter_display is based on the incoming state.
             current_iter_display = (state.get('iteration_count') or 0) + 1 
-            max_iter_display = spec.workflow.max_iterations or DEFAULT_MAX_ITERATIONS
+            max_iter_display = getattr(spec.workflow, 'max_iterations', None) or DEFAULT_MAX_ITERATIONS
             iteration_str = f"Iteration {current_iter_display}/{max_iter_display}"
 
             logger.info(f"⚖️ [Node: [cyan]{node.id}[/]] ({iteration_str}) (LLM: {judge_llm_client.spec.type}:{judge_llm_client.spec.model_name}) Evaluating: '{str(input_to_judge)[:70]}...'")
@@ -435,7 +471,10 @@ def create_condition_function(expr: str) -> Callable[[Dict[str, Any]], Any]:
     
     def _evaluate_single_condition(condition_str: str, state: Dict[str, Any]) -> Any:
         """Evaluate a single condition like 'state.get('key', default) op value'."""
-        pattern = r"state\.get\(['\"](.*?)['\"]\s*,\s*(.*?)\)\s*([><=!]+)\s*(.*)"
+        # Updated pattern to correctly capture key, optional default, operator, and value.
+        # Handles: state.get('key', default_val) op value_val
+        #      OR: state.get('key') op value_val
+        pattern = r"state\.get\s*\(\s*['\"](.*?)['\"]\s*(?:,\s*(.*?))?\s*\)\s*([><=!]+)\s*(.*)"
         match = re.match(pattern, condition_str.strip())
         
         if not match:
@@ -443,30 +482,40 @@ def create_condition_function(expr: str) -> Callable[[Dict[str, Any]], Any]:
             if condition_str.lower() in ('true', 'false'):
                 return condition_str.lower() == 'true'
             
-            # Handle direct state key access: state['key'] or state.get('key')
-            if condition_str.startswith('state[') or condition_str.startswith('state.get('):
-                key_match = re.search(r"['\"](.*?)['\"]", condition_str)
-                if key_match:
-                    key = key_match.group(1)
-                    return bool(state.get(key))
-            
-            # Treat as string literal (for target node names)
+            # Handle direct state key access if the expression is *just* state.get('key') or state['key']
+            # (intended to evaluate its truthiness)
+            key_access_pattern = r"state\.(?:get\s*\(\s*['\"](.*?)['\"]\s*(?:,\s*.*?)?\s*\)|\[['\"](.*?)['\"]\])"
+            key_access_match = re.fullmatch(key_access_pattern, condition_str.strip())
+            if key_access_match:
+                key = key_access_match.group(1) or key_access_match.group(2)
+                # Default to None if key not found, then evaluate truthiness
+                return bool(state.get(key))
+
+            # Treat as string literal (for target node names if no other pattern matched)
+            # This allows conditions to be direct node names for unconditional routing via conditional_edges
             return condition_str.strip('"\'')
         
-        key, default_val, op, value = match.groups()
+        key, default_val_str, op_str, value_expr_str = match.groups()
         
-        # Parse default value and comparison value
-        default = _parse_value(default_val)
-        comp_value = _parse_value(value)
+        # Parse default value from expression. If not provided in expr, use None for state.get().
+        default_for_state_get = _parse_value(default_val_str) if default_val_str is not None else None
         
-        # Get state value
-        state_value = state.get(key, default)
+        # Parse the value to compare against
+        comp_value = _parse_value(value_expr_str)
         
-        # Perform comparison
-        if op in ops:
-            return ops[op](state_value, comp_value)
+        # Get state value using the key and the parsed or implicit default
+        state_value_raw = state.get(key, default_for_state_get)
+        
+        # Prepare state_value for comparison: if it's a string and comp_value is also a string, strip it.
+        state_value_for_comparison = state_value_raw
+        if isinstance(state_value_raw, str) and isinstance(comp_value, str):
+            state_value_for_comparison = state_value_raw.strip()
+            
+        # Perform comparison using the appropriate operator
+        if op_str in ops:
+            return ops[op_str](state_value_for_comparison, comp_value)
         else:
-            raise ValueError(f"Unsupported operator: {op}")
+            raise ValueError(f"Unsupported operator: {op_str}")
     
     def condition(state: Dict[str, Any]) -> Any:
         try:
@@ -514,6 +563,7 @@ def add_nodes_to_graph(graph: StateGraph, spec: Spec) -> None:
         graph: The `StateGraph` instance to which nodes will be added.
         spec: The workflow specification containing the list of nodes.
     """
+    assert spec.workflow is not None, "Workflow must be present for compilation"
     logger.info("🔄 Building workflow nodes...")
     for node in spec.workflow.nodes:
         logger.info(f"🔩 Adding Node: [bright_blue]{node.id}[/] ({node.kind})")
@@ -549,6 +599,7 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
         graph: The `StateGraph` instance to which edges will be added.
         spec: The workflow specification containing the list of edges.
     """
+    assert spec.workflow is not None, "Workflow must be present for compilation"
     logger.info("🔄 Building workflow edges...")
     edges_by_source: Dict[str, List[Edge]] = {}
     for edge in spec.workflow.edges:
@@ -592,6 +643,7 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
                 ]
 
                 def router(state: Dict[str, Any]) -> str:
+                    logger.info(f"  [Router for {source_node_id}] Evaluating state.get('output'): '{state.get('output')}'") # Log the state output
                     for condition_fn, target_node_name in condition_target_pairs:
                         try:
                             if condition_fn(state): # condition_fn should return boolean
@@ -649,26 +701,37 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
     Compiles a `Spec` object into a runnable `langgraph.StateGraph`.
 
     This orchestration function performs the following steps:
-    1. Defines a `WorkflowStateSchema` (a Pydantic model) that dictates the structure
+    1. Validates that the spec has a workflow (should be resolved by this point).
+    2. Defines a `WorkflowStateSchema` (a Pydantic model) that dictates the structure
        of the state object passed between nodes in the graph. This schema matches
        the `WorkflowState` TypedDict.
-    2. Initializes a `StateGraph` instance with this `WorkflowStateSchema`.
-    3. Calls `add_nodes_to_graph(graph, spec)` to populate the graph with all defined nodes
+    3. Initializes a `StateGraph` instance with this `WorkflowStateSchema`.
+    4. Calls `add_nodes_to_graph(graph, spec)` to populate the graph with all defined nodes
        from the specification, creating node callables via `NodeFactoryRegistry`.
-    4. Calls `add_edges_to_graph(graph, spec)` to establish the control flow (transitions)
+    5. Calls `add_edges_to_graph(graph, spec)` to establish the control flow (transitions)
        between these nodes, including conditional logic based on `WorkflowState`.
-    5. Sets the entry point of the graph using `graph.set_entry_point()`, typically to the
+    6. Sets the entry point of the graph using `graph.set_entry_point()`, typically to the
        ID of the first node defined in `spec.workflow.nodes`.
     
     Args:
         spec: The workflow specification object containing all definitions for nodes,
-              edges, LLMs, and functions.
+              edges, LLMs, and functions. Must be fully resolved (no pending references).
         
     Returns:
         A fully configured `langgraph.StateGraph` instance, ready for execution
         with an initial input state.
+        
+    Raises:
+        ValueError: If the spec doesn't have a workflow (references should be resolved by now).
     """
     logger.info("[bold green]🚀 Compiling workflow...[/bold green]")
+    
+    # Ensure the spec has a workflow (references should be resolved by this point)
+    if not spec.workflow:
+        raise ValueError("Cannot compile spec: workflow is missing. This may indicate an unresolved reference.")
+    
+    # Type narrowing for mypy
+    workflow = spec.workflow
     
     # Define the state schema using Pydantic
     class WorkflowStateSchema(BaseModel):
@@ -692,9 +755,9 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
     add_edges_to_graph(graph, spec)
     
     # Set the entry point
-    if spec.workflow.nodes:
-        logger.info(f"🎯 Setting entry point: [bright_blue]{spec.workflow.nodes[0].id}[/]")
-        graph.set_entry_point(spec.workflow.nodes[0].id)
+    if workflow.nodes:
+        logger.info(f"🎯 Setting entry point: [bright_blue]{workflow.nodes[0].id}[/]")
+        graph.set_entry_point(workflow.nodes[0].id)
     
     logger.info("[bold green]✅ Workflow compilation complete[/bold green]")
     return graph

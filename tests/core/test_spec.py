@@ -113,4 +113,54 @@ workflow:
     assert spec.workflow.nodes[0].ref == "llm1"
     assert spec.workflow.nodes[1].ref == "llm1"
     assert spec.workflow.edges[0].source == "start"
-    assert spec.workflow.edges[0].target == "end" 
+    assert spec.workflow.edges[0].target == "end"
+
+def test_spec_from_file_with_node_config(tmp_path):
+    """Test loading a spec from YAML including a node with a config block."""
+    spec_yaml_with_config = """
+version: "0.1"
+llms:
+  llm1:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.5
+workflow:
+  type: sequential
+  nodes:
+    - id: classifier_node
+      kind: agent
+      ref: llm1
+      config:
+        prompt: "This is the system prompt for the classifier."
+        some_other_config: 123
+    - id: end_node
+      kind: agent
+      ref: llm1
+      stop: true
+  edges:
+    - source: classifier_node
+      target: end_node
+"""
+    spec_file = tmp_path / "spec_with_config.yaml"
+    spec_file.write_text(spec_yaml_with_config)
+    
+    spec = Spec.from_file(str(spec_file))
+    
+    assert spec.workflow is not None
+    assert len(spec.workflow.nodes) == 2
+    
+    classifier_node = next((n for n in spec.workflow.nodes if n.id == "classifier_node"), None)
+    assert classifier_node is not None
+    
+    # Key assertions:
+    assert isinstance(classifier_node.config, dict)
+    assert "prompt" in classifier_node.config
+    assert classifier_node.config["prompt"] == "This is the system prompt for the classifier."
+    assert "some_other_config" in classifier_node.config
+    assert classifier_node.config["some_other_config"] == 123
+    
+    end_node = next((n for n in spec.workflow.nodes if n.id == "end_node"), None)
+    assert end_node is not None
+    # A node without a config block should have an empty dict by default_factory
+    assert isinstance(end_node.config, dict)
+    assert not end_node.config 

@@ -1,8 +1,7 @@
 # src/elf/core/llm_client.py
-from typing import Any, Dict, List, Protocol, Optional, Union
+from typing import Any, Dict, List, Protocol, Optional
 import openai
 from openai.types.chat import ChatCompletionMessageParam
-from .config import create_llm_config
 from .spec import LLM as LLMSpecModel
 
 # Protocol for LLM Providers

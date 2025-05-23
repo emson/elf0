@@ -1,0 +1,65 @@
+# Example of YAML workflow referencing - prompt routing that references basic reasoning
+version: "1.0"
+description: "A workflow that uses a prompt classifier to route user queries, leveraging the basic reasoning workflow for complex tasks."
+
+# Reference the basic reasoning workflow to inherit its LLM and structure
+reference:
+  - ../basic_chat.yaml
+  - ../basic_reasoning.yaml
+
+# Add additional LLMs for routing and general chat
+llms:
+  classifier_llm:
+    type: "openai" 
+    model_name: "gpt-4o-mini"
+    temperature: 0.2
+  # general_chat_llm:
+  #   type: "openai"
+  #   model_name: "gpt-4o-mini"
+  #   temperature: 0.7
+
+  # The reasoning_llm is inherited from basic_reasoning.yaml
+  # We can override its settings if needed:
+  # reasoning_llm:
+  #   temperature: 0.5  # Override the temperature from base file
+
+# Override the workflow to implement routing logic
+workflow:
+  type: custom_graph
+  nodes:
+    - id: prompt_classifier
+      kind: agent
+      ref: classifier_llm
+      config:
+        prompt: |
+          Your sole task is to classify the user's query.
+          Output *ONLY* one of the following exact strings: 'general_chat' or 'deep_reasoning'.
+
+          - If the user query involves reasoning, complex problem-solving, or detailed analysis, output: 'deep_reasoning'
+          - Otherwise, output: 'general_chat'
+
+          Do NOT add any other words, explanations, punctuation, or formatting. Your entire response MUST be either 'general_chat' or 'deep_reasoning'.
+
+          User Query:
+          {input}
+          Output ONLY your classification as a single string.
+      stop: false
+
+    - id: general_chat_handler
+      kind: agent
+      ref: chat_llm
+      stop: true
+
+    - id: deep_reasoning_handler
+      kind: agent
+      ref: reasoning_llm  # This references the LLM from basic_reasoning.yaml
+      stop: true
+
+  edges:
+    - source: prompt_classifier
+      target: general_chat_handler
+      condition: "state.get('output') == 'general_chat'"
+
+    - source: prompt_classifier
+      target: deep_reasoning_handler
+      condition: "state.get('output') == 'deep_reasoning'"

@@ -1,5 +1,5 @@
 # src/elf/core/config.py
-from typing import Any, Dict, Optional, Union, Literal, Set
+from typing import Any, Dict, Optional, Union, Literal
 from pathlib import Path
 from pydantic import BaseModel
 from dotenv import load_dotenv

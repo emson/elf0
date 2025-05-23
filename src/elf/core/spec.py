@@ -1,8 +1,54 @@
 # src/elf/core/spec.py
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Literal, List, Dict, Union, Optional, ClassVar, Any, Callable
+from typing import Literal, List, Dict, Union, Optional, ClassVar, Any, Callable, Set
 from pathlib import Path
 from ..utils.yaml_loader import load_yaml_file
+
+
+class CircularReferenceError(Exception):
+    """Raised when a circular reference is detected in workflow imports."""
+    pass
+
+
+class WorkflowReferenceError(Exception):
+    """Raised when there's an error processing workflow references."""
+    pass
+
+
+def _deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Deep merge two dictionaries, with override values taking precedence.
+    
+    Args:
+        base: The base dictionary to merge into
+        override: The dictionary whose values override the base
+        
+    Returns:
+        A new dictionary with merged values
+        
+    Raises:
+        ValueError: If attempting to merge incompatible types
+    """
+    result = base.copy()
+    
+    for key, value in override.items():
+        if key in result:
+            base_value = result[key]
+            if isinstance(base_value, dict) and isinstance(value, dict):
+                result[key] = _deep_merge_dicts(base_value, value)
+            elif isinstance(base_value, list) and isinstance(value, list):
+                result[key] = value  # Override semantics: replace entire list
+            elif type(base_value) is type(value) or base_value is None or value is None:
+                result[key] = value  # Override with new value
+            else:
+                raise ValueError(
+                    f"Cannot merge incompatible types at key '{key}': "
+                    f"{type(base_value).__name__} and {type(value).__name__}"
+                )
+        else:
+            result[key] = value
+    
+    return result
 
 class LLM(BaseModel):
     """Configuration for a specific Large Language Model (LLM) instance.
@@ -79,6 +125,7 @@ class WorkflowNode(BaseModel):
     id: str
     kind: Literal['agent', 'tool', 'judge', 'branch']
     ref: str      # key into llms/functions/sub-workflows
+    config: Dict[str, Any] = Field(default_factory=dict)
     stop: bool = False
 
 class Edge(BaseModel):
@@ -139,6 +186,7 @@ class Spec(BaseModel):
     This top-level model aggregates all configurations required for a workflow:
     - `version`: Specification version.
     - `description`: Optional textual description of the workflow.
+    - `reference`: Optional path to another workflow YAML file to import and merge.
     - `runtime`: Target execution runtime (e.g., 'langgraph').
     - `llms`: A dictionary of named `LLM` configurations.
     - `retrievers`: A dictionary of named `Retriever` configurations.
@@ -154,12 +202,13 @@ class Spec(BaseModel):
     
     version: str = '0.1'
     description: Optional[str] = None
+    reference: Optional[Union[str, List[str]]] = None
     runtime: Literal['langgraph', 'agentiq'] = 'langgraph'
-    llms: Dict[str, LLM]
+    llms: Dict[str, LLM] = Field(default_factory=dict)
     retrievers: Dict[str, Retriever] = Field(default_factory=dict)
     memory: Dict[str, Memory] = Field(default_factory=dict)
     functions: Dict[str, Function] = Field(default_factory=dict)
-    workflow: Workflow
+    workflow: Optional[Workflow] = None
     eval: Optional[Dict[str, Union[str, List[str]]]] = None
     
     # Registry of workflow patterns
@@ -168,6 +217,14 @@ class Spec(BaseModel):
     @model_validator(mode='after')
     def validate_references(self) -> 'Spec':
         """Validate that all references in the workflow exist."""
+        # If this spec has a reference field, workflow validation will happen after merging
+        if self.reference:
+            return self
+            
+        # For non-reference specs, workflow is required
+        if not self.workflow:
+            raise ValueError("Workflow is required when not using a reference")
+            
         # Check that all referenced LLMs exist
         for node in self.workflow.nodes:
             if node.kind == 'agent' or node.kind == 'judge':
@@ -180,32 +237,110 @@ class Spec(BaseModel):
         return self
     
     @classmethod
-    def from_file(cls, spec_path: str) -> 'Spec':
+    def from_file(cls, spec_path: str, visited: Optional[Set[Path]] = None) -> 'Spec':
         """
         Loads, parses, and validates a workflow specification from a YAML file.
+        Supports recursive loading with reference resolution and circular detection.
 
         This method takes a file path to a YAML specification, reads its content,
         and then uses Pydantic's `model_validate` to parse the data into a `Spec`
-        object. This process includes all validations defined within the `Spec` model
-        and its nested models (e.g., `LLM`, `WorkflowNode`, `Edge`).
+        object. If the spec contains a `reference` field, it will recursively load
+        and merge the referenced specification.
         
         Args:
             spec_path: The string path to the YAML specification file.
+            visited: Set of already visited paths for circular reference detection.
             
         Returns:
             A validated `Spec` instance representing the workflow.
             
         Raises:
             FileNotFoundError: If the YAML file specified by `spec_path` does not exist.
+            CircularReferenceError: If a circular reference is detected.
+            WorkflowReferenceError: If there's an error processing references.
             pydantic.ValidationError: If the content of the YAML file does not conform
                                     to the `Spec` schema or fails any custom validation rules.
         """
-        path = Path(spec_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Spec file not found: {spec_path}")
+        if visited is None:
+            visited = set()
             
-        data = load_yaml_file(spec_path)
-        return cls.model_validate(data)
+        # Resolve to absolute path for consistent comparison
+        path = Path(spec_path).resolve()
+        
+        # Check for circular references
+        if path in visited:
+            cycle_path = " -> ".join(str(p) for p in visited) + f" -> {path}"
+            raise CircularReferenceError(f"Circular reference detected in workflow chain: {cycle_path}")
+            
+        # Check if file exists
+        if not path.exists():
+            raise FileNotFoundError(f"Referenced file not found: {spec_path}")
+            
+        # Add current path to visited set
+        visited.add(path)
+        
+        try:
+            # Load YAML data
+            data = load_yaml_file(str(path))
+            
+            # Check if this spec has a reference
+            if 'reference' in data and data['reference']:
+                references_input = data['reference']
+                current_data_for_merging = {k: v for k, v in data.items() if k != 'reference'}
+
+                accumulated_base_data: Dict[str, Any] = {}
+
+                if isinstance(references_input, str):
+                    # Single reference string
+                    reference_paths = [references_input]
+                elif isinstance(references_input, list):
+                    # List of reference strings
+                    reference_paths = references_input
+                else:
+                    raise WorkflowReferenceError(
+                        f"Invalid format for 'reference' in {spec_path}. Must be a string or a list of strings."
+                    )
+
+                for i, ref_path_str in enumerate(reference_paths):
+                    if not isinstance(ref_path_str, str):
+                        raise WorkflowReferenceError(
+                            f"Invalid reference path in {spec_path}. All items in reference list must be strings. Found: {type(ref_path_str)}"
+                        )
+                    
+                    # Resolve reference path (relative to current file's directory)
+                    resolved_ref_path = Path(ref_path_str)
+                    if not resolved_ref_path.is_absolute():
+                        resolved_ref_path = path.parent / resolved_ref_path
+                    
+                    try:
+                        # Recursively load the referenced spec
+                        # For the first reference, it becomes the base.
+                        # For subsequent references, they merge into the accumulated base.
+                        referenced_spec = cls.from_file(str(resolved_ref_path), visited.copy())
+                        new_data_to_merge = referenced_spec.model_dump(exclude_none=True)
+                        
+                        if not accumulated_base_data: # First reference
+                            accumulated_base_data = new_data_to_merge
+                        else: # Subsequent references merge into the current accumulated base
+                            accumulated_base_data = _deep_merge_dicts(accumulated_base_data, new_data_to_merge)
+                            
+                    except Exception as e:
+                        if isinstance(e, (CircularReferenceError, FileNotFoundError, WorkflowReferenceError)):
+                            raise
+                        raise WorkflowReferenceError(f"Error processing reference '{resolved_ref_path}' from file '{spec_path}': {str(e)}") from e
+                
+                # Merge the current spec's data on top of all accumulated base data
+                final_merged_data = _deep_merge_dicts(accumulated_base_data, current_data_for_merging)
+                
+                # Validate and return the merged spec
+                return cls.model_validate(final_merged_data)
+            else:
+                # No reference, validate directly
+                return cls.model_validate(data)
+                
+        finally:
+            # Remove current path from visited set
+            visited.discard(path)
     
     @classmethod
     def register_workflow_pattern(cls, name: str, workflow_factory: Callable[..., 'Spec']) -> None:

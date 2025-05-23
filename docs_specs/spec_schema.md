@@ -4,6 +4,7 @@ i## Spec YAML Schema Reference
 # Top-level object
 version: <string>            # (Required) Spec version, e.g. "0.1"
 description: <string>        # (Optional) Free-text description of this workflow
+reference: <string> or <list of strings>
 runtime:                     # (Required) Which engine to use
   langgraph | agentiq
 llms:                        # (Required) Named LLM clients
@@ -57,6 +58,16 @@ eval:                        # (Optional) evaluation harness
 - **Type**: string  
 - **Optional**  
 - A human-friendly summary of the workflow's purpose.
+
+#### `reference`
+- **Type**: string (filepath) or list of strings (filepaths)
+- **Optional**  
+- Path (or list of paths) to other workflow YAML file(s) to import and merge. 
+- When present, the loader will import the referenced file(s) and merge their specifications. 
+- If a list of paths is provided, they are merged sequentially: the first file in the list forms the base, and each subsequent file is merged on top of the accumulated result. 
+- Finally, any additional keys defined in the current file take precedence over all referenced files (override semantics). 
+- Supports both relative paths (relative to the current file's directory) and absolute paths. 
+- Nested references are supported, but circular references will raise an error.
 
 #### `runtime`
 - **Type**: literal  
@@ -180,4 +191,111 @@ eval:
 - **Human-in-the-loop**: Insert a `branch` node with `condition: "await_user"` and wire in LangGraph's `interrupt()` handler.  
 - **Structured outputs**: Embed a "judge" node that validates with a JSON Schema.
 
-This reference, together with your Python `Spec` definitions, ensures anyone can author valid YAML specs and understand every field.  
+### Reference Examples
+
+#### Simple reference (import everything)
+```yaml
+# basic_agent.yaml
+reference: ./common/reasoning_agent.yaml
+```
+
+#### Reference with overrides
+```yaml
+# custom_agent.yaml
+reference: ../base/agent.yaml
+llms:
+  chat_llm:
+    temperature: 0.2  # Override temperature from base file
+workflow:
+  type: custom_graph  # Override workflow type
+```
+
+#### Nested references
+```yaml
+# File A references File B, which references File C
+# agent_a.yaml
+reference: ./agent_b.yaml
+description: "Agent A with custom description"
+
+# agent_b.yaml  
+reference: ./agent_c.yaml
+llms:
+  chat_llm:
+    temperature: 0.5
+
+# agent_c.yaml (base definition)
+version: "0.1"
+llms:
+  chat_llm:
+    type: openai
+    model_name: gpt-4o-mini
+# ... rest of spec
+```
+
+#### Multiple References Example
+
+```yaml
+# main_workflow.yaml
+reference:
+  - ./common/base_llms.yaml      # Defines common LLM configurations
+  - ./common/base_workflow.yaml  # Defines a base workflow structure
+
+description: "Main workflow that combines LLMs and a base structure, then customizes."
+
+llms:
+  specific_llm: # Added in this file
+    type: openai
+    model_name: gpt-4-turbo
+  chat_llm: # Overrides chat_llm from base_llms.yaml if it exists
+    temperature: 0.3 
+
+workflow:
+  nodes:
+    # Add new nodes or override nodes from base_workflow.yaml
+    - id: custom_step
+      kind: agent
+      ref: specific_llm
+      config:
+        prompt: "This is a custom step added in main_workflow.yaml"
+```
+
+### Error Handling
+
+When loading and processing spec files, several types of errors can occur:
+
+#### File Not Found Error
+- **Type**: `FileNotFoundError`
+- **Cause**: A `reference` path in the YAML points to a file that does not exist.
+- **Example Message**: `FileNotFoundError: Referenced file not found: ./missing_workflow.yaml`
+
+#### Circular Reference Error
+- **Type**: `CircularReferenceError` (Custom exception from `elf.core.spec`)
+- **Cause**: A chain of `reference` declarations creates a loop (e.g., File A references File B, and File B references File A).
+- **Example Message**: `CircularReferenceError: Circular reference detected in workflow chain: /path/to/agent_a.yaml -> /path/to/agent_b.yaml -> /path/to/agent_a.yaml`
+
+#### Workflow Reference Error
+- **Type**: `WorkflowReferenceError` (Custom exception from `elf.core.spec`)
+- **Cause**: A general error occurred while trying to process a `reference`. This can include:
+    - The `reference` value is not a string or a list of strings.
+    - An item within a list of references is not a string.
+    - An underlying error (like a `pydantic.ValidationError` or `YAMLError`) occurred while loading or merging a referenced file. The original error will typically be nested.
+- **Example Message (wrapping a Pydantic error)**: `WorkflowReferenceError: Error processing reference '/path/to/referenced_spec.yaml': 1 validation error for Spec\n  Value error, Node 'some_node' references unknown LLM 'unknown_llm' [type=value_error, ...]`
+- **Example Message (invalid reference format)**: `WorkflowReferenceError: Invalid format for 'reference' in main.yaml. Must be a string or a list of strings.`
+
+#### YAML Parse Error
+- **Type**: `yaml.YAMLError` (from the PyYAML library)
+- **Cause**: The YAML syntax in the main spec file or any referenced spec file is invalid.
+- **Example Message**: `YAMLError: Failed to parse referenced file ./invalid_syntax.yaml: Line 5: mapping values are not allowed here`
+
+#### Pydantic Validation Error
+- **Type**: `pydantic.ValidationError`
+- **Cause**: The structure or values in the YAML file (after successful parsing and merging) do not conform to the `Spec` model's schema (e.g., required fields missing, incorrect data types, invalid enum values, or custom validation failures like a node referencing an LLM not defined in the `llms` section).
+- **Example Message**: `pydantic.ValidationError: 1 validation error for Spec\nworkflow -> nodes -> 0 -> kind\n  Input should be 'agent', 'tool', 'judge' or 'branch' [type=literal_error, ...]`
+  (This can also be wrapped by `WorkflowReferenceError` if it occurs during the processing of a referenced file).
+
+#### Value Error (During Merging)
+- **Type**: `ValueError` (from `_deep_merge_dicts` in `elf.core.spec`)
+- **Cause**: An attempt was made to merge incompatible data types during the deep merge process (e.g., trying to merge a string into a dictionary at the same key).
+- **Example Message**: `ValueError: Cannot merge incompatible types at key 'llms': dict and str`
+
+This section, along with your Python `Spec` definitions and the rest of the schema documentation, should provide a comprehensive guide for authoring valid YAML specs.

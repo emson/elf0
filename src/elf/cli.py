@@ -1,6 +1,6 @@
 import typer
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Any
 import json
 from elf.core.runner import run_workflow
 from rich.console import Console

@@ -64,6 +64,10 @@
     - [x] Parameter validation
     - [x] Import error handling
 
+### LLM Support Enhancements
+- [x] **Integrate Anthropic Claude 3 Sonnet Model ("claude-3-sonnet-20240229")**
+    - Description: Enabled support for "claude-3-sonnet-20240229" within the Anthropic provider. Verified that existing LLM client infrastructure, spec schema, and API key handling correctly support this model. Added specific tests for Claude Sonnet generation and error handling, an example spec, and documentation for API key requirements.
+
 ### Save File Functionality
 - [x] Enhance `run_workflow_command` in `cli.py` with `--output <output.md>`:
   - [x] **Parameter Definition:**
@@ -99,6 +103,29 @@
       elf workflow.yaml --prompt "Summarize data" --output summary.json
       ```
     - [x] Clarify in help text: output file contains workflow result, console output replaced by confirmation when `--output` is used.
+
+### Workflow Referencing Functionality
+- [x] **Spec Schema and Pydantic Model Updates for Referencing**
+    - Description: Modify the core `Spec` Pydantic model and its documentation (`docs_specs/spec_schema.md`) to support a `reference` field that can accept a single file path or a list of file paths for enhanced modularity.
+    - [x] Update `docs_specs/spec_schema.md`: Document the `reference` field supporting a string or a list of strings. Detail merge semantics (sequential for lists, with the current file's definitions overriding all referenced content), path resolution logic, and common error scenarios (e.g., missing files, parsing errors, circular references). Provide clear examples for both single and multiple references.
+    - [x] Modify `Spec` Pydantic model in `src/elf/core/spec.py`: Change the `reference` field to `Optional[Union[str, List[str]]]` to enable referencing one or more external spec files.
+- [x] **Implement Spec Loading Logic for Multiple References (`spec.py`)**
+    - Description: Enhance `Spec.from_file` method in `src/elf/core/spec.py` to recursively load and merge specifications from one or more referenced YAML files, applying a clear override precedence.
+    - [x] Adapt `Spec.from_file` to handle both a single string and a list of strings for the `reference` attribute.
+    - [x] Implement sequential merging for lists of references: the first reference forms the base, subsequent references are merged on top, and finally, the current file's content is merged with the highest precedence.
+    - [x] Ensure correct path resolution for referenced files (relative to the directory of the file containing the reference).
+    - [x] Implement robust circular reference detection to prevent infinite loops during loading.
+    - [x] Develop or utilize a deep-merge utility for spec dictionaries that correctly handles nested structures and respects the override semantics.
+    - [x] Implement comprehensive error handling for scenarios such as missing referenced files, YAML parsing errors within referenced files, circular dependencies, and type incompatibilities during merging.
+- [x] **Testing for Workflow Referencing (`tests/core/test_spec.py`)**
+    - Description: Add comprehensive unit tests to `tests/core/test_spec.py` to validate the reference loading, merging, and error handling functionalities.
+    - [x] Test loading a spec with a single file reference.
+    - [x] Test loading a spec with a list of references, verifying correct merge order and override behavior.
+    - [x] Test nested references (e.g., File A references B, B references C).
+    - [x] Test the circular reference detection mechanism and ensure appropriate errors are raised.
+    - [x] Test path resolution for both relative and absolute paths in references.
+    - [x] Test error handling for missing referenced files and malformed YAML in referenced files.
+    - [x] Verify that `config` blocks within nodes (e.g. prompts for agents) are correctly loaded and merged from referenced files and the main file.
 
 ### Implement the Other Patterns
 - [x] Add a new Spec file `specs/prompt_chaining.yaml` that implements the prompt chain pattern

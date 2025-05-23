@@ -5,7 +5,12 @@ from pathlib import Path
 from ..utils.yaml_loader import load_yaml_file
 
 class LLM(BaseModel):
-    """Configuration for a language model."""
+    """Configuration for a specific Large Language Model (LLM) instance.
+    
+    Defines the type, model name, operational parameters (like temperature),
+    and API key for an LLM. This model is referenced by nodes in the workflow
+    that require LLM capabilities (e.g., 'agent' or 'judge' nodes).
+    """
     
     type: Literal['openai', 'anthropic', 'ollama']
     model_name: str
@@ -21,19 +26,35 @@ class LLM(BaseModel):
         return v
 
 class Retriever(BaseModel):
-    """Configuration for a vector retriever."""
+    """Configuration for a vector retriever system.
+    
+    Specifies the type of retriever (e.g., Qdrant, Redis) and the target
+    collection or database to retrieve from. Used for fetching relevant
+    context or data for the workflow.
+    """
     
     type: Literal['qdrant', 'redis', 'weaviate']
     collection: str
 
 class Memory(BaseModel):
-    """Configuration for a memory store."""
+    """Configuration for a memory store.
+    
+    Defines the type of memory backend (e.g., in-memory, Qdrant, Postgres)
+    and a namespace for isolating data. Used by workflow components that
+    need to persist or recall state or conversation history.
+    """
     
     type: Literal['inmemory', 'qdrant', 'postgres']
     namespace: str
 
 class Function(BaseModel):
-    """Configuration for a function or tool."""
+    """Configuration for an external function or tool callable by the workflow.
+    
+    Specifies the type of function (e.g., Python module, MCP endpoint), its
+    globally unique name (for referencing within the workflow), and the entrypoint
+    (e.g., 'module.submodule.function_name' for Python, or a URI for MCP).
+    These functions are typically wrapped by 'tool' nodes in the workflow.
+    """
     
     type: Literal['python', 'mcp']
     name: str
@@ -47,7 +68,13 @@ class Function(BaseModel):
         return v
 
 class WorkflowNode(BaseModel):
-    """Definition of a workflow node."""
+    """Definition of a single node within a workflow graph.
+    
+    Each node has a unique `id`, a `kind` (e.g., 'agent', 'tool', 'judge', 'branch')
+    that determines its behavior, and a `ref` that points to a specific LLM,
+    function, or sub-workflow configuration defined elsewhere in the `Spec`.
+    The `stop` flag indicates if the workflow should terminate after this node executes.
+    """
     
     id: str
     kind: Literal['agent', 'tool', 'judge', 'branch']
@@ -55,7 +82,12 @@ class WorkflowNode(BaseModel):
     stop: bool = False
 
 class Edge(BaseModel):
-    """Definition of an edge between workflow nodes."""
+    """Definition of a directed edge connecting two nodes in a workflow graph.
+    
+    Specifies the `source` node ID and `target` node ID. An optional `condition`
+    can be provided as a Python expression string (evaluated against the workflow state)
+    to determine if this edge should be traversed. Edges define the control flow.
+    """
     
     source: str
     target: str
@@ -71,7 +103,13 @@ class Edge(BaseModel):
         return v
 
 class Workflow(BaseModel):
-    """Definition of a workflow graph."""
+    """Definition of the overall workflow structure, including nodes and edges.
+    
+    Contains the `type` of workflow pattern (e.g., 'sequential', 'react'), a list
+    of `WorkflowNode` definitions, and a list of `Edge` definitions that connect them.
+    `max_iterations` can optionally limit the number of cycles in looped workflows.
+    This model orchestrates how nodes and edges form the executable graph.
+    """
     
     type: Literal['sequential', 'react', 'evaluator_optimizer', 'custom_graph']
     nodes: List[WorkflowNode]
@@ -96,7 +134,23 @@ class Workflow(BaseModel):
         return self
 
 class Spec(BaseModel):
-    """Main workflow specification."""
+    """The main specification model for defining an entire AI workflow.
+    
+    This top-level model aggregates all configurations required for a workflow:
+    - `version`: Specification version.
+    - `description`: Optional textual description of the workflow.
+    - `runtime`: Target execution runtime (e.g., 'langgraph').
+    - `llms`: A dictionary of named `LLM` configurations.
+    - `retrievers`: A dictionary of named `Retriever` configurations.
+    - `memory`: A dictionary of named `Memory` configurations.
+    - `functions`: A dictionary of named `Function` (tool) configurations.
+    - `workflow`: A `Workflow` model instance defining the graph structure (nodes and edges).
+    - `eval`: Optional evaluation configuration.
+    
+    It includes validation logic to ensure references within the workflow (e.g., from a
+    node to an LLM or function) are valid. It also provides class methods for loading
+    from a file (`from_file`) and for creating specs from predefined patterns.
+    """
     
     version: str = '0.1'
     description: Optional[str] = None
@@ -128,17 +182,23 @@ class Spec(BaseModel):
     @classmethod
     def from_file(cls, spec_path: str) -> 'Spec':
         """
-        Load and validate a workflow specification from a YAML file.
+        Loads, parses, and validates a workflow specification from a YAML file.
+
+        This method takes a file path to a YAML specification, reads its content,
+        and then uses Pydantic's `model_validate` to parse the data into a `Spec`
+        object. This process includes all validations defined within the `Spec` model
+        and its nested models (e.g., `LLM`, `WorkflowNode`, `Edge`).
         
         Args:
-            spec_path: Path to the YAML specification file
+            spec_path: The string path to the YAML specification file.
             
         Returns:
-            A validated Spec object
+            A validated `Spec` instance representing the workflow.
             
         Raises:
-            FileNotFoundError: If the spec file doesn't exist
-            ValidationError: If the spec doesn't match the schema
+            FileNotFoundError: If the YAML file specified by `spec_path` does not exist.
+            pydantic.ValidationError: If the content of the YAML file does not conform
+                                    to the `Spec` schema or fails any custom validation rules.
         """
         path = Path(spec_path)
         if not path.exists():
@@ -150,28 +210,40 @@ class Spec(BaseModel):
     @classmethod
     def register_workflow_pattern(cls, name: str, workflow_factory: Callable[..., 'Spec']) -> None:
         """
-        Register a workflow pattern factory.
+        Registers a factory function for creating `Spec` instances from predefined patterns.
+
+        Workflow patterns provide a way to encapsulate common workflow structures.
+        The `workflow_factory` is a callable that accepts pattern-specific arguments
+        and returns a fully configured `Spec` object.
+        Registered patterns can be instantiated using `Spec.create_from_pattern()`.
         
         Args:
-            name: The name of the pattern
-            workflow_factory: A function that creates a workflow pattern
+            name: The unique string name to identify this workflow pattern.
+            workflow_factory: A callable (function or class method) that, when called,
+                              returns a `Spec` instance configured according to the pattern.
         """
         cls._workflow_patterns[name] = workflow_factory
     
     @classmethod
     def create_from_pattern(cls, pattern: str, **kwargs: Any) -> 'Spec':
         """
-        Create a specification from a registered pattern.
+        Creates a `Spec` instance using a previously registered workflow pattern factory.
+
+        This method looks up a pattern by its `name` in the internal registry
+        and calls the associated factory function, passing any `**kwargs` to it.
+        This allows for quick instantiation of complex workflows based on templates.
         
         Args:
-            pattern: The name of the pattern to use
-            **kwargs: Parameters to pass to the pattern factory
+            pattern: The string name of the workflow pattern to use (must be registered
+                     via `Spec.register_workflow_pattern()`).
+            **kwargs: Arbitrary keyword arguments that will be passed directly to the
+                      pattern's factory function.
             
         Returns:
-            A Spec instance configured for the pattern
+            A `Spec` instance configured by the specified pattern factory.
             
         Raises:
-            ValueError: If the pattern is not registered
+            ValueError: If the provided `pattern` name is not found in the registry. 
         """
         if pattern not in cls._workflow_patterns:
             raise ValueError(f"Unknown workflow pattern: {pattern}")
@@ -181,30 +253,38 @@ class Spec(BaseModel):
 
 def load_spec(spec_path: str) -> Spec:
     """
-    Load and validate a workflow specification from a YAML file.
+    Loads, parses, and validates a workflow specification from a YAML file.
+
+    This is a convenience function that directly calls `Spec.from_file(spec_path)`.
+    It provides a simple, top-level function for loading specifications.
     
     Args:
-        spec_path: Path to the YAML specification file
+        spec_path: The string path to the YAML specification file.
         
     Returns:
-        A validated Spec object
+        A validated `Spec` instance.
         
     Raises:
-        FileNotFoundError: If the spec file doesn't exist
-        ValidationError: If the spec doesn't match the schema
+        FileNotFoundError: If the YAML file does not exist.
+        pydantic.ValidationError: If the YAML content is invalid against the `Spec` schema.
     """
     return Spec.from_file(spec_path)
 
 # Convenience factory methods for common workflow patterns
 def create_sequential_workflow(nodes: List[Dict[str, Any]]) -> Workflow:
     """
-    Create a sequential workflow where each node connects to the next.
+    Constructs a `Workflow` object representing a simple sequential flow.
+
+    Nodes are connected in the order they appear in the `nodes` list.
+    The last node in the sequence is automatically marked as a `stop` node.
     
     Args:
-        nodes: List of node configurations
+        nodes: A list of dictionaries, where each dictionary is a configuration
+               for a `WorkflowNode` (will be validated by `WorkflowNode.model_validate`).
+               Each dictionary must contain at least an `id` and `kind`.
         
     Returns:
-        A configured Workflow
+        A `Workflow` instance configured with the given nodes connected sequentially.
     """
     workflow_nodes = [WorkflowNode.model_validate(node) for node in nodes]
     
@@ -228,14 +308,20 @@ def create_sequential_workflow(nodes: List[Dict[str, Any]]) -> Workflow:
 
 def create_react_workflow(agent_node: Dict[str, Any], tools: List[Dict[str, Any]]) -> Workflow:
     """
-    Create a ReAct pattern workflow.
+    Creates a `Workflow` object structured for a ReAct (Reasoning and Acting) pattern.
+
+    Note: The current implementation is a placeholder. A full ReAct pattern
+    would typically involve an agent node that can choose among several tool nodes,
+    potentially looping back to itself after a tool executes. This factory would
+    set up the necessary nodes and conditional edges for such a loop.
     
     Args:
-        agent_node: Configuration for the agent node
-        tools: List of tool configurations
+        agent_node: Configuration dictionary for the central agent `WorkflowNode`.
+        tools: A list of configuration dictionaries for the tool `WorkflowNode`s
+               available to the agent.
         
     Returns:
-        A configured Workflow
+        A `Workflow` instance. (Currently basic, needs full ReAct logic).
     """
     # TODO: Implement actual ReAct pattern
     workflow_nodes = [WorkflowNode.model_validate(agent_node)]
@@ -258,16 +344,22 @@ def create_sequential_spec(
     nodes: List[Dict[str, Any]]
 ) -> Spec:
     """
-    Create a new specification with a sequential workflow.
+    Factory function to create a complete `Spec` for a sequential workflow.
+
+    This helper function simplifies the creation of a `Spec` where the workflow
+    consists of a linear sequence of nodes. It takes high-level configuration
+    for the workflow's name, description, a single LLM configuration, and the
+    list of nodes that will form the sequence.
     
     Args:
-        name: The name of the workflow
-        description: A description of the workflow
-        llm_config: Configuration for the LLM
-        nodes: List of node configurations
+        name: A name for the workflow, also used as the key for the LLM in `spec.llms`.
+        description: A textual description for the `Spec`.
+        llm_config: A dictionary configuring a single `LLM` instance for this workflow.
+        nodes: A list of dictionaries, each configuring a `WorkflowNode` for the
+               sequential workflow (passed to `create_sequential_workflow`).
         
     Returns:
-        A complete Spec instance
+        A fully populated `Spec` instance with the specified sequential workflow. 
     """
     llm = LLM.model_validate(llm_config)
     workflow = create_sequential_workflow(nodes)

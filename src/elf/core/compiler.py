@@ -23,6 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__) # Standard way to get a logger instance
 
 class WorkflowState(TypedDict):
+    """Represents the shared state of the workflow, passed between and modified by nodes."""
     input: str
     output: str | None
     iteration_count: Optional[int]
@@ -42,17 +43,23 @@ class NodeFactory(Protocol):
 
 def _create_llm_client(spec: Spec, node: WorkflowNode) -> LLMClient:
     """
-    Create an LLM client from spec and node configuration.
+    Creates and configures an `LLMClient` instance based on LLM specifications.
+
+    This helper function retrieves LLM configuration from `spec.llms` using `node.ref`.
+    It ensures the referenced LLM spec exists and contains a 'type' attribute.
+    It then uses `create_llm_config` to resolve API keys and other LLM parameters,
+    populating the Pydantic model instance for the LLM before creating the `LLMClient`.
     
     Args:
-        spec: The full workflow specification.
-        node: The WorkflowNode with LLM reference.
+        spec: The full workflow specification, containing LLM definitions in `spec.llms`.
+        node: The `WorkflowNode` that references the LLM to be configured.
         
     Returns:
-        Configured LLMClient instance.
+        A fully configured `LLMClient` instance.
         
     Raises:
-        ValueError: If LLM reference is invalid or missing required fields.
+        ValueError: If the LLM reference in `node.ref` is not found in `spec.llms`,
+                    or if the LLM configuration is missing the required 'type' attribute.
     """
     if node.ref not in spec.llms:
         raise ValueError(f"LLM reference '{node.ref}' in node '{node.id}' not found in spec.llms")
@@ -82,14 +89,19 @@ def _create_llm_client(spec: Spec, node: WorkflowNode) -> LLMClient:
 
 def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     """
-    Create a node function that uses an LLM to process input and generate output.
+    Creates a node function that uses an LLM to process input and generate output.
     
+    The returned node function takes a `WorkflowState`, uses an LLM (configured via `spec`
+    and `node.ref`) to process `state['input']`, and returns an updated `WorkflowState`
+    with the LLM's response in `state['output']`. It also handles iteration counting
+    for specific node IDs (e.g., 'breakdown_worker') and error handling.
+
     Args:
         spec: The full workflow specification.
-        node: The WorkflowNode object, used here to access node.id and node.ref.
+        node: The WorkflowNode object, used here to access node.id and node.ref for LLM configuration.
         
     Returns:
-        A function that processes state using the LLM.
+        A node function that processes state using the LLM.
     """
     llm_client = _create_llm_client(spec, node)
     
@@ -135,13 +147,21 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
 
 def load_tool(fn: Any) -> NodeFunction:
     """
-    Create a node function that executes a tool/function.
-    
+    Creates a node function that wraps and executes a given tool/function.
+
+    The wrapped tool is expected to operate on or use the `WorkflowState`.
+    The returned node function takes the current `WorkflowState`, calls the tool,
+    and integrates its result back into the `WorkflowState`.
+    - If the tool returns a string, it becomes `state['output']`.
+    - If the tool returns a dictionary, it's merged into the state.
+    - Other return types are converted to string and set as `state['output']`.
+    Error handling is included.
+
     Args:
-        fn: The function to execute
+        fn: The tool function to be executed by the node. Can be any callable.
         
     Returns:
-        A node function that executes the tool
+        A node function compatible with StateGraph that executes the tool.
     """
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
@@ -193,14 +213,20 @@ def load_tool(fn: Any) -> NodeFunction:
 
 def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     """
-    Create a node function that uses an LLM to evaluate/judge the state.
-    
+    Creates a node function that uses a designated LLM to evaluate/judge the workflow state.
+
+    The judge LLM typically processes `state['output']` (or `state['input']` as a fallback)
+    from the previous node. It's expected to return a JSON structure containing an
+    'evaluation_score'. This score is parsed and stored in `state['evaluation_score']`.
+    The raw LLM response is stored in `state['output']`. Iteration count is also incremented.
+    Includes logic for robust JSON parsing and error handling.
+
     Args:
-        spec: The full workflow specification.
-        node: The WorkflowNode for the judge.
+        spec: The full workflow specification, used to configure the judge LLM.
+        node: The WorkflowNode defining the judge, including its LLM reference.
         
     Returns:
-        A node function that performs judgment
+        A node function that performs the judgment and updates the `WorkflowState`.
     """
     judge_llm_client = _create_llm_client(spec, node)
 
@@ -284,13 +310,18 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
 
 def make_branch_node(node: Any) -> NodeFunction:
     """
-    Create a node function that implements branching logic.
+    Creates a node function for implementing branching logic within the workflow.
+
+    Note: This function currently returns a placeholder implementation.
+    A proper implementation would involve evaluating conditions based on `WorkflowState`
+    and returning a string that dictates the next node or path in the graph.
     
     Args:
-        node: The node configuration for branching
+        node: The node configuration object. Specific attributes relevant to branching
+              (e.g., conditions, target nodes) would be defined here in a full implementation.
         
     Returns:
-        A node function that performs branching
+        A node function that, when implemented, performs branching based on `WorkflowState`.
     """
     def node_fn(state: WorkflowState) -> WorkflowState:
         # TODO: Implement actual branching logic
@@ -313,16 +344,21 @@ class NodeFactoryRegistry:
     @classmethod
     def get(cls, kind: str) -> NodeFactory:
         """
-        Return a factory that builds a StateGraph node callable for the given kind.
+        Retrieves a registered node factory function for a given node kind.
+
+        Node factories are callables that, given a `Spec` and a `WorkflowNode`,
+        return a `NodeFunction` (the actual callable to be executed in the graph).
+        This method allows dynamic creation of nodes based on their 'kind' string.
         
         Args:
-            kind: The type of node to create a factory for
+            kind: The type/kind of node (e.g., "agent", "tool", "judge") for which
+                  to retrieve the factory.
             
         Returns:
-            A factory function for the specified node kind
+            The registered `NodeFactory` capable of creating nodes of the specified kind.
             
         Raises:
-            ValueError: If the node kind is not registered
+            ValueError: If no factory is registered for the given `kind`.
         """
         try:
             return cls._factories[kind]
@@ -332,28 +368,47 @@ class NodeFactoryRegistry:
     @classmethod
     def register(cls, kind: str, factory: NodeFactory) -> None:
         """
-        Register a new node factory function.
+        Registers a new node factory function for a specific node kind.
+
+        This allows extending the compiler with custom node types. The `factory`
+        provided should be a callable conforming to the `NodeFactory` protocol,
+        meaning it accepts a `Spec` and `WorkflowNode` and returns a `NodeFunction`.
         
         Args:
-            kind: The type of node the factory creates
-            factory: The factory function
+            kind: The string identifier for the new node kind (e.g., "custom_agent").
+            factory: The `NodeFactory` function to be associated with this kind.
         """
         cls._factories[kind] = factory
 
 def create_condition_function(expr: str) -> Callable[[Dict[str, Any]], Any]:
     """
-    Create a condition function from a safe expression string.
+    Creates a callable function from a condition expression string for graph routing.
+
+    This function parses a domain-specific expression string (e.g., 
+    "state.get('evaluation_score', 0) >= 0.75") and converts it into a Python
+    function. This generated function takes a `WorkflowState` (as a dictionary) 
+    and evaluates the expression against it, returning a boolean or a target node name.
+
+    Supported expressions include:
+    - Comparisons: `state.get('key', default_value) op value` (e.g., `state.get('score', 0) > 5`)
+      where `op` can be `>=`, `<=`, `>`, `<`, `==`, `!=`.
+    - Logical combinations: `condition1 and condition2`, `condition1 or condition2`.
+    - Direct boolean access: `state.get('key')` (evaluates to `bool(state.get('key'))`).
+    - Simple boolean literals: `'true'`, `'false'`.
+    - String literals (interpreted as target node names if no other pattern matches).
+
+    This provides a safe way to define routing logic in a declarative manner
+    without using `eval()` directly on arbitrary Python code.
     
     Args:
-        expr: Expression string with limited operations for safety
+        expr: The condition expression string to parse.
         
     Returns:
-        A function that evaluates the expression against the state
+        A callable function that takes a state dictionary and returns the evaluation
+        result (typically boolean for conditions, or a string for direct routing).
         
-    Note:
-        Uses a safe expression evaluator instead of eval() for security.
-        Supports: state.get('key', default) comparisons with >=, <=, >, <, ==, !=
-        Also supports 'and' and 'or' operators for combining conditions.
+    Raises:
+        ValueError: If the expression string contains unsupported operations or fails to parse.
     """
     import re
     import operator
@@ -446,11 +501,18 @@ def create_condition_function(expr: str) -> Callable[[Dict[str, Any]], Any]:
 
 def add_nodes_to_graph(graph: StateGraph, spec: Spec) -> None:
     """
-    Add all nodes from the specification to the graph.
-    
+    Adds all nodes defined in `spec.workflow.nodes` to the `StateGraph`.
+
+    For each node in the specification, this function:
+    1. Retrieves the appropriate node factory using `NodeFactoryRegistry.get(node.kind)`.
+    2. Calls the factory to create the actual node callable (an instance of `NodeFunction`).
+    3. Adds the callable to the `graph` with `graph.add_node(node.id, node_fn)`.
+    Additionally, if a node is marked with `node.stop is True`, an edge is automatically
+    added from this node to the `END` state of the graph.
+
     Args:
-        graph: The StateGraph to add nodes to
-        spec: The workflow specification
+        graph: The `StateGraph` instance to which nodes will be added.
+        spec: The workflow specification containing the list of nodes.
     """
     logger.info("🔄 Building workflow nodes...")
     for node in spec.workflow.nodes:
@@ -466,11 +528,26 @@ def add_nodes_to_graph(graph: StateGraph, spec: Spec) -> None:
 
 def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
     """
-    Add all edges from the specification to the graph.
-    
+    Configures all edges in the `StateGraph` based on `spec.workflow.edges`.
+
+    This function processes edges from the specification:
+    1. Groups edges by their `source` node.
+    2. For each source node:
+        a. If there are conditional edges (edges with a `condition` string):
+            - A router function is dynamically created. This router uses `create_condition_function`
+              to parse each condition string into an evaluatable function that operates on `WorkflowState`.
+            - `graph.add_conditional_edges` is called with the source node, the router,
+              and a mapping of expected router return values (target node names) to target nodes.
+            - Handles default targets if specified, or routes to `END` if no condition matches
+              and no default is set.
+        b. If there are only unconditional edges:
+            - Each edge is added directly using `graph.add_edge(edge.source, edge.target)`.
+            - Supports fan-out to multiple targets if multiple unconditional edges exist from a source.
+    Logs detailed information about the edge configurations being applied.
+
     Args:
-        graph: The StateGraph to add edges to
-        spec: The workflow specification
+        graph: The `StateGraph` instance to which edges will be added.
+        spec: The workflow specification containing the list of edges.
     """
     logger.info("🔄 Building workflow edges...")
     edges_by_source: Dict[str, List[Edge]] = {}
@@ -569,13 +646,27 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
 
 def compile_to_langgraph(spec: Spec) -> StateGraph:
     """
-    Compile a workflow spec into a langgraph StateGraph.
+    Compiles a `Spec` object into a runnable `langgraph.StateGraph`.
+
+    This orchestration function performs the following steps:
+    1. Defines a `WorkflowStateSchema` (a Pydantic model) that dictates the structure
+       of the state object passed between nodes in the graph. This schema matches
+       the `WorkflowState` TypedDict.
+    2. Initializes a `StateGraph` instance with this `WorkflowStateSchema`.
+    3. Calls `add_nodes_to_graph(graph, spec)` to populate the graph with all defined nodes
+       from the specification, creating node callables via `NodeFactoryRegistry`.
+    4. Calls `add_edges_to_graph(graph, spec)` to establish the control flow (transitions)
+       between these nodes, including conditional logic based on `WorkflowState`.
+    5. Sets the entry point of the graph using `graph.set_entry_point()`, typically to the
+       ID of the first node defined in `spec.workflow.nodes`.
     
     Args:
-        spec: The workflow specification containing nodes and edges
+        spec: The workflow specification object containing all definitions for nodes,
+              edges, LLMs, and functions.
         
     Returns:
-        A configured StateGraph ready for execution
+        A fully configured `langgraph.StateGraph` instance, ready for execution
+        with an initial input state.
     """
     logger.info("[bold green]🚀 Compiling workflow...[/bold green]")
     

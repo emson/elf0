@@ -225,5 +225,119 @@
         "Complex recommendation systems",
         "In-depth natural language understanding"
       ]
+    },
+    {
+        "provider": "qwen",
+        "name": "Qwen 2.5 Coder 14.8B",
+        "model_api_name": "qwen2.5-coder-14b-instruct-gguf",
+        "model_api_alias": "huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF:latest",
+        "desc": "Instruction-tuned model optimized for code generation, reasoning, and repair with extended context support",
+        "ctx": 131072,
+        "input_cost_per_mil": null,
+        "cache_write_per_mil": null,
+        "cache_read_per_mil": null,
+        "output_cost_per_mil": null,
+        "batch_discount": null,
+        "use_cases": [
+          "Best for local coding tasks, preferable over deepseek r1 and llama 3",
+          "Code generation and completion",
+          "Code reasoning and debugging",
+          "Long-context code understanding",
+          "Educational tools for programming"
+        ]
+    },
+    {
+        "provider": "deepseek",
+        "name": "DeepSeek R1 7B",
+        "model_api_name": "deepseek-r1:7b",
+        "model_api_alias": "huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B-GGUF:latest",
+        "desc": "Instruction-tuned model optimized for reasoning, mathematics, and code generation with extended context support",
+        "ctx": 131072,
+        "input_cost_per_mil": null,
+        "cache_write_per_mil": null,
+        "cache_read_per_mil": null,
+        "output_cost_per_mil": null,
+        "batch_discount": null,
+        "use_cases": [
+          "Mathematical problem solving",
+          "Logical reasoning tasks",
+          "Code generation and debugging",
+          "Educational tools for STEM subjects"
+        ]
+    },
+    {
+        "provider": "meta",
+        "name": "LLaMA 3.1 8B Instruct",
+        "model_api_name": "llama3.1:8b-instruct-q4_0",
+        "model_api_alias": "huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+        "desc": "Instruction-tuned model optimized for multilingual dialogue and reasoning tasks",
+        "ctx": 131072,
+        "input_cost_per_mil": null,
+        "cache_write_per_mil": null,
+        "cache_read_per_mil": null,
+        "output_cost_per_mil": null,
+        "batch_discount": null,
+        "use_cases": [
+          "Multilingual conversational agents",
+          "Complex reasoning tasks",
+          "Long-form text summarization",
+          "Educational tools for language learning"
+        ]
+    },
+    {
+        "provider": "xai",
+        "name": "Grok-3",
+        "model_api_name": "grok-3",
+        "model_api_alias": "grok-3",
+        "desc": "Flagship model with advanced reasoning capabilities, trained with 10x more compute than its predecessor",
+        "ctx": 131072,
+        "input_cost_per_mil": 3.0,
+        "cache_write_per_mil": null,
+        "cache_read_per_mil": null,
+        "output_cost_per_mil": 15.0,
+        "batch_discount": null,
+        "use_cases": [
+          "Advanced reasoning tasks",
+          "Mathematical problem solving",
+          "PhD-level science questions",
+          "Enterprise data extraction",
+          "Text summarisation"
+        ]
+    },
+    {
+        "provider": "xai",
+        "name": "Grok-3-Fast",
+        "model_api_name": "grok-3-fast",
+        "model_api_alias": "grok-3-fast",
+        "desc": "Same model as Grok-3, served with faster response times",
+        "ctx": 131072,
+        "input_cost_per_mil": 3.0,
+        "cache_write_per_mil": null,
+        "cache_read_per_mil": null,
+        "output_cost_per_mil": 15.0,
+        "batch_discount": null,
+        "use_cases": [
+          "Real-time applications",
+          "Interactive AI experiences",
+          "Time-sensitive tasks"
+        ]
+    },
+    {
+        "provider": "xai",
+        "name": "Grok-3-Mini",
+        "model_api_name": "grok-3-mini",
+        "model_api_alias": "grok-3-mini",
+        "desc": "Lightweight model offering faster responses with some trade-offs in accuracy",
+        "ctx": 131072,
+        "input_cost_per_mil": 3.0,
+        "cache_write_per_mil": null,
+        "cache_read_per_mil": null,
+        "output_cost_per_mil": 15.0,
+        "batch_discount": null,
+        "use_cases": [
+          "Logic-based tasks",
+          "Applications prioritising speed",
+          "Tasks not requiring deep domain knowledge"
+        ]
     }
   ]

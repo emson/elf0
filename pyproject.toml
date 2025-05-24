@@ -13,7 +13,6 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "rich>=14.0.0",
     "anthropic>=0.51.0",
-    "pytest-asyncio>=0.26.0",
 ]
 
 [project.scripts]
@@ -27,3 +26,6 @@ dev = [
 test = [
     "pytest-asyncio>=0.26.0",
 ]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"

@@ -2,11 +2,12 @@
 from typing import Callable, Any, Dict, TypedDict, Protocol, List, Optional
 from langgraph.graph import StateGraph, END
 from .llm_client import LLMClient
-from .spec import Spec, WorkflowNode, Edge
+from .spec import Spec, WorkflowNode, Edge, Function
 from .config import create_llm_config
 import logging
 from pydantic import BaseModel, Field
 import json
+import asyncio
 from rich.logging import RichHandler
 
 # Configure logging
@@ -247,6 +248,125 @@ def load_tool(fn: Any) -> NodeFunction:
             }
     return node_fn
 
+def load_mcp_tool(function_spec: Function) -> NodeFunction:
+    """
+    Creates a node function that wraps and executes an MCP tool.
+
+    The wrapped MCP tool connects to an MCP server and executes the specified tool.
+    The returned node function takes the current `WorkflowState`, extracts relevant data,
+    calls the MCP tool, and integrates the result back into the `WorkflowState`.
+    
+    Args:
+        function_spec: The Function specification containing MCP connection details
+        
+    Returns:
+        A node function compatible with StateGraph that executes the MCP tool
+    """
+    def node_fn(state: WorkflowState) -> WorkflowState:
+        try:
+            # Import MCP client here to handle optional dependency gracefully
+            try:
+                from .mcp_client import call_mcp_tool, MCPNotAvailableError, MCPError
+            except ImportError:
+                logger.error("❌ MCP client not available. Install with: pip install 'mcp[cli]'")
+                return {
+                    **state,
+                    "output": "Error: MCP dependencies not installed. Install with: pip install 'mcp[cli]'",
+                    "error_context": "MCP dependencies missing"
+                }
+            
+            logger.info(f"🔧 Executing MCP tool: {function_spec.name} ({function_spec.entrypoint})")
+            
+            # Prepare arguments for the MCP tool
+            # For now, we'll pass the entire state as context and extract specific fields
+            tool_arguments = {
+                "input": state.get("input", ""),
+                "context": {
+                    "workflow_id": state.get("workflow_id"),
+                    "current_node": state.get("current_node"),
+                    "iteration_count": state.get("iteration_count", 0)
+                }
+            }
+            
+            # If there's previous output, include it as well
+            previous_output = state.get("output")
+            if previous_output:
+                tool_arguments["previous_output"] = previous_output
+            
+            # Call the MCP tool asynchronously
+            try:
+                # Run the async function in the current event loop or create one
+                try:
+                    loop = asyncio.get_running_loop()
+                    # If we're already in an event loop, we need to handle this differently
+                    # For now, we'll use a simple approach
+                    result = asyncio.run_coroutine_threadsafe(
+                        call_mcp_tool(function_spec.entrypoint, tool_arguments),
+                        loop
+                    ).result(timeout=30.0)
+                except RuntimeError:
+                    # No event loop running, create one
+                    result = asyncio.run(call_mcp_tool(function_spec.entrypoint, tool_arguments))
+                
+                if result.success:
+                    logger.info(f"✨ MCP tool '{function_spec.name}' succeeded: {str(result.result)[:100]}...")
+                    
+                    # Handle different types of results
+                    if isinstance(result.result, str):
+                        output = result.result
+                    elif isinstance(result.result, dict):
+                        # If the tool returns a dict, try to extract 'output' or convert to string
+                        output = result.result.get('output', str(result.result))
+                    else:
+                        output = str(result.result)
+                    
+                    return {
+                        **state,
+                        "output": output,
+                        "current_node": function_spec.name,
+                        "error_context": None
+                    }
+                else:
+                    logger.error(f"❌ MCP tool '{function_spec.name}' failed: {result.error}")
+                    return {
+                        **state,
+                        "output": f"MCP Tool Error: {result.error}",
+                        "current_node": function_spec.name,
+                        "error_context": f"MCP tool error: {result.error}"
+                    }
+                    
+            except MCPNotAvailableError as e:
+                logger.error(f"❌ MCP not available: {str(e)}")
+                return {
+                    **state,
+                    "output": f"MCP Error: {str(e)}",
+                    "error_context": "MCP not available"
+                }
+            except MCPError as e:
+                logger.error(f"❌ MCP error: {str(e)}")
+                return {
+                    **state,
+                    "output": f"MCP Error: {str(e)}",
+                    "error_context": f"MCP error: {type(e).__name__}"
+                }
+            except asyncio.TimeoutError:
+                logger.error(f"❌ MCP tool '{function_spec.name}' timed out")
+                return {
+                    **state,
+                    "output": "MCP Tool Error: Tool execution timed out",
+                    "error_context": "MCP tool timeout"
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Unexpected error in MCP tool '{function_spec.name}': {str(e)}", exc_info=True)
+            return {
+                **state,
+                "output": f"Unexpected error: {str(e)}",
+                "error_context": f"Unexpected MCP error: {type(e).__name__}"
+            }
+    
+    return node_fn
+
 def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     """
     Creates a node function that uses a designated LLM to evaluate/judge the workflow state.
@@ -367,12 +487,58 @@ def make_branch_node(node: Any) -> NodeFunction:
         }
     return node_fn
 
+def make_tool_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
+    """
+    Creates a tool node function that routes to either Python or MCP tool loaders.
+    
+    This function examines the referenced function's type and calls the appropriate
+    loader (load_tool for Python functions, load_mcp_tool for MCP functions).
+    
+    Args:
+        spec: The full workflow specification containing function definitions
+        node: The WorkflowNode referencing the tool function
+        
+    Returns:
+        A node function that executes the appropriate tool type
+        
+    Raises:
+        ValueError: If the function reference is not found or has an unsupported type
+    """
+    function_spec = spec.functions.get(node.ref)
+    
+    if function_spec is None:
+        raise ValueError(f"Function reference '{node.ref}' not found in spec.functions")
+    
+    if function_spec.type == "python":
+        # For Python functions, we need to resolve the actual callable
+        # This is a simplified approach - in practice, you'd import the module and get the function
+        logger.info(f"🐍 Loading Python tool: {function_spec.name}")
+        
+        # For now, return a placeholder function that indicates Python tool loading
+        # In a full implementation, you'd resolve the entrypoint and import the function
+        def python_tool_placeholder(state: WorkflowState) -> WorkflowState:
+            return {
+                **state,
+                "output": f"Python tool '{function_spec.name}' (entrypoint: {function_spec.entrypoint}) - Implementation needed",
+                "error_context": "Python tool loading not fully implemented"
+            }
+        
+        return python_tool_placeholder
+        
+    elif function_spec.type == "mcp":
+        # For MCP functions, use the MCP tool loader
+        logger.info(f"🌐 Loading MCP tool: {function_spec.name}")
+        return load_mcp_tool(function_spec)
+    
+    else:
+        raise ValueError(f"Unsupported function type '{function_spec.type}' for function '{function_spec.name}'")
+
 class NodeFactoryRegistry:
     """Registry for node factory functions."""
     
     _factories: Dict[str, NodeFactory] = {
         "agent": make_llm_node,
-        "tool": lambda spec, node: load_tool(spec.functions.get(node.ref)),
+        "tool": make_tool_node,
         "judge": lambda spec, node: make_judge_node(spec, node),
         "branch": lambda spec, node: make_branch_node(node),
     }

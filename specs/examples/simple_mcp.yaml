@@ -1,0 +1,43 @@
+# Simple example of MCP tool integration
+version: "0.1"
+description: "Basic workflow with an MCP tool"
+runtime: "langgraph"
+
+# LLM configuration
+llms:
+  chat_llm:
+    type: "openai"
+    model_name: "gpt-4o-mini"
+    temperature: 0.5
+
+# MCP tool definition
+functions:
+  echo_tool:
+    type: "mcp"
+    name: "Echo Tool"
+    entrypoint: "mcp://localhost:3000/echo"
+
+# Simple sequential workflow
+workflow:
+  type: "sequential"
+  nodes:
+    # First, process input with MCP tool
+    - id: "mcp_step"
+      kind: "tool"
+      ref: "echo_tool"
+      stop: false
+
+    # Then, have LLM respond based on tool output
+    - id: "llm_response"
+      kind: "agent" 
+      ref: "chat_llm"
+      config:
+        prompt: |
+          The MCP tool processed the input and returned: {previous_output}
+          
+          Please provide a helpful response based on this information.
+      stop: true
+
+  edges:
+    - source: "mcp_step"
+      target: "llm_response"

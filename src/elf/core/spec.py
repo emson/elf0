@@ -107,10 +107,28 @@ class Function(BaseModel):
     entrypoint: str  # dotted path or MCP URI
     
     @field_validator('entrypoint')
-    def validate_entrypoint(cls, v: str) -> str:
+    def validate_entrypoint(cls, v: str, info) -> str:
         """Check that entrypoint has proper format."""
-        if v.count('.') < 1 and cls.type == 'python':
-            raise ValueError("Python entrypoint must be in format 'module.function'")
+        # Get the function type from the validation context
+        func_type = info.data.get('type')
+        
+        if func_type == 'python':
+            if v.count('.') < 1:
+                raise ValueError("Python entrypoint must be in format 'module.function'")
+        elif func_type == 'mcp':
+            if not v.startswith('mcp://'):
+                raise ValueError("MCP entrypoint must start with 'mcp://' (e.g., 'mcp://localhost:3000/tool_name')")
+            # Additional MCP URI validation
+            from urllib.parse import urlparse
+            try:
+                parsed = urlparse(v)
+                if not parsed.netloc:
+                    raise ValueError("MCP entrypoint must include server address")
+                if not parsed.path.lstrip('/'):
+                    raise ValueError("MCP entrypoint must include tool name in path")
+            except Exception as e:
+                raise ValueError(f"Invalid MCP entrypoint format: {str(e)}")
+        
         return v
 
 class WorkflowNode(BaseModel):

@@ -25,19 +25,19 @@ functions:
   math_calculator:
     type: "mcp"
     name: "Mathematical Calculator"
-    entrypoint: "mcp://localhost:3000/calculate"
+    entrypoint: "mcp://localhost:8000/calculate"
   
   # Example MCP tool for data processing
   data_processor:
     type: "mcp"
     name: "Data Processor"
-    entrypoint: "mcp://localhost:3000/process_data"
+    entrypoint: "mcp://localhost:8000/process_data"
   
   # Example MCP tool for text analysis
   text_analyzer:
     type: "mcp"
     name: "Text Analyzer" 
-    entrypoint: "mcp://localhost:3001/analyze_text"
+    entrypoint: "mcp://localhost:8000/analyze_text"
 
 # Workflow definition
 workflow:

@@ -74,8 +74,9 @@ uv run elf prompt specs/basic_chat.yaml
 Execute workflows that integrate with Model Context Protocol (MCP) servers:
 
 ```bash
-# Run a workflow with MCP nodes (see specs/examples/simple_mcp.yaml)
-uv run elf agent specs/examples/simple_mcp.yaml --prompt "Read the config file"
+# Run a workflow with MCP nodes (see specs/examples/mcp_workflow.yaml)
+uv run elf agent specs/examples/mcp_workflow.yaml --prompt "Calculate 15 + 30"
+
 
 # MCP nodes can access filesystem, databases, APIs, and other external tools
 # No additional setup required - MCP servers are started automatically

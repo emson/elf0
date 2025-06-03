@@ -67,4 +67,36 @@
 - [x] Add interactive mode documentation and examples
 - [x] Update all documentation to reflect `agent` command rename
 
+## Phase 3: Core Platform Features
+
+### Full MCP Integration
+- [ ] Replace placeholder MCP client with real MCP protocol implementation
+- [ ] Implement MCP server connection management (stdio, SSE, WebSocket)
+- [ ] Add MCP tool discovery, caching, and execution
+- [ ] Create MCP node type for workflow integration
+- [ ] Add MCP server configuration in workflow YAML
+- [ ] Implement MCP security and authentication
+- [ ] Add comprehensive MCP integration tests
+- [ ] Create MCP workflow examples and documentation
+
+### Python Tool Loading
+- [ ] Implement Python function loader with module and file support
+- [ ] Create secure Python execution environment with resource limits
+- [ ] Add Python node type for workflow integration
+- [ ] Implement function signature introspection and schema generation
+- [ ] Add parameter binding and type conversion
+- [ ] Create security framework for safe Python execution
+- [ ] Add comprehensive Python tool tests
+- [ ] Create Python tool development documentation
+
+### ReAct Pattern Implementation
+- [ ] Implement ReAct controller with reasoning/action/observation loop
+- [ ] Create action framework for tool integration
+- [ ] Add ReAct node type for workflow execution
+- [ ] Implement reasoning templates and prompt management
+- [ ] Add action parsing and execution coordination
+- [ ] Create termination logic and success criteria evaluation
+- [ ] Add comprehensive ReAct pattern tests
+- [ ] Create ReAct workflow examples and documentation
+
 

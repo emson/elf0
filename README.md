@@ -113,7 +113,7 @@ You can delete or replace any slice without rippling changes across the codebase
    - Each agent has its own configuration:
      - System prompt
      - LLM client (e.g., OpenAI, Anthropic, Ollama)
-     - Model (e.g., `gpt-4o-mini`, `claude-3-5-sonnet`)
+     - Model (e.g., `gpt-4.1-mini`, `claude-4-sonnet`)
      - Model parameters (e.g., `temperature`)
    - MCP nodes provide direct integration with external tools and services
    - Support for complex workflow patterns (sequential, react, custom graphs)

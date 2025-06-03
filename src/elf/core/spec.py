@@ -141,7 +141,7 @@ class WorkflowNode(BaseModel):
     """
     
     id: str
-    kind: Literal['agent', 'tool', 'judge', 'branch']
+    kind: Literal['agent', 'tool', 'judge', 'branch', 'mcp']
     ref: str      # key into llms/functions/sub-workflows
     config: Dict[str, Any] = Field(default_factory=dict)
     stop: bool = False
@@ -251,6 +251,14 @@ class Spec(BaseModel):
             elif node.kind == 'tool':
                 if node.ref not in self.functions:
                     raise ValueError(f"Node '{node.id}' references unknown function '{node.ref}'")
+            elif node.kind == 'mcp':
+                # MCP nodes don't use ref field, they use config directly
+                if not node.config:
+                    raise ValueError(f"MCP node '{node.id}' must have configuration")
+                if 'server' not in node.config:
+                    raise ValueError(f"MCP node '{node.id}' must have 'server' configuration")
+                if 'tool' not in node.config:
+                    raise ValueError(f"MCP node '{node.id}' must have 'tool' configuration")
                     
         return self
     

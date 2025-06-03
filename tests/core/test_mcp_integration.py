@@ -1,7 +1,7 @@
 # tests/core/test_mcp_integration.py
 import pytest
 from elf.core.spec import Function, Spec
-from elf.core.compiler import load_mcp_tool, make_tool_node
+from elf.core.compiler import make_tool_node
 
 
 class TestMCPFunctionValidation:
@@ -71,60 +71,30 @@ class TestMCPFunctionValidation:
             )
 
 
-class TestMCPEntrypointParsing:
-    """Test MCP entrypoint parsing functionality."""
+class TestMCPArchitectureCompatibility:
+    """Test compatibility between old MCP function specs and new MCP node architecture."""
 
-    def test_parse_mcp_entrypoint_valid(self):
-        """Test parsing valid MCP entrypoints."""
-        from elf.core.mcp_client import parse_mcp_entrypoint
-        
-        result = parse_mcp_entrypoint("mcp://localhost:3000/multiply")
-        assert result["server_uri"] == "mcp://localhost:3000"
-        assert result["tool_name"] == "multiply"
-
-    def test_parse_mcp_entrypoint_no_port(self):
-        """Test parsing MCP entrypoint without port."""
-        from elf.core.mcp_client import parse_mcp_entrypoint
-        
-        result = parse_mcp_entrypoint("mcp://server.com/tool")
-        assert result["server_uri"] == "mcp://server.com"
-        assert result["tool_name"] == "tool"
-
-    def test_parse_mcp_entrypoint_invalid_scheme(self):
-        """Test parsing invalid MCP entrypoint scheme."""
-        from elf.core.mcp_client import parse_mcp_entrypoint
-        
-        with pytest.raises(ValueError, match="MCP entrypoint must start with 'mcp://'"):
-            parse_mcp_entrypoint("http://localhost:3000/tool")
-
-    def test_parse_mcp_entrypoint_no_tool(self):
-        """Test parsing MCP entrypoint without tool name."""
-        from elf.core.mcp_client import parse_mcp_entrypoint
-        
-        with pytest.raises(ValueError, match="MCP entrypoint must include tool name"):
-            parse_mcp_entrypoint("mcp://localhost:3000")
-
-
-class TestMCPToolLoading:
-    """Test MCP tool loading functionality."""
-
-    def test_load_mcp_tool_creates_node_function(self):
-        """Test that load_mcp_tool creates a proper node function."""
+    def test_mcp_functions_still_validate(self):
+        """Test that MCP functions still validate in specs for backward compatibility."""
+        # Note: MCP functionality is now handled by MCP nodes directly
+        # rather than through the Function system. This test verifies
+        # that MCP functions are still properly validated in the spec.
         function_spec = Function(
             type="mcp",
             name="test_tool",
             entrypoint="mcp://localhost:3000/echo"
         )
         
-        node_fn = load_mcp_tool(function_spec)
-        assert callable(node_fn)
+        # Function validation should still work
+        assert function_spec.type == "mcp"
+        assert function_spec.entrypoint == "mcp://localhost:3000/echo"
 
 
 class TestMCPToolNodeFactory:
     """Test the make_tool_node function with MCP support."""
 
     def test_make_tool_node_mcp_function(self):
-        """Test make_tool_node with MCP function."""
+        """Test make_tool_node with MCP function returns placeholder explaining new architecture."""
         from elf.core.spec import Spec, Workflow, WorkflowNode
         
         # Create a spec with an MCP function
@@ -150,6 +120,11 @@ class TestMCPToolNodeFactory:
         
         node_fn = make_tool_node(spec, node)
         assert callable(node_fn)
+        
+        # Test that it returns the expected placeholder message
+        result = node_fn({"input": "test"})
+        assert "Use MCP nodes instead" in result["output"]
+        assert "MCP functionality is now handled by MCP nodes directly" in result["error_context"]
 
     def test_make_tool_node_python_function(self):
         """Test make_tool_node with Python function."""

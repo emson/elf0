@@ -1,10 +1,9 @@
 # src/elf/core/mcp_client.py
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import logging
 import asyncio
 from urllib.parse import urlparse
 from dataclasses import dataclass
-import json
 
 logger = logging.getLogger(__name__)
 

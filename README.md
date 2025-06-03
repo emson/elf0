@@ -24,10 +24,61 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
-Run the app:
+## Usage
+
+### Basic Workflow Execution
 ```bash
-uv run elf
+# Execute a workflow with a simple prompt
+uv run elf specs/basic_chat.yaml --prompt "What is the weather in London?"
+
+# Use a prompt file
+uv run elf specs/basic_chat.yaml --prompt_file my_prompt.md
+
+# Include context files
+uv run elf specs/basic_chat.yaml --prompt "Summarize these files" --context file1.txt --context file2.py
+
+# Use @ file references for automatic context inclusion
+uv run elf specs/basic_chat.yaml --prompt "Explain this code @main.py and compare it to @test.py"
+
+# Save output to file
+uv run elf specs/basic_chat.yaml --prompt "Generate a report" --output report.md
 ```
+
+### Self-Improvement Features
+```bash
+# Improve any YAML workflow specification
+uv run elf improve yaml specs/my_workflow.yaml
+
+# Save improved version to specific file
+uv run elf improve yaml specs/my_workflow.yaml --output specs/my_workflow_v2.yaml
+
+# Custom improvement guidance
+uv run elf improve yaml specs/my_workflow.yaml --prompt "Focus on making prompts more specific"
+
+# Reference-based improvement with @ file syntax
+uv run elf improve yaml specs/my_workflow.yaml --prompt "Follow patterns from @examples/best_workflow.yaml"
+```
+
+### Interactive Mode
+```bash
+# Start an interactive session with any workflow agent
+uv run elf prompt specs/basic_chat.yaml
+
+# Then type prompts interactively, including @ file references:
+💬 Prompt: Analyze @config.yaml and suggest improvements
+💬 Prompt: Review @README.md and @src/main.py for consistency
+💬 Prompt: exit
+```
+
+### File Reference System
+Elf supports automatic file inclusion using `@filename.ext` syntax in any prompt:
+
+- **In command-line prompts**: `--prompt "Explain @main.py"`
+- **In interactive mode**: `💬 Prompt: Review @config.yaml`
+- **Combined with context files**: Works alongside `--context` flag
+- **Multiple files**: `"Compare @file1.py to @file2.py and @file3.py"`
+
+Files are automatically read and included as context, making it easy to reference project files without manual copy-paste.
 
 ## Guiding Principles
 
@@ -63,5 +114,12 @@ You can delete or replace any slice without rippling changes across the codebase
 ### 3. AI-Powered Workflow Optimization (Elf Agent)
 - A specialized "AI Workflow Architect" (Elf) agent can analyze an existing workflow definition.
 - The Elf can suggest improvements to an agent's system prompt within a workflow, based on a user-defined goal.
+- Available via `elf improve yaml` command with optional custom guidance via `--prompt`.
 - Future: Elf will be able to suggest more complex changes like adding/removing steps, changing models, or incorporating new tools.
-- This functionality can be invoked via the CLI, enabling a meta-loop where AI helps refine its own operational procedures.
+- This functionality enables a meta-loop where AI helps refine its own operational procedures.
+
+### 4. Interactive Agent Sessions
+- Interactive prompt sessions allow real-time conversation with any workflow agent.
+- Maintains session state across multiple prompts for contextual conversations.
+- Supports the same file reference system (`@filename.ext`) as batch processing.
+- Clean exit options and error handling for robust user experience.

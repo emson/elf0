@@ -209,7 +209,7 @@ def test_run_workflow_command_prompt_file_only(runner, temp_prompt_file, tmp_pat
     # Mock run_workflow to avoid actual execution
     with patch('elf.cli.run_workflow') as mock_run:
         mock_run.return_value = {"output": "test result"}
-        result = runner.invoke(app, [str(spec_path), "--prompt_file", str(temp_prompt_file)])
+        result = runner.invoke(app, ["run-workflow-command", str(spec_path), "--prompt_file", str(temp_prompt_file)])
         assert result.exit_code == 0
         mock_run.assert_called_once()
         assert "Test prompt content" in mock_run.call_args[0][1]
@@ -223,6 +223,7 @@ def test_run_workflow_command_prompt_file_and_prompt(runner, temp_prompt_file, t
     with patch('elf.cli.run_workflow') as mock_run:
         mock_run.return_value = {"output": "test result"}
         result = runner.invoke(app, [
+            "run-workflow-command",
             str(spec_path),
             "--prompt_file", str(temp_prompt_file),
             "--prompt", "Additional prompt"
@@ -237,7 +238,7 @@ def test_run_workflow_command_no_prompt_sources(runner, tmp_path):
     spec_path = tmp_path / "workflow.yaml"
     spec_path.write_text("name: test\nruntime: langgraph\nworkflow:\n  nodes: []")
     
-    result = runner.invoke(app, [str(spec_path)])
+    result = runner.invoke(app, ["run-workflow-command", str(spec_path)])
     assert result.exit_code == 1
     assert "Error: You must provide either --prompt or --prompt_file" in result.stdout
 
@@ -251,7 +252,7 @@ def test_run_workflow_command_empty_prompt_file(runner, tmp_path):
     # Mock run_workflow to avoid actual execution
     with patch('elf.cli.run_workflow') as mock_run:
         mock_run.return_value = {"output": "test result"}
-        result = runner.invoke(app, [str(spec_path), "--prompt_file", str(file_path)])
+        result = runner.invoke(app, ["run-workflow-command", str(spec_path), "--prompt_file", str(file_path)])
         assert result.exit_code == 0
         mock_run.assert_called_once()
         assert mock_run.call_args[0][1] == "" 

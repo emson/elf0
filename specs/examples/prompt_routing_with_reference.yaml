@@ -11,11 +11,11 @@ reference:
 llms:
   classifier_llm:
     type: "openai" 
-    model_name: "gpt-4o-mini"
+    model_name: "gpt-4.1-mini"
     temperature: 0.2
   # general_chat_llm:
   #   type: "openai"
-  #   model_name: "gpt-4o-mini"
+  #   model_name: "gpt-4.1-mini"
   #   temperature: 0.7
 
   # The reasoning_llm is inherited from basic_reasoning.yaml

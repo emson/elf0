@@ -291,18 +291,8 @@ def make_mcp_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 
                 logger.info(f"✨ [Node: [cyan]{node.id}[/]] MCP tool completed successfully")
                 
-                # Extract result and update state
-                mcp_result = result_state.get("mcp_result", "")
-                
-                # Handle different types of results
-                if isinstance(mcp_result, dict):
-                    # If tool returns structured data, extract content or convert to string
-                    if "content" in mcp_result:
-                        output = mcp_result["content"]
-                    else:
-                        output = str(mcp_result)
-                else:
-                    output = str(mcp_result)
+                # Use the output field from the result state if available, otherwise fallback to mcp_result
+                output = result_state.get("output", result_state.get("mcp_result", ""))
                 
                 return WorkflowState({
                     **state,
@@ -840,15 +830,24 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
             )
         
         elif unconditional_edges: # No conditional edges from this source, only unconditional ones.
-            logger.info(f"  🛑 Node [bright_blue]{source}[/] has no outgoing edges defined in the spec.") # Rich markup
             if len(unconditional_edges) > 1:
                  logger.info(f"    扇出: Node [bright_blue]{source}[/] has multiple unconditional edges (fan-out): {[e.target for e in unconditional_edges]}") # Rich markup
             for edge in unconditional_edges:
                 logger.info(f"    → Adding direct edge from [bright_blue]{source}[/] to: [green]{edge.target}[/]") # Rich markup
+                graph.add_edge(edge.source, edge.target)  # ✅ FIXED: Actually add the edge
         else:
             # This case means the node is a leaf node in terms of defined edges.
             # If it's not a 'stop: true' node, the graph might halt here if no global end is reached.
             logger.info(f"  🛑 Node [bright_blue]{source}[/] has no outgoing edges defined in the spec.") # Rich markup
+            
+            # Check if this node should have edges but doesn't
+            node = next((n for n in spec.workflow.nodes if n.id == source), None)
+            if node and not node.stop:
+                logger.warning(
+                    f"  ⚠️ Node [bright_blue]{source}[/] has no outgoing edges and stop=False. "
+                    f"This may cause the workflow to terminate unexpectedly. "
+                    f"Consider adding edges or setting stop=True."
+                )
 
 
 def compile_to_langgraph(spec: Spec) -> StateGraph:

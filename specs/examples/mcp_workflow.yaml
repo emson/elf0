@@ -7,37 +7,19 @@ runtime: "langgraph"
 llms:
   analyzer_llm:
     type: "openai"
-    model_name: "gpt-4o-mini"
+    model_name: "gpt-4.1-mini"
     temperature: 0.3
     params:
       max_tokens: 500
 
   summarizer_llm:
     type: "openai" 
-    model_name: "gpt-4o-mini"
+    model_name: "gpt-4.1-mini"
     temperature: 0.7
     params:
       max_tokens: 300
 
-# MCP tool definitions
-functions:
-  # Example MCP tool for mathematical calculations
-  math_calculator:
-    type: "mcp"
-    name: "Mathematical Calculator"
-    entrypoint: "mcp://localhost:8000/calculate"
-  
-  # Example MCP tool for data processing
-  data_processor:
-    type: "mcp"
-    name: "Data Processor"
-    entrypoint: "mcp://localhost:8000/process_data"
-  
-  # Example MCP tool for text analysis
-  text_analyzer:
-    type: "mcp"
-    name: "Text Analyzer" 
-    entrypoint: "mcp://localhost:8000/analyze_text"
+# No MCP function definitions needed - use MCP nodes directly
 
 # Workflow definition
 workflow:
@@ -61,22 +43,55 @@ workflow:
           Respond with just the category name.
       stop: false
 
-    # MCP tool for mathematical calculations
+    # Extract parameters from the math expression
+    - id: "math_extractor"
+      kind: "agent"
+      ref: "analyzer_llm"
+      config:
+        prompt: |
+          Extract the mathematical operation from this input: {input}
+          
+          Parse the expression and return ONLY a JSON object with these exact keys:
+          - a: first number (as a number, not string)
+          - b: second number (as a number, not string)  
+          - operation: one of "add", "subtract", "multiply", "divide"
+          
+          Examples:
+          - "15 + 27" should return: {{"a": 15, "b": 27, "operation": "add"}}
+          - "50 - 20" should return: {{"a": 50, "b": 20, "operation": "subtract"}}
+          - "8 * 6" should return: {{"a": 8, "b": 6, "operation": "multiply"}}
+          - "100 / 4" should return: {{"a": 100, "b": 4, "operation": "divide"}}
+          
+          Return ONLY the JSON object, no other text.
+      stop: false
+
+    # MCP node for mathematical calculations
     - id: "math_tool"
-      kind: "tool"
-      ref: "math_calculator"
+      kind: "mcp"
+      config:
+        server:
+          command: ["python", "mcp/calculator/server.py"]
+        tool: "calculate"
+        parameters:
+          a: "${state.json.a}"
+          b: "${state.json.b}"
+          operation: "${state.json.operation}"
       stop: false
 
-    # MCP tool for data processing
+    # MCP node for data processing  
     - id: "data_tool"
-      kind: "tool"
-      ref: "data_processor"
+      kind: "agent"
+      ref: "analyzer_llm"
+      config:
+        prompt: "Process this data: ${state.input}"
       stop: false
 
-    # MCP tool for text analysis
+    # MCP node for text analysis
     - id: "text_tool"
-      kind: "tool"
-      ref: "text_analyzer"
+      kind: "agent"
+      ref: "analyzer_llm"
+      config:
+        prompt: "Analyze this text: ${state.input}"
       stop: false
 
     # Final summarization by LLM
@@ -85,19 +100,18 @@ workflow:
       ref: "summarizer_llm"
       config:
         prompt: |
-          Based on the tool processing results, provide a clear and concise summary:
+          Please provide a clear and concise summary of the calculation that was just performed.
           
-          Original input: {input}
-          Tool result: {previous_output}
+          Original request: {input}
           
-          Please provide a user-friendly summary of what was processed and the results.
+          Summarize what calculation was done and what the result was.
       stop: true
 
   # Conditional routing based on input analysis
   edges:
     # Route from analyzer to appropriate tool
     - source: "input_analyzer"
-      target: "math_tool"
+      target: "math_extractor"
       condition: "state.get('output', '').strip().lower() == 'math'"
 
     - source: "input_analyzer"
@@ -107,6 +121,10 @@ workflow:
     - source: "input_analyzer"
       target: "text_tool"
       condition: "state.get('output', '').strip().lower() == 'text'"
+
+    # Route from math extractor to math tool
+    - source: "math_extractor"
+      target: "math_tool"
 
     # Route from tools to summarizer
     - source: "math_tool"

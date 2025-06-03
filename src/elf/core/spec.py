@@ -142,7 +142,7 @@ class WorkflowNode(BaseModel):
     
     id: str
     kind: Literal['agent', 'tool', 'judge', 'branch', 'mcp']
-    ref: str      # key into llms/functions/sub-workflows
+    ref: Optional[str] = None     # key into llms/functions/sub-workflows (not used for MCP nodes)
     config: Dict[str, Any] = Field(default_factory=dict)
     stop: bool = False
 
@@ -246,9 +246,13 @@ class Spec(BaseModel):
         # Check that all referenced LLMs exist
         for node in self.workflow.nodes:
             if node.kind == 'agent' or node.kind == 'judge':
+                if not node.ref:
+                    raise ValueError(f"Node '{node.id}' of kind '{node.kind}' must have a ref field")
                 if node.ref not in self.llms:
                     raise ValueError(f"Node '{node.id}' references unknown LLM '{node.ref}'")
             elif node.kind == 'tool':
+                if not node.ref:
+                    raise ValueError(f"Node '{node.id}' of kind 'tool' must have a ref field")
                 if node.ref not in self.functions:
                     raise ValueError(f"Node '{node.id}' references unknown function '{node.ref}'")
             elif node.kind == 'mcp':

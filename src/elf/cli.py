@@ -10,7 +10,8 @@ import os
 app = typer.Typer(
     name="elf",
     help="AI Workflow Architect - Execute and optimize LLM-powered agent workflows",
-    add_completion=False
+    add_completion=False,
+    rich_markup_mode="rich"
 )
 
 improve_app = typer.Typer(
@@ -195,7 +196,7 @@ def read_prompt_file(prompt_file: Path) -> str:
         typer.secho(f"Error: Could not read prompt file '{prompt_file}': {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
-def run_workflow_command(
+def agent_command(
     spec_path: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=False, help='Path to YAML spec'),
     prompt: Optional[str] = typer.Option(None, help='User prompt to process'),
     prompt_file: Optional[Path] = typer.Option(
@@ -204,29 +205,24 @@ def run_workflow_command(
         exists=True,
         file_okay=True,
         dir_okay=False,
-        help="Path to a markdown (.md) or XML (.xml) file containing the prompt.",
+        help="Markdown (.md) or XML (.xml) file containing the prompt",
         show_default=False,
     ),
     session_id: str = typer.Option('session', help='Session identifier for stateful runs'),
-    context_files: Optional[List[Path]] = typer.Option(None, "--context", help="Path to context file(s). Can be specified multiple times or as a comma-separated list. File contents will be added to the prompt.", show_default=False),
-    output_path: Optional[Path] = typer.Option(None, "--output", help="Path to save the final workflow result. If provided, console output of the result is suppressed.", show_default=False, file_okay=True, dir_okay=False, writable=True, resolve_path=True)
+    context_files: Optional[List[Path]] = typer.Option(None, "--context", help="Context file(s) to include. Use multiple times or comma-separated.", show_default=False),
+    output_path: Optional[Path] = typer.Option(None, "--output", help="Save result to file instead of displaying", show_default=False, file_okay=True, dir_okay=False, writable=True, resolve_path=True)
 ):
     """
     Execute an agent workflow defined in YAML.
     
     File References:
         Use @filename.ext within prompts to automatically include file contents as context.
-        Example: "Explain this code @main.py and compare it to @test.py"
     
     Examples:
-        elf workflow.yaml --prompt "What is the weather in London?"
-        elf workflow.yaml --prompt_file prompt.md
-        elf workflow.yaml --prompt_file prompt.md --prompt "Additional instructions"
-        elf workflow.yaml --prompt "Summarize these files" --context file1.txt --context dir/file2.py
-        elf workflow.yaml --prompt "Explain this code" --context file1.py,file2.py
-        elf workflow.yaml --prompt "Explain this code @main.py and @utils.py"
-        elf workflow.yaml --prompt "Explain this code" --context file1.py --output result.md
-        elf workflow.yaml --prompt "Summarize data" --output summary.json
+        elf agent workflow.yaml --prompt "What is the weather in London?"
+        elf agent workflow.yaml --prompt_file prompt.md
+        elf agent workflow.yaml --prompt "Explain this code @main.py and @utils.py"
+        elf agent workflow.yaml --prompt "Analyze this" --context file1.txt --output result.md
     """
     # Validate that at least one prompt source is provided
     if not prompt and not prompt_file:
@@ -273,8 +269,8 @@ def run_workflow_command(
 
 def improve_yaml_command(
     spec_path: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=False, help='Path to YAML spec to improve'),
-    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Path to save improved YAML. If not provided, will create <original>_improved.yaml", show_default=False),
-    prompt: Optional[str] = typer.Option(None, "--prompt", help="Custom improvement guidance. Specify how you want the YAML to be improved.", show_default=False),
+    output_path: Optional[Path] = typer.Option(None, "--output", "-o", help="Save improved YAML to file (default: <original>_improved.yaml)", show_default=False),
+    prompt: Optional[str] = typer.Option(None, "--prompt", help="Custom improvement guidance (supports @file references)", show_default=False),
     session_id: str = typer.Option('improve_session', help='Session identifier for improvement run')
 ):
     """
@@ -282,15 +278,12 @@ def improve_yaml_command(
     
     File References:
         Use @filename.ext within --prompt to automatically include file contents as context.
-        Example: --prompt "Use the patterns from @best_practices.md to improve this workflow"
     
     Examples:
-        elf improve yaml my_workflow.yaml
-        elf improve yaml my_workflow.yaml --output improved_workflow.yaml
-        elf improve yaml my_workflow.yaml --prompt "Focus on making prompts more specific"
-        elf improve yaml my_workflow.yaml --prompt "Optimize for faster execution and lower costs"
-        elf improve yaml my_workflow.yaml --prompt "Add better error handling and validation"
-        elf improve yaml my_workflow.yaml --prompt "Follow the patterns in @examples/best_workflow.yaml"
+        elf improve yaml workflow.yaml
+        elf improve yaml workflow.yaml --output improved_workflow.yaml
+        elf improve yaml workflow.yaml --prompt "Focus on making prompts more specific"
+        elf improve yaml workflow.yaml --prompt "Follow patterns from @examples/best_workflow.yaml"
     """
     # Use the built-in agent-optimizer.yaml spec
     optimizer_spec_path = Path(__file__).parent.parent.parent / "specs" / "agent-optimizer.yaml"
@@ -382,10 +375,9 @@ def prompt_yaml_command(
     
     File References:
         Use @filename.ext within prompts to automatically include file contents as context.
-        Example: "Explain this code @main.py and compare it to @test.py"
     
     Examples:
-        elf prompt my_workflow.yaml
+        elf prompt workflow.yaml
         Then type: "Analyze @config.yaml and suggest improvements"
     """
     console = Console()
@@ -428,12 +420,12 @@ def prompt_yaml_command(
         console.print("\n[yellow]Session ended.[/yellow]")
 
 # Add subcommands to improve app
-improve_app.command("yaml", help="Improve a YAML workflow specification")(improve_yaml_command)
+improve_app.command("yaml", help="Improve a YAML workflow specification using AI optimization")(improve_yaml_command)
 
 # Register commands
-app.command()(run_workflow_command)
+app.command("agent", help="Execute an agent workflow defined in YAML")(agent_command)
 app.add_typer(improve_app)
-app.command("prompt", help="Start interactive prompt session with a YAML spec")(prompt_yaml_command)
+app.command("prompt", help="Start interactive conversation with a workflow agent")(prompt_yaml_command)
 
 if __name__ == '__main__':
     app()

@@ -29,19 +29,19 @@ uv pip install -e .
 ### Basic Workflow Execution
 ```bash
 # Execute a workflow with a simple prompt
-uv run elf specs/basic_chat.yaml --prompt "What is the weather in London?"
+uv run elf agent specs/basic_chat.yaml --prompt "What is the weather in London?"
 
 # Use a prompt file
-uv run elf specs/basic_chat.yaml --prompt_file my_prompt.md
+uv run elf agent specs/basic_chat.yaml --prompt_file my_prompt.md
 
 # Include context files
-uv run elf specs/basic_chat.yaml --prompt "Summarize these files" --context file1.txt --context file2.py
+uv run elf agent specs/basic_chat.yaml --prompt "Summarize these files" --context file1.txt --context file2.py
 
 # Use @ file references for automatic context inclusion
-uv run elf specs/basic_chat.yaml --prompt "Explain this code @main.py and compare it to @test.py"
+uv run elf agent specs/basic_chat.yaml --prompt "Explain this code @main.py and compare it to @test.py"
 
 # Save output to file
-uv run elf specs/basic_chat.yaml --prompt "Generate a report" --output report.md
+uv run elf agent specs/basic_chat.yaml --prompt "Generate a report" --output report.md
 ```
 
 ### Self-Improvement Features

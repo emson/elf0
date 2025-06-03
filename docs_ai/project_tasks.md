@@ -54,10 +54,17 @@
 - [x] Works in both command-line and interactive modes
 - [x] Proper error handling for non-existent referenced files
 
+### CLI Improvements
+- [x] Refactor verbose `run-workflow-command` to concise `agent` command
+- [x] Update all tests to use new command structure
+- [x] Update CLI help text for clarity and accuracy
+- [x] Ensure backward compatibility through proper command registration
+
 ### Documentation Updates
 - [x] Update README.md with new CLI commands and usage examples
 - [x] Update project_overview.md with feature descriptions
 - [x] Document file reference system usage patterns
 - [x] Add interactive mode documentation and examples
+- [x] Update all documentation to reflect `agent` command rename
 
 

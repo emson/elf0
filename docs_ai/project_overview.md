@@ -28,10 +28,10 @@ Key Features:
 ## Core Commands
 
 ### Workflow Execution
-- `elf <spec_path> --prompt "Your prompt here"` - Execute a workflow with a prompt
-- `elf <spec_path> --prompt_file prompt.md` - Execute using prompt from file
-- `elf <spec_path> --prompt "Your prompt" --context file1.txt file2.py` - Include context files
-- `elf <spec_path> --prompt "Analyze @config.yaml and @main.py"` - Use @file references for automatic context
+- `elf agent <spec_path> --prompt "Your prompt here"` - Execute a workflow with a prompt
+- `elf agent <spec_path> --prompt_file prompt.md` - Execute using prompt from file
+- `elf agent <spec_path> --prompt "Your prompt" --context file1.txt file2.py` - Include context files
+- `elf agent <spec_path> --prompt "Analyze @config.yaml and @main.py"` - Use @file references for automatic context
 
 ### Self-Improvement
 - `elf improve yaml <spec_path>` - Improve a YAML workflow specification

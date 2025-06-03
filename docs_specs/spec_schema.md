@@ -31,8 +31,9 @@ workflow:                    # (Required) Defines the directed graph
   type:                     #   (Required) one of: sequential, react, evaluator_optimizer, custom_graph
   nodes:                    #   (Required) list of graph nodes
     - id: <string>          #     (Required) unique node identifier
-      kind: <string>        #     (Required) agent | tool | judge | branch
-      ref: <string>         #     (Required) key into llms/functions/workflows
+      kind: <string>        #     (Required) agent | tool | judge | branch | mcp
+      ref: <string>         #     (Required for agent/tool/judge/branch) key into llms/functions/workflows
+      config: <object>      #     (Required for mcp nodes) MCP node configuration
       stop: <bool>          #     (Optional, default false) mark finish points
   edges:                    #   (Required; can be empty) list of transitions
     - source: <string>      #     (Required) node.id
@@ -142,6 +143,39 @@ functions:
 - **port**: MCP server port (optional, defaults vary by server)
 - **tool_name**: Name of the tool to call on the MCP server
 
+#### MCP Nodes
+
+MCP nodes provide direct integration with Model Context Protocol servers, allowing workflows to execute tools from MCP servers without needing to define them in the `functions` section. This is the recommended approach for MCP integration.
+
+**MCP Node Configuration:**
+```yaml
+workflow:
+  nodes:
+    - id: filesystem_reader
+      kind: mcp
+      config:
+        server:
+          command: ["npx", "@modelcontextprotocol/server-filesystem", "/tmp"]
+        tool: read_file
+        parameters:
+          path: "${state.file_path}"
+```
+
+**MCP Node Fields:**
+- `server.command` (array): Command to start the MCP server
+- `server.cwd` (string, optional): Working directory for the server process
+- `tool` (string): Name of the tool to call on the MCP server
+- `parameters` (object): Parameters to pass to the tool (supports state variable substitution)
+
+**Parameter Binding:**
+MCP nodes support parameter binding from workflow state using the `${state.variable}` syntax:
+```yaml
+parameters:
+  file_path: "${state.input_file}"
+  format: "json"
+  max_lines: 100
+```
+
 #### `workflow`
 - **Type**: **Workflow** object  
 - **Required**  
@@ -153,8 +187,9 @@ functions:
 
 **WorkflowNode**
 - `id` (string): unique name  
-- `kind` (string): "agent" / "tool" / "judge" / "branch"  
-- `ref` (string): reference key into `llms`, `functions`, or sub-workflows  
+- `kind` (string): "agent" / "tool" / "judge" / "branch" / "mcp"  
+- `ref` (string): reference key into `llms`, `functions`, or sub-workflows (not used for MCP nodes)
+- `config` (object): configuration object (required for MCP nodes, optional for others)
 - `stop` (bool): marks finish nodes
 
 **Edge**
@@ -203,6 +238,44 @@ eval:
   metrics:
     - quality
   dataset_path: "data/test_prompts.jsonl"
+```
+
+### MCP Integration Example
+
+```yaml
+version: "0.1"
+description: "Agent with MCP filesystem access"
+runtime: "langgraph"
+
+llms:
+  chat_llm:
+    type: openai
+    model_name: gpt-4o-mini
+    temperature: 0.0
+
+workflow:
+  type: sequential
+  nodes:
+    - id: analyzer
+      kind: agent
+      ref: chat_llm
+    - id: file_reader
+      kind: mcp
+      config:
+        server:
+          command: ["npx", "@modelcontextprotocol/server-filesystem", "/tmp"]
+        tool: read_file
+        parameters:
+          path: "${state.file_path}"
+    - id: processor
+      kind: agent
+      ref: chat_llm
+      stop: true
+  edges:
+    - source: analyzer
+      target: file_reader
+    - source: file_reader
+      target: processor
 ```
 
 ---

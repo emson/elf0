@@ -69,15 +69,17 @@
 
 ## Phase 3: Core Platform Features
 
-### Full MCP Integration
-- [ ] Replace placeholder MCP client with real MCP protocol implementation
-- [ ] Implement MCP server connection management (stdio, SSE, WebSocket)
-- [ ] Add MCP tool discovery, caching, and execution
-- [ ] Create MCP node type for workflow integration
-- [ ] Add MCP server configuration in workflow YAML
+### MCP Integration (MVP Complete)
+- [x] Replace placeholder MCP client with real MCP protocol implementation
+- [x] Implement MCP server connection management (stdio transport only for MVP)
+- [x] Add MCP tool discovery, caching, and execution
+- [x] Create MCP node type for workflow integration
+- [x] Add MCP server configuration in workflow YAML
+- [x] Add comprehensive MCP integration tests
+- [x] Create MCP workflow examples and documentation
+- [ ] Extend MCP support for SSE and WebSocket transports
 - [ ] Implement MCP security and authentication
-- [ ] Add comprehensive MCP integration tests
-- [ ] Create MCP workflow examples and documentation
+- [ ] Add MCP server lifecycle management and error recovery
 
 ### Python Tool Loading
 - [ ] Implement Python function loader with module and file support

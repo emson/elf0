@@ -1,0 +1,119 @@
+# Example workflow demonstrating MCP (Model Context Protocol) tool integration
+version: "0.1"
+description: "A workflow that demonstrates how to use MCP tools alongside LLM agents"
+runtime: "langgraph"
+
+# LLM configurations
+llms:
+  analyzer_llm:
+    type: "openai"
+    model_name: "gpt-4o-mini"
+    temperature: 0.3
+    params:
+      max_tokens: 500
+
+  summarizer_llm:
+    type: "openai" 
+    model_name: "gpt-4o-mini"
+    temperature: 0.7
+    params:
+      max_tokens: 300
+
+# MCP tool definitions
+functions:
+  # Example MCP tool for mathematical calculations
+  math_calculator:
+    type: "mcp"
+    name: "Mathematical Calculator"
+    entrypoint: "mcp://localhost:8000/calculate"
+  
+  # Example MCP tool for data processing
+  data_processor:
+    type: "mcp"
+    name: "Data Processor"
+    entrypoint: "mcp://localhost:8000/process_data"
+  
+  # Example MCP tool for text analysis
+  text_analyzer:
+    type: "mcp"
+    name: "Text Analyzer" 
+    entrypoint: "mcp://localhost:8000/analyze_text"
+
+# Workflow definition
+workflow:
+  type: "custom_graph"
+  nodes:
+    # Initial analysis by LLM
+    - id: "input_analyzer"
+      kind: "agent"
+      ref: "analyzer_llm"
+      config:
+        prompt: |
+          Analyze the following input and determine what type of processing is needed:
+          
+          Input: {input}
+          
+          Please categorize this input as one of:
+          - "math" (if it contains mathematical expressions or calculations)
+          - "data" (if it contains data that needs processing)
+          - "text" (if it needs text analysis)
+          
+          Respond with just the category name.
+      stop: false
+
+    # MCP tool for mathematical calculations
+    - id: "math_tool"
+      kind: "tool"
+      ref: "math_calculator"
+      stop: false
+
+    # MCP tool for data processing
+    - id: "data_tool"
+      kind: "tool"
+      ref: "data_processor"
+      stop: false
+
+    # MCP tool for text analysis
+    - id: "text_tool"
+      kind: "tool"
+      ref: "text_analyzer"
+      stop: false
+
+    # Final summarization by LLM
+    - id: "result_summarizer"
+      kind: "agent"
+      ref: "summarizer_llm"
+      config:
+        prompt: |
+          Based on the tool processing results, provide a clear and concise summary:
+          
+          Original input: {input}
+          Tool result: {previous_output}
+          
+          Please provide a user-friendly summary of what was processed and the results.
+      stop: true
+
+  # Conditional routing based on input analysis
+  edges:
+    # Route from analyzer to appropriate tool
+    - source: "input_analyzer"
+      target: "math_tool"
+      condition: "state.get('output', '').strip().lower() == 'math'"
+
+    - source: "input_analyzer"
+      target: "data_tool"
+      condition: "state.get('output', '').strip().lower() == 'data'"
+
+    - source: "input_analyzer"
+      target: "text_tool"
+      condition: "state.get('output', '').strip().lower() == 'text'"
+
+    # Route from tools to summarizer
+    - source: "math_tool"
+      target: "result_summarizer"
+
+    - source: "data_tool"
+      target: "result_summarizer"
+
+    - source: "text_tool"
+      target: "result_summarizer"

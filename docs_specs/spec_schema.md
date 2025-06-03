@@ -116,8 +116,31 @@ llms:
 - For local-python or MCP tool integrations.  
 - **Function Object**:
   - `type`: "python" | "mcp"  
-  - `name`: string  
-  - `entrypoint`: dotted path or URI
+  - `name`: string (human-readable name)
+  - `entrypoint`: dotted path (for Python) or MCP URI (for MCP)
+
+**Python Functions:**
+```yaml
+functions:
+  my_python_tool:
+    type: python
+    name: "Data Processor"
+    entrypoint: "mymodule.submodule.process_data"
+```
+
+**MCP Functions:**
+```yaml
+functions:
+  my_mcp_tool:
+    type: mcp
+    name: "Calculator Tool"
+    entrypoint: "mcp://localhost:3000/calculate"
+```
+
+**MCP URI Format:** `mcp://server:port/tool_name`
+- **server**: MCP server hostname or IP
+- **port**: MCP server port (optional, defaults vary by server)
+- **tool_name**: Name of the tool to call on the MCP server
 
 #### `workflow`
 - **Type**: **Workflow** object  

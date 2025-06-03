@@ -3,7 +3,7 @@
 ## Commands
 - Install: `uv venv && uv pip install -e .`
 - Run: `uv run elf`
-- Run specific workflow: `uv run elf run workflows/basic_chat.yaml`
+- Run specific workflow: `uv run elf agent workflows/basic_chat.yaml --prompt "Your prompt"`
 - Lint: `ruff check src/`
 - Type check: `mypy src/`
 

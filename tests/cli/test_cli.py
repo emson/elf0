@@ -10,6 +10,7 @@ from elf.cli import (
     display_workflow_result,
     read_prompt_file,
     agent_command,
+    get_multiline_input,
     app
 )
 from typer import Exit
@@ -255,4 +256,52 @@ def test_agent_command_empty_prompt_file(runner, tmp_path):
         result = runner.invoke(app, ["agent", str(spec_path), "--prompt_file", str(file_path)])
         assert result.exit_code == 0
         mock_run.assert_called_once()
-        assert mock_run.call_args[0][1] == "" 
+        assert mock_run.call_args[0][1] == ""
+
+def test_get_multiline_input_with_submit_command():
+    """Test multiline input with /submit command."""
+    import io
+    import sys
+    
+    test_input = "Hello world\nThis is a test\n/submit\n"
+    
+    original_stdin = sys.stdin
+    sys.stdin = io.StringIO(test_input)
+    
+    try:
+        result = get_multiline_input()
+        assert result == "Hello world\nThis is a test"
+    finally:
+        sys.stdin = original_stdin
+
+def test_get_multiline_input_with_double_enter():
+    """Test multiline input with double enter."""
+    import io
+    import sys
+    
+    test_input = "Hello world\nThis is a test\n\n\n"
+    
+    original_stdin = sys.stdin
+    sys.stdin = io.StringIO(test_input)
+    
+    try:
+        result = get_multiline_input()
+        assert result == "Hello world\nThis is a test"
+    finally:
+        sys.stdin = original_stdin
+
+def test_get_multiline_input_with_exit_command():
+    """Test multiline input with exit command."""
+    import io
+    import sys
+    
+    test_input = "/exit\n"
+    
+    original_stdin = sys.stdin
+    sys.stdin = io.StringIO(test_input)
+    
+    try:
+        result = get_multiline_input()
+        assert result == ""
+    finally:
+        sys.stdin = original_stdin 

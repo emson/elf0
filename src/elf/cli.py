@@ -366,6 +366,43 @@ Output only the improved YAML specification."""
         typer.secho(f"Error saving improved YAML: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
+def get_multiline_input() -> str:
+    """
+    Get multi-line input from user with support for pasting.
+    
+    Returns empty string if user wants to exit.
+    Uses double Enter or '/submit' to submit prompt.
+    """
+    lines = []
+    console = Console()
+    
+    console.print("[dim]💬 Enter your prompt (press Enter twice or type '/submit' on a new line to submit):[/dim]")
+    
+    try:
+        while True:
+            try:
+                line = input("   ")
+            except EOFError:
+                return ""
+            
+            # Check for submission commands
+            if line.strip() == '/submit':
+                break
+            elif line.strip() in ['/exit', '/quit', '/bye']:
+                return ""
+            elif not line.strip() and lines and not lines[-1].strip():
+                # Double empty line (Enter twice) submits
+                break
+            else:
+                lines.append(line)
+    
+    except KeyboardInterrupt:
+        return ""
+    
+    # Join lines and clean up
+    result = '\n'.join(lines).strip()
+    return result
+
 def prompt_yaml_command(
     spec_path: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=False, help='Path to YAML spec to prompt'),
     session_id: str = typer.Option('interactive_session', help='Session identifier for this conversation')
@@ -378,20 +415,22 @@ def prompt_yaml_command(
     
     Examples:
         elf prompt workflow.yaml
-        Then type: "Analyze @config.yaml and suggest improvements"
+        Then type your prompt and press Enter twice to submit
+        Or type "/submit" on a new line to submit
     """
     console = Console()
     
     console.print(f"[bold blue]Starting interactive session with {spec_path.name}[/bold blue]")
-    console.print("Type your prompts below. Use Ctrl+C to exit.")
+    console.print("[dim]Commands: '/exit', '/quit', '/bye' to quit | Enter twice or '/submit' to send[/dim]")
     console.print()
     
     try:
         while True:
-            # Get user input
-            prompt = typer.prompt("\n💬 Prompt")
+            # Get multi-line user input
+            prompt = get_multiline_input()
             
-            if prompt.lower() in ['exit', 'quit', 'bye']:
+            # Check if user wants to exit
+            if not prompt or prompt.lower() in ['exit', 'quit', 'bye']:
                 break
             
             console.print("[dim]Running workflow...[/dim]")
@@ -410,9 +449,11 @@ def prompt_yaml_command(
                 # Display result
                 console.print("\n[bold green]Response:[/bold green]")
                 display_workflow_result(result)
+                console.print()  # Add spacing before next prompt
                 
             except Exception as e:
                 console.print(f"[bold red]Error:[/bold red] {e}")
+                console.print()  # Add spacing before next prompt
                 
     except KeyboardInterrupt:
         console.print("\n[yellow]Session ended.[/yellow]")
@@ -425,7 +466,7 @@ improve_app.command("yaml", help="Improve a YAML workflow specification using AI
 # Register commands
 app.command("agent", help="Execute an agent workflow defined in YAML")(agent_command)
 app.add_typer(improve_app)
-app.command("prompt", help="Start interactive conversation with a workflow agent")(prompt_yaml_command)
+app.command("prompt", help="Start interactive conversation with a workflow agent (supports multi-line input)")(prompt_yaml_command)
 
 if __name__ == '__main__':
     app()

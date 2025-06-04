@@ -11,13 +11,17 @@ from elf.cli import (
     read_prompt_file,
     agent_command,
     get_multiline_input,
-    app
+    app,
+    app_state
 )
 from typer import Exit
 import json
 import os
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from typer.testing import CliRunner
+import io # For string IO
+import sys # For sys.stdout in patch
+from rich.console import Console as RichConsole # To create new consoles for patching
 
 # Test data
 SAMPLE_CONTENT = "This is sample content"
@@ -160,29 +164,67 @@ def test_save_workflow_result_unwritable_file(temp_output_file):
 
 def test_display_workflow_result_string(capsys):
     """Test displaying string result."""
-    display_workflow_result("test output")
-    captured = capsys.readouterr()
-    assert "test output" in captured.out
+    mock_stdout_buffer = io.StringIO()
+    # Patch the module-level stdout_workflow_console used by display_workflow_result
+    with patch('elf.cli.stdout_workflow_console', RichConsole(file=mock_stdout_buffer, force_terminal=False)):
+        display_workflow_result("test output")
+    
+    captured_out_direct = mock_stdout_buffer.getvalue()
+    assert "test output" in captured_out_direct.strip()
+    
+    captured_capsys = capsys.readouterr() # Check for any stray stderr from other sources
+    assert captured_capsys.err == ""
 
 def test_display_workflow_result_dict_with_output(capsys):
     """Test displaying dict result with output key."""
-    display_workflow_result({"output": "test output"})
-    captured = capsys.readouterr()
-    assert "test output" in captured.out
+    mock_stdout_buffer = io.StringIO()
+    with patch('elf.cli.stdout_workflow_console', RichConsole(file=mock_stdout_buffer, force_terminal=False)):
+        display_workflow_result({"output": "test output"})
+    
+    captured_out_direct = mock_stdout_buffer.getvalue()
+    assert "test output" in captured_out_direct.strip()
+
+    captured_capsys = capsys.readouterr() # Check for any stray stderr
+    assert captured_capsys.err == ""
+
 
 def test_display_workflow_result_dict_without_output(capsys):
     """Test displaying dict result without output key."""
-    display_workflow_result({"key": "value"})
-    captured = capsys.readouterr()
-    assert "Warning" in captured.out
-    assert "{'key': 'value'}" in captured.out
+    original_verbose = app_state.verbose_mode
+    app_state.verbose_mode = True 
+    mock_stdout_buffer = io.StringIO()
+    try:
+        with patch('elf.cli.stdout_workflow_console', RichConsole(file=mock_stdout_buffer, force_terminal=False)):
+            display_workflow_result({"key": "value"})
+        
+        captured_out_direct = mock_stdout_buffer.getvalue()
+        assert "{'key': 'value'}" in captured_out_direct.strip() # Raw output still to patched stdout
+
+        captured_capsys = capsys.readouterr() 
+        # Warnings from _conditional_secho (using typer.secho -> global rich.console (stderr))
+        # are captured by capsys.out in non-TTY test env, as previously observed.
+        assert "Warning: Key 'output' not found" in captured_capsys.out 
+    finally:
+        app_state.verbose_mode = original_verbose
 
 def test_display_workflow_result_unexpected_type(capsys):
     """Test displaying result of unexpected type."""
-    display_workflow_result(123)
-    captured = capsys.readouterr()
-    assert "Warning" in captured.out
-    assert "123" in captured.out
+    original_verbose = app_state.verbose_mode
+    app_state.verbose_mode = True
+    mock_stdout_buffer = io.StringIO()
+    try:
+        with patch('elf.cli.stdout_workflow_console', RichConsole(file=mock_stdout_buffer, force_terminal=False)):
+            display_workflow_result(123)
+
+        captured_out_direct = mock_stdout_buffer.getvalue()
+        assert "123" in captured_out_direct.strip() # Raw output still to patched stdout
+
+        captured_capsys = capsys.readouterr()
+        # Warnings from _conditional_secho (using typer.secho -> global rich.console (stderr))
+        # are captured by capsys.out in non-TTY test env.
+        assert "Warning: Unexpected result type" in captured_capsys.out
+    finally:
+        app_state.verbose_mode = original_verbose
 
 def test_read_prompt_file_valid(temp_prompt_file):
     """Test reading a valid prompt file."""
@@ -205,22 +247,53 @@ def test_read_prompt_file_nonexistent(tmp_path):
 def test_agent_command_prompt_file_only(runner, temp_prompt_file, tmp_path):
     """Test running workflow with only prompt file."""
     spec_path = tmp_path / "workflow.yaml"
-    spec_path.write_text("name: test\nruntime: langgraph\nworkflow:\n  nodes: []")
+    # Ensure a minimal valid spec structure for elf.core.spec.Spec
+    spec_path.write_text("""
+version: '0.1'
+description: Test workflow
+runtime: langgraph
+llms:
+  dummy_llm:
+    type: openai
+    model_name: gpt-3.5-turbo
+    api_key: dummy_key_not_used_due_to_mock
+workflow:
+  type: sequential
+  nodes:
+    - id: start
+      kind: agent
+      ref: dummy_llm
+      stop: true
+""")
     
-    # Mock run_workflow to avoid actual execution
     with patch('elf.cli.run_workflow') as mock_run:
         mock_run.return_value = {"output": "test result"}
         result = runner.invoke(app, ["agent", str(spec_path), "--prompt_file", str(temp_prompt_file)])
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.stdout
         mock_run.assert_called_once()
         assert "Test prompt content" in mock_run.call_args[0][1]
 
 def test_agent_command_prompt_file_and_prompt(runner, temp_prompt_file, tmp_path):
     """Test running workflow with both prompt file and prompt."""
     spec_path = tmp_path / "workflow.yaml"
-    spec_path.write_text("name: test\nruntime: langgraph\nworkflow:\n  nodes: []")
+    spec_path.write_text("""
+version: '0.1'
+description: Test workflow
+runtime: langgraph
+llms:
+  dummy_llm:
+    type: openai
+    model_name: gpt-3.5-turbo
+    api_key: dummy_key_not_used_due_to_mock
+workflow:
+  type: sequential
+  nodes:
+    - id: start
+      kind: agent
+      ref: dummy_llm
+      stop: true
+""")
     
-    # Mock run_workflow to avoid actual execution
     with patch('elf.cli.run_workflow') as mock_run:
         mock_run.return_value = {"output": "test result"}
         result = runner.invoke(app, [
@@ -229,7 +302,7 @@ def test_agent_command_prompt_file_and_prompt(runner, temp_prompt_file, tmp_path
             "--prompt_file", str(temp_prompt_file),
             "--prompt", "Additional prompt"
         ])
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.stdout
         mock_run.assert_called_once()
         assert "Test prompt content" in mock_run.call_args[0][1]
         assert "Additional prompt" in mock_run.call_args[0][1]
@@ -237,71 +310,94 @@ def test_agent_command_prompt_file_and_prompt(runner, temp_prompt_file, tmp_path
 def test_agent_command_no_prompt_sources(runner, tmp_path):
     """Test running workflow with no prompt sources."""
     spec_path = tmp_path / "workflow.yaml"
-    spec_path.write_text("name: test\nruntime: langgraph\nworkflow:\n  nodes: []")
+    spec_path.write_text("""
+version: '0.1'
+description: Test workflow
+runtime: langgraph
+llms:
+  dummy_llm:
+    type: openai
+    model_name: gpt-3.5-turbo
+    api_key: dummy_key_not_used_due_to_mock
+workflow:
+  type: sequential
+  nodes:
+    - id: start
+      kind: agent
+      ref: dummy_llm
+      stop: true
+""") # Minimal valid spec
     
     result = runner.invoke(app, ["agent", str(spec_path)])
     assert result.exit_code == 1
-    assert "Error: You must provide either --prompt or --prompt_file" in result.stdout
+    # Typer's error messages for missing options/arguments go to what CliRunner captures as stdout.
+    assert "Error: You must provide either --prompt or --prompt_file" in result.stdout 
 
 def test_agent_command_empty_prompt_file(runner, tmp_path):
     """Test running workflow with empty prompt file."""
     file_path = tmp_path / "empty.md"
     file_path.write_text("")
     spec_path = tmp_path / "workflow.yaml"
-    spec_path.write_text("name: test\nruntime: langgraph\nworkflow:\n  nodes: []")
+    spec_path.write_text("""
+version: '0.1'
+description: Test workflow
+runtime: langgraph
+llms:
+  dummy_llm:
+    type: openai
+    model_name: gpt-3.5-turbo
+    api_key: dummy_key_not_used_due_to_mock
+workflow:
+  type: sequential
+  nodes:
+    - id: start
+      kind: agent
+      ref: dummy_llm
+      stop: true
+""") # Ensure valid spec
     
-    # Mock run_workflow to avoid actual execution
     with patch('elf.cli.run_workflow') as mock_run:
         mock_run.return_value = {"output": "test result"}
         result = runner.invoke(app, ["agent", str(spec_path), "--prompt_file", str(file_path)])
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.stdout
         mock_run.assert_called_once()
-        assert mock_run.call_args[0][1] == ""
+        assert mock_run.call_args[0][1] == "" # Empty prompt string
 
-def test_get_multiline_input_with_submit_command():
-    """Test multiline input with /submit command."""
-    import io
-    import sys
+@patch('elf.cli.PromptSession.prompt')
+def test_get_multiline_input_with_send_command(mock_prompt_session_prompt, capsys):
+    """Test multiline input with /send command."""
+    mock_prompt_session_prompt.side_effect = [
+        "Hello world",
+        "This is a test",
+        "/send"
+    ]
     
-    test_input = "Hello world\nThis is a test\n/submit\n"
-    
-    original_stdin = sys.stdin
-    sys.stdin = io.StringIO(test_input)
-    
-    try:
-        result = get_multiline_input()
-        assert result == "Hello world\nThis is a test"
-    finally:
-        sys.stdin = original_stdin
+    result = get_multiline_input()
+    assert result == "Hello world\nThis is a test"
+    assert mock_prompt_session_prompt.call_count == 3
+    _ = capsys.readouterr() # Consume any stderr like "💬 Enter your prompt:"
 
-def test_get_multiline_input_with_double_enter():
+@patch('elf.cli.PromptSession.prompt')
+def test_get_multiline_input_with_double_enter(mock_prompt_session_prompt, capsys):
     """Test multiline input with double enter."""
-    import io
-    import sys
-    
-    test_input = "Hello world\nThis is a test\n\n\n"
-    
-    original_stdin = sys.stdin
-    sys.stdin = io.StringIO(test_input)
-    
-    try:
-        result = get_multiline_input()
-        assert result == "Hello world\nThis is a test"
-    finally:
-        sys.stdin = original_stdin
+    mock_prompt_session_prompt.side_effect = [
+        "Hello world",
+        "This is a test",
+        "", 
+        ""  
+    ]
+    result = get_multiline_input()
+    # The current logic: join(["Hello world", "This is a test", "", ""]) -> "Hello world\nThis is a test\n\n" -> strip -> "Hello world\nThis is a test"
+    assert result == "Hello world\nThis is a test"
+    assert mock_prompt_session_prompt.call_count == 4
+    _ = capsys.readouterr() # Consume any stderr
 
-def test_get_multiline_input_with_exit_command():
+@patch('elf.cli.PromptSession.prompt')
+def test_get_multiline_input_with_exit_command(mock_prompt_session_prompt, capsys):
     """Test multiline input with exit command."""
-    import io
-    import sys
+    mock_prompt_session_prompt.return_value = "/exit"
     
-    test_input = "/exit\n"
-    
-    original_stdin = sys.stdin
-    sys.stdin = io.StringIO(test_input)
-    
-    try:
-        result = get_multiline_input()
-        assert result == ""
-    finally:
-        sys.stdin = original_stdin 
+    result = get_multiline_input()
+    assert result == ""
+    assert mock_prompt_session_prompt.call_count == 1
+    _ = capsys.readouterr() # Consume any stderr 

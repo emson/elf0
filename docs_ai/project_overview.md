@@ -25,6 +25,7 @@ Key Features:
 - Use composite functions made up of concise subfunctions
 - Add short clear and concise code documentation
 - Write code documentation to help LLMs to easily understand the code
+- Always use absolute paths in imports, do not use relative import paths
 </implementation>
 
 <dependencies>

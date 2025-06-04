@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 import re
 import logging
+import yaml # PyYAML library for YAML parsing
 
 logger = logging.getLogger(__name__)
 
@@ -135,3 +136,75 @@ def parse_at_references(prompt: str) -> Tuple[str, List[Path]]:
     cleaned_prompt = ' '.join(cleaned_prompt.split())
     
     return cleaned_prompt, referenced_files 
+
+# Helper function to list spec files
+def list_spec_files(specs_dir: Path) -> List[Path]:
+    """
+    Lists all YAML spec files (.yaml or .yml) directly in the given directory.
+    Ignores subdirectories.
+
+    Args:
+        specs_dir: The Path object representing the directory to scan.
+
+    Returns:
+        A list of Path objects for spec files, sorted alphabetically.
+        Returns an empty list if the directory doesn't exist or is not a directory.
+    """
+    if not specs_dir.exists() or not specs_dir.is_dir():
+        logger.debug(f"Specs directory '{specs_dir}' does not exist or is not a directory.")
+        return []
+
+    spec_files = []
+    for item in specs_dir.iterdir():
+        if item.is_file() and (item.suffix.lower() == '.yaml' or item.suffix.lower() == '.yml'):
+            spec_files.append(item)
+    
+    return sorted(spec_files, key=lambda p: p.name)
+
+# Helper function to extract description from a spec file
+def extract_spec_description(file_path: Path) -> str:
+    """
+    Extracts a description from a YAML spec file.
+    
+    Priority:
+    1. Top-level 'description' field in YAML.
+    2. First comment line in the file.
+    3. "No description available."
+
+    Args:
+        file_path: Path to the spec file.
+
+    Returns:
+        The extracted description string.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+            # Try to parse YAML and get 'description' field
+            try:
+                data = yaml.safe_load(content)
+                if isinstance(data, dict) and 'description' in data and isinstance(data['description'], str):
+                    return data['description'].strip()
+            except yaml.YAMLError as e:
+                logger.warning(f"Could not parse YAML from '{file_path}': {e}. Trying to find comments.")
+            except Exception as e: # Catch other potential errors during YAML processing
+                logger.warning(f"An unexpected error occurred during YAML parsing for '{file_path}': {e}. Trying to find comments.")
+
+
+            # If no 'description' field, look for the first comment line
+            f.seek(0) # Reset file pointer to read lines from the beginning
+            for line in f:
+                stripped_line = line.strip()
+                if stripped_line.startswith('#'):
+                    # Return the comment, removing the '#' and leading/trailing whitespace
+                    return stripped_line[1:].strip()
+            
+            return "No description available."
+
+    except FileNotFoundError:
+        logger.error(f"Spec file '{file_path}' not found during description extraction.")
+        return "Error: File not found."
+    except Exception as e:
+        logger.error(f"Could not read or process spec file '{file_path}': {e}")
+        return "Error reading file." 

@@ -1,6 +1,6 @@
-# Location: workflows/basic_chat.yaml
+# Location: workflows/basic_reasoning.yaml
 version: "0.1"
-description: "Basic chat workflow that takes user input and returns a response"
+description: "Basic reasoning workflow that uses the Phi-4 system prompt to reason about the user's question."
 runtime: "langgraph"
 
 # LLM definitions

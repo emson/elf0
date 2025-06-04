@@ -1,0 +1,91 @@
+version: "0.1"
+description: |
+  Enhanced basic reasoning workflow using the Phi-4-inspired system prompt.
+  This workflow systematically analyzes user questions, iteratively refines reasoning,
+  and ensures high-quality, well-structured answers. Employs an evaluator-optimizer
+  pattern for robust multi-step reasoning and self-correction.
+
+runtime: "langgraph"
+
+llms:
+  reasoning_llm:
+    type: "openai"
+    model_name: "gpt-4.1-mini"
+    temperature: 0.2
+    params:
+      max_tokens: 1200
+      system_prompt: |
+        You are a world-class reasoning assistant, inspired by the Phi-4 research paradigm.
+        Your role is to deeply analyze the user's question, reason step by step, and iteratively refine your thinking.
+        Follow this process:
+        1. Carefully analyze the question, identifying all relevant aspects.
+        2. Summarize key facts and constraints.
+        3. Brainstorm possible solution paths, considering alternatives.
+        4. Evaluate each step for accuracy and coherence.
+        5. If errors or gaps are found, backtrack and revise your reasoning.
+        6. Repeat this process until you are confident in your answer.
+        Structure your response in two sections:
+        - Thought: Present your detailed, step-by-step reasoning.
+        - Solution: Clearly and concisely state your final answer, based on your reasoning.
+        Output format:
+        Thought:
+        <stepwise reasoning here>
+        Solution:
+        <final answer here>
+
+retrievers: {}  # No retrieval needed for basic reasoning
+memory: {}      # No persistent memory required
+functions: {}   # No external tools/functions required
+
+workflow:
+  type: evaluator_optimizer  # Enables iterative self-refinement
+  nodes:
+    - id: optimizer
+      kind: agent
+      ref: reasoning_llm
+      # The optimizer generates an initial answer or refines based on feedback.
+    - id: evaluator
+      kind: judge
+      ref: reasoning_llm
+      config:
+        prompt: |
+          You are a critical evaluator of reasoning steps.
+          Review the following response for logical soundness, completeness, and accuracy.
+          If the answer is correct and well-justified, reply with:
+          FINALIZE
+          If there are errors, gaps, or improvements needed, reply with:
+          REFINE
+          and briefly explain what should be improved.
+          Response to evaluate:
+          {output}
+      # Uses the same LLM for evaluation for simplicity and cost.
+    - id: finalizer
+      kind: agent
+      ref: reasoning_llm
+      config:
+        prompt: |
+          Based on the previous reasoning and evaluator feedback, present the final answer.
+          Ensure your response is concise and clearly structured as:
+          Thought:
+          <final reasoning>
+          Solution:
+          <final answer>
+      stop: true  # Marks the end of the workflow
+  edges:
+    - source: optimizer
+      target: evaluator
+    - source: evaluator
+      target: finalizer
+      condition: "state.output.strip().startswith('FINALIZE')"  # If evaluation passes, finalize
+    - source: evaluator
+      target: optimizer
+      condition: "state.output.strip().startswith('REFINE')"    # If refinement needed, loop back
+  # Ensures iterative refinement up to a sensible limit
+  max_iterations: 5  # Prevents infinite loops; adjust as needed
+
+# Key changes:
+# - Upgraded to evaluator_optimizer pattern for iterative, robust reasoning.
+# - Enhanced system prompts for clarity, explicit roles, and output format.
+# - Lowered temperature for more deterministic outputs.
+# - Added max_iterations to prevent infinite loops.
+# - Provided inline comments for clarity and maintainability.

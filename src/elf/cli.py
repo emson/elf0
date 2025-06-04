@@ -3,11 +3,12 @@ from pathlib import Path
 from typing import List, Optional, Any
 import json
 from elf.core.runner import run_workflow
-from elf.utils.file_utils import parse_at_references, parse_context_files # Added import
+from elf.utils.file_utils import parse_at_references, parse_context_files, list_spec_files, extract_spec_description # Added import
 import rich
 import sys
 from rich.console import Console as RichConsole
 from rich.markdown import Markdown
+from rich.rule import Rule # Added import
 import os
 import logging
 from prompt_toolkit import prompt as prompt_toolkit_prompt
@@ -506,6 +507,48 @@ def prompt_yaml_command(
     except EOFError:
         # Session ended message is essential UI feedback.
         rich.console.print("\n[yellow]Session ended.[/yellow]")
+
+@app.command("list-specs", help="List all YAML workflow spec files in the ./specs directory.")
+def list_specs_command():
+    """
+    Scans the ./specs directory for YAML workflow specification files (.yaml or .yml)
+    and displays them with their descriptions.
+    
+    Descriptions are extracted from a 'description' field in the YAML or the first comment line.
+    """
+    specs_dir = Path("./specs")
+    logger = logging.getLogger('elf.cli')
+
+    if not specs_dir.exists() or not specs_dir.is_dir():
+        rich.console.print(f"[yellow]Warning:[/] Specs directory '{specs_dir}' not found.")
+        return
+
+    spec_files = list_spec_files(specs_dir)
+
+    if not spec_files:
+        rich.console.print(f"No spec files (.yaml or .yml) found in '{specs_dir}'.")
+        return
+
+    for i, spec_file_path in enumerate(spec_files):
+        description = extract_spec_description(spec_file_path)
+
+        # Add a rule before each entry except the first one
+        if i > 0:
+            rich.console.print(Rule(style="dim black")) # Using a very subtle rule
+            rich.console.print() # Add a blank line for more spacing after the rule
+
+        rich.console.print(f"[bold bright_green]{spec_file_path.name}[/bold bright_green]")
+        
+        if description == "No description available.":
+            rich.console.print(f"  [dim italic]{description}[/dim italic]")
+        elif "Error:" in description:
+            rich.console.print(f"  [red]{description}[/red]")
+        else:
+            rich.console.print(f"  {description}")
+        
+        # Add a blank line after the last item for spacing before the next shell prompt
+        if i == len(spec_files) - 1:
+            rich.console.print()
 
 # Add subcommands to improve app
 improve_app.command("yaml", help="Improve a YAML workflow specification using AI optimization")(improve_yaml_command)

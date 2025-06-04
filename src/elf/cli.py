@@ -14,6 +14,7 @@ from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.lexers import PygmentsLexer
 from pygments.lexers.special import TextLexer # Using a simple lexer for plain text input
 from prompt_toolkit.output.defaults import create_output as pt_create_output
+from prompt_toolkit import PromptSession # Added for specifying output
 
 # Configure global Rich console for stderr
 rich.console = RichConsole(stderr=True)
@@ -460,33 +461,34 @@ def get_multiline_input() -> str:
     Get multi-line input from user with support for pasting, arrow key navigation, and history.
     
     Returns empty string if user wants to exit.
-    Uses Enter on an empty line or '/submit' to submit prompt.
+    Uses Enter on an empty line or '/send' to send prompt.
     """
     lines = []
-    # Messages like "Enter your prompt" should only appear in verbose mode
-    if app_state.verbose_mode:
-        rich.console.print("[dim]💬 Enter your prompt:[/dim]") # Use the global stderr console
+    # Messages like "Enter your prompt" are essential UI for interactive mode, always show.
+    rich.console.print("[dim]💬 Enter your prompt:[/dim]") # Use the global stderr console
     
     history = InMemoryHistory()
     pt_stderr_output = pt_create_output(sys.stderr) # Ensure prompt_toolkit uses stderr
+    # Create a PromptSession with the desired output, history, and lexer
+    session = PromptSession(
+        history=history, 
+        lexer=PygmentsLexer(TextLexer),
+        output=pt_stderr_output
+    )
     
     try:
         while True:
             try:
-                # Using a simple TextLexer, you can replace with more specific lexers if needed
-                # For example, if you expect markdown, you could use MarkdownLexer
-                line = prompt_toolkit_prompt(
+                # Use the prompt method from the session instance
+                line = session.prompt(
                     "   ", 
-                    history=history, 
-                    lexer=PygmentsLexer(TextLexer), 
-                    multiline=False,
-                    output=pt_stderr_output # Pass stderr output to prompt_toolkit
+                    multiline=False # multiline can be specified per-prompt call
                 ) 
             except EOFError: # Handles Ctrl+D
                 return "" 
             
             # Check for submission commands
-            if line.strip() == '/submit':
+            if line.strip() == '/send':
                 break
             elif line.strip().lower() in ['/exit', '/quit', '/bye']:
                 return "" # User wants to exit
@@ -494,7 +496,7 @@ def get_multiline_input() -> str:
                 # Check if the previous line was also effectively empty to allow for blank lines within the prompt
                 if not lines[-1].strip(): 
                     lines.append(line) # Add the current empty line
-                    break # Submit on double empty line
+                    break # send on double empty line
                 else:
                     lines.append(line) # Allow single empty lines within the prompt
             elif not line.strip() and not lines: # First line is empty, treat as submission
@@ -503,9 +505,8 @@ def get_multiline_input() -> str:
                 lines.append(line)
     
     except KeyboardInterrupt: # Handles Ctrl+C
-        # This message should only appear in verbose mode
-        if app_state.verbose_mode:
-            rich.console.print("\n[yellow]Input cancelled.[/yellow]") # Use the global stderr console
+        # This message is essential feedback for interactive mode, always show.
+        rich.console.print("\n[yellow]Input cancelled.[/yellow]") # Use the global stderr console
         return ""
     
     # Join lines and clean up
@@ -524,14 +525,13 @@ def prompt_yaml_command(
     
     Examples:
         elf prompt workflow.yaml
-        Then type your prompt and press Enter twice to submit
-        Or type "/submit" on a new line to submit
+        Then type your prompt and press Enter twice to send
+        Or type "/send" on a new line to send
     """
-    # All these introductory messages go to stderr and only if verbose
-    if app_state.verbose_mode:
-        rich.console.print(f"[bold blue]Starting interactive session with {spec_path.name}[/bold blue]")
-        rich.console.print("[dim]Commands: '/exit', '/quit', '/bye' to quit | Enter twice or '/submit' to send[/dim]")
-        rich.console.print()
+    # All these introductory messages are essential UI for interactive mode, always show.
+    rich.console.print(f"[bold blue]Starting interactive session with {spec_path.name}[/bold blue]")
+    rich.console.print("[dim]Commands: '/exit', '/quit', '/bye' to quit | Enter twice or '/send' to send[/dim]")
+    rich.console.print()
     
     try:
         while True:
@@ -542,8 +542,8 @@ def prompt_yaml_command(
             if not prompt or prompt.lower() in ['exit', 'quit', 'bye']:
                 break
             
-            if app_state.verbose_mode:
-                rich.console.print("[dim]Running workflow...[/dim]")
+            # "Running workflow..." is essential feedback in interactive mode.
+            rich.console.print("[dim]Running workflow...[/dim]")
             
             try:
                 # Parse @ references from the prompt
@@ -557,25 +557,24 @@ def prompt_yaml_command(
                 result = run_workflow(spec_path, final_prompt, session_id)
                 
                 # Display result (goes to stdout via display_workflow_result)
-                if app_state.verbose_mode:
-                     # "Response:" header goes to stderr, only if verbose
-                    rich.console.print("\n[bold green]Response:[/bold green]")
+                # "Response:" header is essential UI in interactive mode.
+                rich.console.print("\n[bold green]Response:[/bold green]")
                 display_workflow_result(result)
-                if app_state.verbose_mode:
-                    rich.console.print()  # Add spacing before next prompt to stderr
+                # Spacing for next prompt is also part of interactive UI flow.
+                rich.console.print()  # Add spacing before next prompt to stderr
                 
             except Exception as e:
                 # Error messages always go to stderr (rich.console is stderr by default)
                 rich.console.print(f"[bold red]Error:[/bold red] {e}")
-                if app_state.verbose_mode:
-                    rich.console.print()  # Add spacing before next prompt
+                # Spacing after error in interactive mode.
+                rich.console.print()  # Add spacing before next prompt
                 
     except KeyboardInterrupt:
-        if app_state.verbose_mode: # Message to stderr, only if verbose
-            rich.console.print("\n[yellow]Session ended.[/yellow]")
+        # Session ended message is essential UI feedback.
+        rich.console.print("\n[yellow]Session ended.[/yellow]")
     except EOFError:
-        if app_state.verbose_mode: # Message to stderr, only if verbose
-            rich.console.print("\n[yellow]Session ended.[/yellow]")
+        # Session ended message is essential UI feedback.
+        rich.console.print("\n[yellow]Session ended.[/yellow]")
 
 # Add subcommands to improve app
 improve_app.command("yaml", help="Improve a YAML workflow specification using AI optimization")(improve_yaml_command)

@@ -20,9 +20,9 @@ rich.console = RichConsole(stderr=True)
 # Dedicated Rich console for stdout (workflow results)
 stdout_workflow_console = RichConsole(file=sys.stdout)
 
-# Application state for --quiet flag
+# Application state for --verbose flag
 class AppState:
-    quiet_mode: bool = False
+    verbose_mode: bool = False # Default is not verbose
 
 app_state = AppState()
 
@@ -40,66 +40,66 @@ improve_app = typer.Typer(
 
 @app.callback()
 def main_callback(
-    quiet: bool = typer.Option(
+    verbose: bool = typer.Option(
         False, 
-        "--quiet", 
-        "-q", 
-        help="Suppress informational and warning logs. Only final output (stdout) or critical errors (stderr) are shown."
+        "--verbose", 
+        "-v", 
+        help="Enable verbose logging output. Shows INFO level logs from ELF and HTTP libraries."
     )
 ):
     """
     ELF: AI Workflow Architect.
 
     Execute and optimize LLM-powered agent workflows.
+    By default, only critical errors are sent to stderr. Use --verbose for more detailed logs.
 
     Examples for output/log redirection:
     
-      elf agent workflow.yaml --prompt "Summarize" > result.txt                    # Output to file, logs to stderr
+      elf agent workflow.yaml --prompt "Summarize" > result.txt                    # Output to file, minimal logs (errors only) to stderr
       
-      elf agent workflow.yaml --prompt "Summarize" 2> elf.log                      # Logs to file, output to stdout
+      elf agent workflow.yaml --prompt "Summarize" 2> elf.log                      # Minimal logs to file, output to stdout
       
-      elf agent workflow.yaml --prompt "Summarize" | grep "keyword"                # Pipe output, logs to stderr
+      elf --verbose agent workflow.yaml --prompt "Summarize" 2> elf_verbose.log  # Verbose logs to file, output to stdout
       
-      elf --quiet agent workflow.yaml --prompt "Summarize"                         # Suppress logs (global option before command)
+      elf agent workflow.yaml --prompt "Summarize" | grep "keyword"                # Pipe output, minimal logs to stderr
       
-      elf agent workflow.yaml --prompt "Summarize" > result.txt 2> errors.log      # Output to result.txt, logs to errors.log
+      elf --verbose agent workflow.yaml --prompt "Summarize" | grep "keyword"      # Pipe output, verbose logs to stderr (if not redirected)
+      
+      elf agent workflow.yaml --prompt "Summarize" > result.txt 2> errors.log      # Output to result.txt, minimal logs to errors.log
     """
-    if quiet:
-        app_state.quiet_mode = True
-        # Suppress logs from core modules by setting their loggers to a higher level
+    app_state.verbose_mode = verbose
+    if app_state.verbose_mode:
+        # Enable INFO logging for elf.core and HTTP libraries
         core_logger = logging.getLogger('elf.core') 
         if not core_logger.hasHandlers(): 
             core_logger.addHandler(logging.NullHandler())
-        core_logger.setLevel(logging.ERROR) 
+        core_logger.setLevel(logging.INFO) 
 
-        # Suppress logs from common HTTP libraries
         for lib_name in ["httpx", "httpcore"]:
             lib_logger = logging.getLogger(lib_name)
-            if not lib_logger.hasHandlers(): # Add NullHandler if no handlers configured
+            if not lib_logger.hasHandlers(): 
                 lib_logger.addHandler(logging.NullHandler())
-            lib_logger.setLevel(logging.WARNING) # Suppress INFO logs from these libs
-
+            lib_logger.setLevel(logging.INFO) 
     else:
-        # Ensure default level (e.g., INFO) if not quiet
+        # Default: Minimal logging (errors for elf.core, warnings for HTTP)
         core_logger = logging.getLogger('elf.core')
         if not core_logger.hasHandlers():
              core_logger.addHandler(logging.NullHandler())
-        core_logger.setLevel(logging.INFO)
+        core_logger.setLevel(logging.ERROR) # Only show errors from ELF core
 
-        # Optionally, reset HTTP library loggers to their default or a more verbose level
         for lib_name in ["httpx", "httpcore"]:
             lib_logger = logging.getLogger(lib_name)
-            # This assumes their default might be INFO or WARNING. 
-            # If they have specific default levels, this might need adjustment
-            # or simply removing this else block for these loggers if we only want to quiet them.
             if not lib_logger.hasHandlers():
                 lib_logger.addHandler(logging.NullHandler())
-            lib_logger.setLevel(logging.INFO) # Or logging.WARNING, depending on desired default verbosity
+            lib_logger.setLevel(logging.WARNING) # Show warnings from HTTP libs, suppress INFO
 
 def _conditional_secho(message: str, **kwargs):
-    """Helper to print to stderr only if not in quiet mode, unless it's an error."""
+    """Helper to print to stderr.
+    Errors (fg=RED) are always printed.
+    Other messages (warnings, success) are printed only if in verbose mode.
+    """
     is_error = kwargs.get("fg") == typer.colors.RED
-    if not app_state.quiet_mode or is_error:
+    if app_state.verbose_mode or is_error:
         typer.secho(message, **kwargs)
 
 def parse_at_references(prompt: str) -> tuple[str, List[Path]]:
@@ -244,7 +244,7 @@ def display_workflow_result(result: Any) -> None:
         if isinstance(output_content, str):
             stdout_workflow_console.print(Markdown(output_content))
         else:
-            # These warnings should go to stderr
+            # These warnings should go to stderr, only if verbose
             if 'output' in result:
                 _conditional_secho(f"Warning: Content of 'output' key is not a string (type: {type(output_content)}). Displaying raw result to stdout.", fg=typer.colors.YELLOW)
             else:
@@ -254,7 +254,7 @@ def display_workflow_result(result: Any) -> None:
     elif isinstance(result, str):
         stdout_workflow_console.print(result) # Ensure this uses the stdout console
     else:
-        # This warning goes to stderr
+        # This warning goes to stderr, only if verbose
         _conditional_secho(f"Warning: Unexpected result type from workflow ({type(result)}). Displaying raw result to stdout.", fg=typer.colors.YELLOW)
         # The raw result still goes to stdout
         stdout_workflow_console.print(str(result))
@@ -426,7 +426,9 @@ Output only the improved YAML specification."""
 
 Output only the improved YAML specification."""
     
-    _conditional_secho("Improving YAML specification...", fg=typer.colors.BLUE)
+    # This is an informational message
+    if app_state.verbose_mode:
+        typer.secho("Improving YAML specification...", fg=typer.colors.BLUE)
     
     # Run the optimizer workflow
     result = run_workflow(optimizer_spec_path, optimization_prompt, session_id)
@@ -461,8 +463,8 @@ def get_multiline_input() -> str:
     Uses Enter on an empty line or '/submit' to submit prompt.
     """
     lines = []
-    # Messages like "Enter your prompt" should go to stderr and respect --quiet
-    if not app_state.quiet_mode:
+    # Messages like "Enter your prompt" should only appear in verbose mode
+    if app_state.verbose_mode:
         rich.console.print("[dim]💬 Enter your prompt:[/dim]") # Use the global stderr console
     
     history = InMemoryHistory()
@@ -501,8 +503,8 @@ def get_multiline_input() -> str:
                 lines.append(line)
     
     except KeyboardInterrupt: # Handles Ctrl+C
-        # This message should go to stderr and respect --quiet
-        if not app_state.quiet_mode:
+        # This message should only appear in verbose mode
+        if app_state.verbose_mode:
             rich.console.print("\n[yellow]Input cancelled.[/yellow]") # Use the global stderr console
         return ""
     
@@ -525,8 +527,8 @@ def prompt_yaml_command(
         Then type your prompt and press Enter twice to submit
         Or type "/submit" on a new line to submit
     """
-    # All these introductory messages go to stderr and respect --quiet
-    if not app_state.quiet_mode:
+    # All these introductory messages go to stderr and only if verbose
+    if app_state.verbose_mode:
         rich.console.print(f"[bold blue]Starting interactive session with {spec_path.name}[/bold blue]")
         rich.console.print("[dim]Commands: '/exit', '/quit', '/bye' to quit | Enter twice or '/submit' to send[/dim]")
         rich.console.print()
@@ -540,7 +542,7 @@ def prompt_yaml_command(
             if not prompt or prompt.lower() in ['exit', 'quit', 'bye']:
                 break
             
-            if not app_state.quiet_mode:
+            if app_state.verbose_mode:
                 rich.console.print("[dim]Running workflow...[/dim]")
             
             try:
@@ -555,24 +557,24 @@ def prompt_yaml_command(
                 result = run_workflow(spec_path, final_prompt, session_id)
                 
                 # Display result (goes to stdout via display_workflow_result)
-                if not app_state.quiet_mode:
-                     # "Response:" header goes to stderr
+                if app_state.verbose_mode:
+                     # "Response:" header goes to stderr, only if verbose
                     rich.console.print("\n[bold green]Response:[/bold green]")
                 display_workflow_result(result)
-                if not app_state.quiet_mode:
+                if app_state.verbose_mode:
                     rich.console.print()  # Add spacing before next prompt to stderr
                 
             except Exception as e:
-                # Error messages always go to stderr
+                # Error messages always go to stderr (rich.console is stderr by default)
                 rich.console.print(f"[bold red]Error:[/bold red] {e}")
-                if not app_state.quiet_mode:
+                if app_state.verbose_mode:
                     rich.console.print()  # Add spacing before next prompt
                 
     except KeyboardInterrupt:
-        if not app_state.quiet_mode: # Message to stderr
+        if app_state.verbose_mode: # Message to stderr, only if verbose
             rich.console.print("\n[yellow]Session ended.[/yellow]")
     except EOFError:
-        if not app_state.quiet_mode: # Message to stderr
+        if app_state.verbose_mode: # Message to stderr, only if verbose
             rich.console.print("\n[yellow]Session ended.[/yellow]")
 
 # Add subcommands to improve app

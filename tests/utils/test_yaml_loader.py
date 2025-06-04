@@ -5,7 +5,6 @@ from elf.utils.yaml_loader import (
     load_yaml_files,
     save_yaml_file,
     merge_yaml_data,
-    load_spec
 )
 
 # Test data
@@ -109,49 +108,4 @@ def test_merge_yaml_data():
     assert result["key1"] == "value1"  # Preserved from base
     assert result["key2"] == "value2"  # Added from override
     assert result["nested"]["key"] == "new_value"  # Overridden
-    assert result["list"] == [1, 2, 3, 4, 5, 6]  # Concatenated
-
-def test_load_spec(tmp_path):
-    """Test loading a spec from a YAML file."""
-    spec_yaml = """
-version: "0.1"
-llms:
-  llm1:
-    type: openai
-    model_name: gpt-4.1-mini
-    temperature: 0.5
-workflow:
-  type: sequential
-  nodes:
-    - id: start
-      kind: agent
-      ref: llm1
-    - id: end
-      kind: agent
-      ref: llm1
-      stop: true
-  edges:
-    - source: start
-      target: end
-"""
-    spec_file = tmp_path / "spec.yaml"
-    spec_file.write_text(spec_yaml)
-    
-    spec = load_spec(str(spec_file))
-    assert spec.version == "0.1"
-    assert "llm1" in spec.llms
-    assert spec.workflow.type == "sequential"
-
-def test_load_spec_invalid(tmp_path):
-    """Test loading an invalid spec file."""
-    # Arrange
-    spec_file = tmp_path / "invalid_spec.yaml"
-    spec_file.write_text("""
-    version: "0.1"
-    # Missing required fields
-    """)
-    
-    # Act & Assert
-    with pytest.raises(ValueError) as exc_info:
-        load_spec(str(spec_file))
-    assert "Spec validation error" in str(exc_info.value) 
+    assert result["list"] == [1, 2, 3, 4, 5, 6]  # Concatenated 

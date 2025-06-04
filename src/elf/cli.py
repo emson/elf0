@@ -3,10 +3,12 @@ from pathlib import Path
 from typing import List, Optional, Any
 import json
 from elf.core.runner import run_workflow
+from elf.utils.file_utils import parse_at_references, parse_context_files, list_spec_files, extract_spec_description # Added import
 import rich
 import sys
 from rich.console import Console as RichConsole
 from rich.markdown import Markdown
+from rich.rule import Rule # Added import
 import os
 import logging
 from prompt_toolkit import prompt as prompt_toolkit_prompt
@@ -15,11 +17,32 @@ from prompt_toolkit.lexers import PygmentsLexer
 from pygments.lexers.special import TextLexer # Using a simple lexer for plain text input
 from prompt_toolkit.output.defaults import create_output as pt_create_output
 from prompt_toolkit import PromptSession # Added for specifying output
+from rich.logging import RichHandler # Added
 
 # Configure global Rich console for stderr
+# This is used by the RichHandler's default console if not specified,
+# or can be passed explicitly.
 rich.console = RichConsole(stderr=True)
 # Dedicated Rich console for stdout (workflow results)
 stdout_workflow_console = RichConsole(file=sys.stdout)
+
+# --- BEGIN Centralized basicConfig (Module Level) ---
+# Setup root logger with RichHandler. Specific log levels are tuned by main_callback.
+logging.basicConfig(
+    level=logging.WARNING,  # Default root level. Loggers like 'elf.core' will be adjusted.
+    format="%(message)s",   # RichHandler handles its own formatting.
+    datefmt="[%X]",         # RichHandler might use its own or this as a hint.
+    handlers=[
+        RichHandler(
+            rich_tracebacks=True,
+            markup=True,
+            show_path=False,
+            log_time_format="[%X]",
+            console=rich.console # Use the globally configured stderr RichConsole
+        )
+    ]
+)
+# --- END Centralized basicConfig ---
 
 # Application state for --verbose flag
 class AppState:
@@ -71,28 +94,22 @@ def main_callback(
     app_state.verbose_mode = verbose
     if app_state.verbose_mode:
         # Enable INFO logging for elf.core and HTTP libraries
-        core_logger = logging.getLogger('elf.core') 
-        if not core_logger.hasHandlers(): 
-            core_logger.addHandler(logging.NullHandler())
-        core_logger.setLevel(logging.INFO) 
+        logging.getLogger('elf.core').setLevel(logging.INFO)
+        # Removed NullHandler logic for elf.core
 
         for lib_name in ["httpx", "httpcore"]:
             lib_logger = logging.getLogger(lib_name)
-            if not lib_logger.hasHandlers(): 
-                lib_logger.addHandler(logging.NullHandler())
+            # Removed NullHandler logic for http libs
             lib_logger.setLevel(logging.INFO) 
     else:
         # Default: Minimal logging (errors for elf.core, warnings for HTTP)
-        core_logger = logging.getLogger('elf.core')
-        if not core_logger.hasHandlers():
-             core_logger.addHandler(logging.NullHandler())
-        core_logger.setLevel(logging.ERROR) # Only show errors from ELF core
+        logging.getLogger('elf.core').setLevel(logging.ERROR)
+        # Removed NullHandler logic for elf.core
 
         for lib_name in ["httpx", "httpcore"]:
             lib_logger = logging.getLogger(lib_name)
-            if not lib_logger.hasHandlers():
-                lib_logger.addHandler(logging.NullHandler())
-            lib_logger.setLevel(logging.WARNING) # Show warnings from HTTP libs, suppress INFO
+            # Removed NullHandler logic for http libs
+            lib_logger.setLevel(logging.WARNING)
 
 def _conditional_secho(message: str, **kwargs):
     """Helper to print to stderr.
@@ -102,91 +119,6 @@ def _conditional_secho(message: str, **kwargs):
     is_error = kwargs.get("fg") == typer.colors.RED
     if app_state.verbose_mode or is_error:
         typer.secho(message, **kwargs)
-
-def parse_at_references(prompt: str) -> tuple[str, List[Path]]:
-    """
-    Parse @ file references from a prompt string.
-    
-    Args:
-        prompt: The input prompt that may contain @filename references
-        
-    Returns:
-        Tuple of (cleaned_prompt, list_of_referenced_files)
-    """
-    import re
-    
-    # Find all @filename.ext patterns
-    at_pattern = r'@([^\s@]+(?:\.[^\s@]+)*)'
-    matches = re.findall(at_pattern, prompt)
-    
-    referenced_files = []
-    for match in matches:
-        path = Path(match)
-        if _is_valid_file(path):
-            referenced_files.append(path)
-        else:
-            _conditional_secho(f"Warning: Referenced file '@{match}' not found. Skipping.", fg=typer.colors.YELLOW)
-    
-    # Remove @ references from the prompt
-    cleaned_prompt = re.sub(r'@[^\s@]+(?:\.[^\s@]+)*', '', prompt)
-    # Clean up extra whitespace
-    cleaned_prompt = ' '.join(cleaned_prompt.split())
-    
-    return cleaned_prompt, referenced_files
-
-def parse_context_files(context_files: Optional[List[Path]]) -> str:
-    """
-    Parse and read content from context files.
-    
-    Args:
-        context_files: List of paths to context files
-        
-    Returns:
-        Combined content from all valid context files
-    """
-    if not context_files:
-        return ""
-        
-    actual_files_to_read: List[Path] = []
-
-    for file_or_list in context_files:
-        file_str = str(file_or_list)
-        if ',' in file_str:
-            actual_files_to_read.extend(_parse_comma_separated_files(file_str))
-        else:
-            path = Path(file_str)
-            if _is_valid_file(path):
-                actual_files_to_read.append(path)
-            else:
-                _conditional_secho(f"Warning: Context file '{path}' not found or is not a file. Skipping.", fg=typer.colors.YELLOW)
-
-    return _read_files_content(actual_files_to_read)
-
-def _parse_comma_separated_files(file_str: str) -> List[Path]:
-    """Parse comma-separated file paths."""
-    valid_files = []
-    for f_name in file_str.split(','):
-        path = Path(f_name.strip())
-        if _is_valid_file(path):
-            valid_files.append(path)
-        else:
-            _conditional_secho(f"Warning: Context file '{f_name.strip()}' not found or is not a file. Skipping.", fg=typer.colors.YELLOW)
-    return valid_files
-
-def _is_valid_file(path: Path) -> bool:
-    """Check if a path exists and is a file."""
-    return path.exists() and path.is_file()
-
-def _read_files_content(files: List[Path]) -> str:
-    """Read content from a list of files."""
-    content_parts = []
-    for file_path in files:
-        try:
-            with open(file_path, 'r') as f:
-                content_parts.append(f"Content of {file_path.name}:\n{f.read()}\n---")
-        except Exception as e:
-            _conditional_secho(f"Warning: Could not read context file '{file_path}': {e}. Skipping.", fg=typer.colors.YELLOW)
-    return "\n".join(content_parts)
 
 def prepare_workflow_input(prompt: str, context_content: str) -> str:
     """Combine context content with user prompt."""
@@ -575,6 +507,48 @@ def prompt_yaml_command(
     except EOFError:
         # Session ended message is essential UI feedback.
         rich.console.print("\n[yellow]Session ended.[/yellow]")
+
+@app.command("list-specs", help="List all YAML workflow spec files in the ./specs directory.")
+def list_specs_command():
+    """
+    Scans the ./specs directory for YAML workflow specification files (.yaml or .yml)
+    and displays them with their descriptions.
+    
+    Descriptions are extracted from a 'description' field in the YAML or the first comment line.
+    """
+    specs_dir = Path("./specs")
+    logger = logging.getLogger('elf.cli')
+
+    if not specs_dir.exists() or not specs_dir.is_dir():
+        rich.console.print(f"[yellow]Warning:[/] Specs directory '{specs_dir}' not found.")
+        return
+
+    spec_files = list_spec_files(specs_dir)
+
+    if not spec_files:
+        rich.console.print(f"No spec files (.yaml or .yml) found in '{specs_dir}'.")
+        return
+
+    for i, spec_file_path in enumerate(spec_files):
+        description = extract_spec_description(spec_file_path)
+
+        # Add a rule before each entry except the first one
+        if i > 0:
+            rich.console.print(Rule(style="dim black")) # Using a very subtle rule
+            rich.console.print() # Add a blank line for more spacing after the rule
+
+        rich.console.print(f"[bold bright_green]{spec_file_path.name}[/bold bright_green]")
+        
+        if description == "No description available.":
+            rich.console.print(f"  [dim italic]{description}[/dim italic]")
+        elif "Error:" in description:
+            rich.console.print(f"  [red]{description}[/red]")
+        else:
+            rich.console.print(f"  {description}")
+        
+        # Add a blank line after the last item for spacing before the next shell prompt
+        if i == len(spec_files) - 1:
+            rich.console.print()
 
 # Add subcommands to improve app
 improve_app.command("yaml", help="Improve a YAML workflow specification using AI optimization")(improve_yaml_command)

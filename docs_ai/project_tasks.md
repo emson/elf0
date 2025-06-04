@@ -54,6 +54,14 @@
 - [x] Works in both command-line and interactive modes
 - [x] Proper error handling for non-existent referenced files
 
+### Spec Listing Feature
+- [x] Implement `elf list-specs` command to display workflow specifications.
+- [x] Scan `./specs` directory for `.yaml`/`.yml` files (ignores subdirectories).
+- [x] Extract descriptions from `description` field in YAML or first comment line.
+- [x] Display results using Rich for professional formatting (filename, description, separators).
+- [x] Handle missing or empty `./specs` directory with user-friendly messages.
+- [x] Implement helper functions in `elf.utils.file_utils` (`list_spec_files`, `extract_spec_description`).
+
 ### CLI Improvements
 - [x] Refactor verbose `run-workflow-command` to concise `agent` command
 - [x] Update all tests to use new command structure

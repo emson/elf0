@@ -69,6 +69,12 @@
 
 ## Phase 3: Core Platform Features
 
+### CLI Enhancements (Output & Logging)
+- [x] Implement clean separation of workflow output (stdout) and logs (stderr)
+- [x] Add `--quiet` mode to suppress non-critical logs
+- [x] Ensure Rich consoles and Python logging direct to appropriate streams
+- [x] Update CLI help and documentation with redirection examples
+
 ### MCP Integration (MVP Complete)
 - [x] Replace placeholder MCP client with real MCP protocol implementation
 - [x] Implement MCP server connection management (stdio transport only for MVP)

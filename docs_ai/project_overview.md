@@ -1,6 +1,6 @@
 <overview>
-This is a CLI tool for running workflows defined in YAML files.
-The tool can also be run to improve the workflows and even it's own workflow.
+This is a CLI tool for running YAML agent workflows (specs).
+The tool can also be run to improve the YAML agent workflows and even it's own workflow.
 
 Key Features:
 - Execute YAML-defined agent workflows with multiple LLM providers (OpenAI, Anthropic, Ollama)
@@ -8,7 +8,7 @@ Key Features:
 - Self-improvement capabilities for optimizing YAML specifications
 - Interactive prompt sessions with workflow agents
 - File reference system using @filename.ext syntax for automatic context inclusion
-- Support for complex workflow patterns (sequential, react, evaluator-optimizer, custom graphs)
+- Support for complex Anthropic's "Building Effective Agents" agent design patterns (e.g. sequential, react, evaluator-optimizer, custom graphs)
 - Workflow referencing and composition for modular design
 </overview>
 
@@ -18,6 +18,14 @@ Key Features:
 - LLM API client (e.g. OpenAI, Anthropic)
 - Use `pydantic` for data validation
 </requirements>
+
+<implementation>
+- Write clear and concise code
+- Code must be minimal and flexible, and concisely implements the solution
+- Use composite functions made up of concise subfunctions
+- Add short clear and concise code documentation
+- Write code documentation to help LLMs to easily understand the code
+</implementation>
 
 <dependencies>
 - `pydantic` version >= 2.0.0

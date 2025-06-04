@@ -9,19 +9,29 @@ from pydantic import BaseModel, Field
 import json
 import asyncio
 from rich.logging import RichHandler
+from rich.console import Console as RichConsole
 
 # Configure logging
 # Default max iterations if not specified in the spec's workflow
 DEFAULT_MAX_ITERATIONS = 7
 
-# Configure RichHandler for beautiful logging
+# Configure RichHandler for beautiful logging to stderr
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.INFO, # Default level, can be overridden by CLI --quiet for specific loggers
     format="%(message)s", # RichHandler takes care of formatting
     datefmt="[%X]", # Time format, RichHandler might use its own or this as a hint
-    handlers=[RichHandler(rich_tracebacks=True, show_path=False, log_time_format="[%X]", markup=True)]
+    handlers=[
+        RichHandler(
+            rich_tracebacks=True, 
+            show_path=False, 
+            log_time_format="[%X]", 
+            markup=True,
+            console=RichConsole(stderr=True) # Explicitly send logs to stderr
+        )
+    ]
 )
-logger = logging.getLogger(__name__) # Standard way to get a logger instance
+# Get a logger specific to elf.core.compiler. The CLI's --quiet flag will target 'elf.core'.
+logger = logging.getLogger(__name__) # This will be 'elf.core.compiler'
 
 class WorkflowState(TypedDict):
     """Represents the shared state of the workflow, passed between and modified by nodes."""

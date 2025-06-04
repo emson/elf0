@@ -1,0 +1,30 @@
+# Simple math workflow without MCP dependencies
+version: "0.1"
+description: "Basic math workflow using LLM only"
+runtime: "langgraph"
+
+# LLM configuration
+llms:
+  math_llm:
+    type: "openai"
+    model_name: "gpt-4o-mini"
+    temperature: 0.1
+
+# Simple sequential workflow
+workflow:
+  type: "sequential"
+  nodes:
+    # Math calculation by LLM
+    - id: "math_calculator"
+      kind: "agent"
+      ref: "math_llm"
+      config:
+        prompt: |
+          Calculate the following mathematical expression step by step:
+          
+          {input}
+          
+          Show your work and provide the final answer.
+      stop: true
+
+  edges: []

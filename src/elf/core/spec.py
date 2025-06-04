@@ -141,8 +141,8 @@ class WorkflowNode(BaseModel):
     """
     
     id: str
-    kind: Literal['agent', 'tool', 'judge', 'branch']
-    ref: str      # key into llms/functions/sub-workflows
+    kind: Literal['agent', 'tool', 'judge', 'branch', 'mcp']
+    ref: Optional[str] = None     # key into llms/functions/sub-workflows (not used for MCP nodes)
     config: Dict[str, Any] = Field(default_factory=dict)
     stop: bool = False
 
@@ -246,11 +246,23 @@ class Spec(BaseModel):
         # Check that all referenced LLMs exist
         for node in self.workflow.nodes:
             if node.kind == 'agent' or node.kind == 'judge':
+                if not node.ref:
+                    raise ValueError(f"Node '{node.id}' of kind '{node.kind}' must have a ref field")
                 if node.ref not in self.llms:
                     raise ValueError(f"Node '{node.id}' references unknown LLM '{node.ref}'")
             elif node.kind == 'tool':
+                if not node.ref:
+                    raise ValueError(f"Node '{node.id}' of kind 'tool' must have a ref field")
                 if node.ref not in self.functions:
                     raise ValueError(f"Node '{node.id}' references unknown function '{node.ref}'")
+            elif node.kind == 'mcp':
+                # MCP nodes don't use ref field, they use config directly
+                if not node.config:
+                    raise ValueError(f"MCP node '{node.id}' must have configuration")
+                if 'server' not in node.config:
+                    raise ValueError(f"MCP node '{node.id}' must have 'server' configuration")
+                if 'tool' not in node.config:
+                    raise ValueError(f"MCP node '{node.id}' must have 'tool' configuration")
                     
         return self
     

@@ -3,9 +3,29 @@ from pathlib import Path
 from typing import List, Optional, Any
 import json
 from elf.core.runner import run_workflow
-from rich.console import Console
+import rich
+import sys
+from rich.console import Console as RichConsole
 from rich.markdown import Markdown
 import os
+import logging
+from prompt_toolkit import prompt as prompt_toolkit_prompt
+from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.lexers import PygmentsLexer
+from pygments.lexers.special import TextLexer # Using a simple lexer for plain text input
+from prompt_toolkit.output.defaults import create_output as pt_create_output
+from prompt_toolkit import PromptSession # Added for specifying output
+
+# Configure global Rich console for stderr
+rich.console = RichConsole(stderr=True)
+# Dedicated Rich console for stdout (workflow results)
+stdout_workflow_console = RichConsole(file=sys.stdout)
+
+# Application state for --verbose flag
+class AppState:
+    verbose_mode: bool = False # Default is not verbose
+
+app_state = AppState()
 
 app = typer.Typer(
     name="elf",
@@ -18,6 +38,70 @@ improve_app = typer.Typer(
     name="improve",
     help="Improve and optimize YAML workflow specifications"
 )
+
+@app.callback()
+def main_callback(
+    verbose: bool = typer.Option(
+        False, 
+        "--verbose", 
+        "-v", 
+        help="Enable verbose logging output. Shows INFO level logs from ELF and HTTP libraries."
+    )
+):
+    """
+    ELF: AI Workflow Architect.
+
+    Execute and optimize LLM-powered agent workflows.
+    By default, only critical errors are sent to stderr. Use --verbose for more detailed logs.
+
+    Examples for output/log redirection:
+    
+      elf agent workflow.yaml --prompt "Summarize" > result.txt                    # Output to file, minimal logs (errors only) to stderr
+      
+      elf agent workflow.yaml --prompt "Summarize" 2> elf.log                      # Minimal logs to file, output to stdout
+      
+      elf --verbose agent workflow.yaml --prompt "Summarize" 2> elf_verbose.log  # Verbose logs to file, output to stdout
+      
+      elf agent workflow.yaml --prompt "Summarize" | grep "keyword"                # Pipe output, minimal logs to stderr
+      
+      elf --verbose agent workflow.yaml --prompt "Summarize" | grep "keyword"      # Pipe output, verbose logs to stderr (if not redirected)
+      
+      elf agent workflow.yaml --prompt "Summarize" > result.txt 2> errors.log      # Output to result.txt, minimal logs to errors.log
+    """
+    app_state.verbose_mode = verbose
+    if app_state.verbose_mode:
+        # Enable INFO logging for elf.core and HTTP libraries
+        core_logger = logging.getLogger('elf.core') 
+        if not core_logger.hasHandlers(): 
+            core_logger.addHandler(logging.NullHandler())
+        core_logger.setLevel(logging.INFO) 
+
+        for lib_name in ["httpx", "httpcore"]:
+            lib_logger = logging.getLogger(lib_name)
+            if not lib_logger.hasHandlers(): 
+                lib_logger.addHandler(logging.NullHandler())
+            lib_logger.setLevel(logging.INFO) 
+    else:
+        # Default: Minimal logging (errors for elf.core, warnings for HTTP)
+        core_logger = logging.getLogger('elf.core')
+        if not core_logger.hasHandlers():
+             core_logger.addHandler(logging.NullHandler())
+        core_logger.setLevel(logging.ERROR) # Only show errors from ELF core
+
+        for lib_name in ["httpx", "httpcore"]:
+            lib_logger = logging.getLogger(lib_name)
+            if not lib_logger.hasHandlers():
+                lib_logger.addHandler(logging.NullHandler())
+            lib_logger.setLevel(logging.WARNING) # Show warnings from HTTP libs, suppress INFO
+
+def _conditional_secho(message: str, **kwargs):
+    """Helper to print to stderr.
+    Errors (fg=RED) are always printed.
+    Other messages (warnings, success) are printed only if in verbose mode.
+    """
+    is_error = kwargs.get("fg") == typer.colors.RED
+    if app_state.verbose_mode or is_error:
+        typer.secho(message, **kwargs)
 
 def parse_at_references(prompt: str) -> tuple[str, List[Path]]:
     """
@@ -41,7 +125,7 @@ def parse_at_references(prompt: str) -> tuple[str, List[Path]]:
         if _is_valid_file(path):
             referenced_files.append(path)
         else:
-            typer.secho(f"Warning: Referenced file '@{match}' not found. Skipping.", fg=typer.colors.YELLOW)
+            _conditional_secho(f"Warning: Referenced file '@{match}' not found. Skipping.", fg=typer.colors.YELLOW)
     
     # Remove @ references from the prompt
     cleaned_prompt = re.sub(r'@[^\s@]+(?:\.[^\s@]+)*', '', prompt)
@@ -74,7 +158,7 @@ def parse_context_files(context_files: Optional[List[Path]]) -> str:
             if _is_valid_file(path):
                 actual_files_to_read.append(path)
             else:
-                typer.secho(f"Warning: Context file '{path}' not found or is not a file. Skipping.", fg=typer.colors.YELLOW)
+                _conditional_secho(f"Warning: Context file '{path}' not found or is not a file. Skipping.", fg=typer.colors.YELLOW)
 
     return _read_files_content(actual_files_to_read)
 
@@ -86,7 +170,7 @@ def _parse_comma_separated_files(file_str: str) -> List[Path]:
         if _is_valid_file(path):
             valid_files.append(path)
         else:
-            typer.secho(f"Warning: Context file '{f_name.strip()}' not found or is not a file. Skipping.", fg=typer.colors.YELLOW)
+            _conditional_secho(f"Warning: Context file '{f_name.strip()}' not found or is not a file. Skipping.", fg=typer.colors.YELLOW)
     return valid_files
 
 def _is_valid_file(path: Path) -> bool:
@@ -101,7 +185,7 @@ def _read_files_content(files: List[Path]) -> str:
             with open(file_path, 'r') as f:
                 content_parts.append(f"Content of {file_path.name}:\n{f.read()}\n---")
         except Exception as e:
-            typer.secho(f"Warning: Could not read context file '{file_path}': {e}. Skipping.", fg=typer.colors.YELLOW)
+            _conditional_secho(f"Warning: Could not read context file '{file_path}': {e}. Skipping.", fg=typer.colors.YELLOW)
     return "\n".join(content_parts)
 
 def prepare_workflow_input(prompt: str, context_content: str) -> str:
@@ -125,6 +209,7 @@ def format_workflow_result(result: Any) -> tuple[str, bool]:
         try:
             return json.dumps(result, indent=4), True
         except TypeError as e:
+            # This is an error, so it should always be shown on stderr
             typer.secho(f"Error: Could not serialize result to JSON: {e}", fg=typer.colors.RED)
             raise typer.Exit(code=1)
 
@@ -145,32 +230,35 @@ def save_workflow_result(output_path: Path, content: str, is_json: bool) -> None
     try:
         with open(output_path, 'w') as f:
             f.write(content)
-        typer.secho(f"Workflow result saved to '{output_path}'", fg=typer.colors.GREEN)
+        _conditional_secho(f"Workflow result saved to '{output_path}'", fg=typer.colors.GREEN)
         
         if is_json and output_path.suffix.lower() != '.json':
-            typer.secho(f"Note: JSON content was saved to a file with extension '{output_path.suffix}'.", fg=typer.colors.YELLOW)
+            _conditional_secho(f"Note: JSON content was saved to a file with extension '{output_path.suffix}'.", fg=typer.colors.YELLOW)
     except IOError as e:
         typer.secho(f"Error writing to output file '{output_path}': {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
 def display_workflow_result(result: Any) -> None:
-    """Display workflow result in the console."""
+    """Display workflow result in the console to stdout."""
     if isinstance(result, dict):
         output_content = result.get('output')
         if isinstance(output_content, str):
-            console = Console()
-            console.print(Markdown(output_content))
+            stdout_workflow_console.print(Markdown(output_content))
         else:
+            # These warnings should go to stderr, only if verbose
             if 'output' in result:
-                typer.secho(f"Warning: Content of 'output' key is not a string (type: {type(output_content)}). Displaying raw result.", fg=typer.colors.YELLOW)
+                _conditional_secho(f"Warning: Content of 'output' key is not a string (type: {type(output_content)}). Displaying raw result to stdout.", fg=typer.colors.YELLOW)
             else:
-                typer.secho("Warning: Key 'output' not found in workflow result. Displaying raw result.", fg=typer.colors.YELLOW)
-            typer.echo(str(result))
+                _conditional_secho("Warning: Key 'output' not found in workflow result. Displaying raw result to stdout.", fg=typer.colors.YELLOW)
+            # The raw result still goes to stdout
+            stdout_workflow_console.print(str(result))
     elif isinstance(result, str):
-        typer.echo(result)
+        stdout_workflow_console.print(result) # Ensure this uses the stdout console
     else:
-        typer.secho(f"Warning: Unexpected result type from workflow ({type(result)}). Displaying raw result.", fg=typer.colors.YELLOW)
-        typer.echo(str(result))
+        # This warning goes to stderr, only if verbose
+        _conditional_secho(f"Warning: Unexpected result type from workflow ({type(result)}). Displaying raw result to stdout.", fg=typer.colors.YELLOW)
+        # The raw result still goes to stdout
+        stdout_workflow_console.print(str(result))
 
 def read_prompt_file(prompt_file: Path) -> str:
     """
@@ -259,7 +347,7 @@ def agent_command(
     if output_path:
         content, is_json = format_workflow_result(result)
         if not content:
-            typer.secho(f"Warning: Workflow result is empty. Writing an empty file to '{output_path}'.", fg=typer.colors.YELLOW)
+            _conditional_secho(f"Warning: Workflow result is empty. Writing an empty file to '{output_path}'.", fg=typer.colors.YELLOW)
             content = ""
         
         validate_output_path(output_path)
@@ -339,7 +427,9 @@ Output only the improved YAML specification."""
 
 Output only the improved YAML specification."""
     
-    typer.secho("Improving YAML specification...", fg=typer.colors.BLUE)
+    # This is an informational message
+    if app_state.verbose_mode:
+        typer.secho("Improving YAML specification...", fg=typer.colors.BLUE)
     
     # Run the optimizer workflow
     result = run_workflow(optimizer_spec_path, optimization_prompt, session_id)
@@ -361,42 +451,62 @@ Output only the improved YAML specification."""
     try:
         with open(output_path, 'w') as f:
             f.write(improved_yaml)
-        typer.secho(f"Improved YAML saved to: {output_path}", fg=typer.colors.GREEN)
+        _conditional_secho(f"Improved YAML saved to: {output_path}", fg=typer.colors.GREEN)
     except Exception as e:
         typer.secho(f"Error saving improved YAML: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
 def get_multiline_input() -> str:
     """
-    Get multi-line input from user with support for pasting.
+    Get multi-line input from user with support for pasting, arrow key navigation, and history.
     
     Returns empty string if user wants to exit.
-    Uses double Enter or '/submit' to submit prompt.
+    Uses Enter on an empty line or '/send' to send prompt.
     """
     lines = []
-    console = Console()
+    # Messages like "Enter your prompt" are essential UI for interactive mode, always show.
+    rich.console.print("[dim]💬 Enter your prompt:[/dim]") # Use the global stderr console
     
-    console.print("[dim]💬 Enter your prompt (press Enter twice or type '/submit' on a new line to submit):[/dim]")
+    history = InMemoryHistory()
+    pt_stderr_output = pt_create_output(sys.stderr) # Ensure prompt_toolkit uses stderr
+    # Create a PromptSession with the desired output, history, and lexer
+    session = PromptSession(
+        history=history, 
+        lexer=PygmentsLexer(TextLexer),
+        output=pt_stderr_output
+    )
     
     try:
         while True:
             try:
-                line = input("   ")
-            except EOFError:
-                return ""
+                # Use the prompt method from the session instance
+                line = session.prompt(
+                    "   ", 
+                    multiline=False # multiline can be specified per-prompt call
+                ) 
+            except EOFError: # Handles Ctrl+D
+                return "" 
             
             # Check for submission commands
-            if line.strip() == '/submit':
+            if line.strip() == '/send':
                 break
-            elif line.strip() in ['/exit', '/quit', '/bye']:
-                return ""
-            elif not line.strip() and lines and not lines[-1].strip():
-                # Double empty line (Enter twice) submits
+            elif line.strip().lower() in ['/exit', '/quit', '/bye']:
+                return "" # User wants to exit
+            elif not line.strip() and lines: # Enter on an empty line (after at least one line of input)
+                # Check if the previous line was also effectively empty to allow for blank lines within the prompt
+                if not lines[-1].strip(): 
+                    lines.append(line) # Add the current empty line
+                    break # send on double empty line
+                else:
+                    lines.append(line) # Allow single empty lines within the prompt
+            elif not line.strip() and not lines: # First line is empty, treat as submission
                 break
             else:
                 lines.append(line)
     
-    except KeyboardInterrupt:
+    except KeyboardInterrupt: # Handles Ctrl+C
+        # This message is essential feedback for interactive mode, always show.
+        rich.console.print("\n[yellow]Input cancelled.[/yellow]") # Use the global stderr console
         return ""
     
     # Join lines and clean up
@@ -415,14 +525,13 @@ def prompt_yaml_command(
     
     Examples:
         elf prompt workflow.yaml
-        Then type your prompt and press Enter twice to submit
-        Or type "/submit" on a new line to submit
+        Then type your prompt and press Enter twice to send
+        Or type "/send" on a new line to send
     """
-    console = Console()
-    
-    console.print(f"[bold blue]Starting interactive session with {spec_path.name}[/bold blue]")
-    console.print("[dim]Commands: '/exit', '/quit', '/bye' to quit | Enter twice or '/submit' to send[/dim]")
-    console.print()
+    # All these introductory messages are essential UI for interactive mode, always show.
+    rich.console.print(f"[bold blue]Starting interactive session with {spec_path.name}[/bold blue]")
+    rich.console.print("[dim]Commands: '/exit', '/quit', '/bye' to quit | Enter twice or '/send' to send[/dim]")
+    rich.console.print()
     
     try:
         while True:
@@ -433,7 +542,8 @@ def prompt_yaml_command(
             if not prompt or prompt.lower() in ['exit', 'quit', 'bye']:
                 break
             
-            console.print("[dim]Running workflow...[/dim]")
+            # "Running workflow..." is essential feedback in interactive mode.
+            rich.console.print("[dim]Running workflow...[/dim]")
             
             try:
                 # Parse @ references from the prompt
@@ -446,19 +556,25 @@ def prompt_yaml_command(
                 # Run the workflow with processed prompt
                 result = run_workflow(spec_path, final_prompt, session_id)
                 
-                # Display result
-                console.print("\n[bold green]Response:[/bold green]")
+                # Display result (goes to stdout via display_workflow_result)
+                # "Response:" header is essential UI in interactive mode.
+                rich.console.print("\n[bold green]Response:[/bold green]")
                 display_workflow_result(result)
-                console.print()  # Add spacing before next prompt
+                # Spacing for next prompt is also part of interactive UI flow.
+                rich.console.print()  # Add spacing before next prompt to stderr
                 
             except Exception as e:
-                console.print(f"[bold red]Error:[/bold red] {e}")
-                console.print()  # Add spacing before next prompt
+                # Error messages always go to stderr (rich.console is stderr by default)
+                rich.console.print(f"[bold red]Error:[/bold red] {e}")
+                # Spacing after error in interactive mode.
+                rich.console.print()  # Add spacing before next prompt
                 
     except KeyboardInterrupt:
-        console.print("\n[yellow]Session ended.[/yellow]")
+        # Session ended message is essential UI feedback.
+        rich.console.print("\n[yellow]Session ended.[/yellow]")
     except EOFError:
-        console.print("\n[yellow]Session ended.[/yellow]")
+        # Session ended message is essential UI feedback.
+        rich.console.print("\n[yellow]Session ended.[/yellow]")
 
 # Add subcommands to improve app
 improve_app.command("yaml", help="Improve a YAML workflow specification using AI optimization")(improve_yaml_command)

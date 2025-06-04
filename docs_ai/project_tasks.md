@@ -67,4 +67,44 @@
 - [x] Add interactive mode documentation and examples
 - [x] Update all documentation to reflect `agent` command rename
 
+## Phase 3: Core Platform Features
+
+### CLI Enhancements (Output & Logging)
+- [x] Implement clean separation of workflow output (stdout) and logs (stderr)
+- [x] Add `--quiet` mode to suppress non-critical logs
+- [x] Ensure Rich consoles and Python logging direct to appropriate streams
+- [x] Update CLI help and documentation with redirection examples
+
+### MCP Integration (MVP Complete)
+- [x] Replace placeholder MCP client with real MCP protocol implementation
+- [x] Implement MCP server connection management (stdio transport only for MVP)
+- [x] Add MCP tool discovery, caching, and execution
+- [x] Create MCP node type for workflow integration
+- [x] Add MCP server configuration in workflow YAML
+- [x] Add comprehensive MCP integration tests
+- [x] Create MCP workflow examples and documentation
+- [ ] Extend MCP support for SSE and WebSocket transports
+- [ ] Implement MCP security and authentication
+- [ ] Add MCP server lifecycle management and error recovery
+
+### Python Tool Loading
+- [ ] Implement Python function loader with module and file support
+- [ ] Create secure Python execution environment with resource limits
+- [ ] Add Python node type for workflow integration
+- [ ] Implement function signature introspection and schema generation
+- [ ] Add parameter binding and type conversion
+- [ ] Create security framework for safe Python execution
+- [ ] Add comprehensive Python tool tests
+- [ ] Create Python tool development documentation
+
+### ReAct Pattern Implementation
+- [ ] Implement ReAct controller with reasoning/action/observation loop
+- [ ] Create action framework for tool integration
+- [ ] Add ReAct node type for workflow execution
+- [ ] Implement reasoning templates and prompt management
+- [ ] Add action parsing and execution coordination
+- [ ] Create termination logic and success criteria evaluation
+- [ ] Add comprehensive ReAct pattern tests
+- [ ] Create ReAct workflow examples and documentation
+
 

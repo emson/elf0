@@ -70,6 +70,18 @@ uv run elf prompt specs/basic_chat.yaml
 💬 Prompt: exit
 ```
 
+### MCP Integration
+Execute workflows that integrate with Model Context Protocol (MCP) servers:
+
+```bash
+# Run a workflow with MCP nodes (see specs/examples/mcp_workflow.yaml)
+uv run elf agent specs/examples/mcp_workflow.yaml --prompt "Calculate 15 + 30"
+
+
+# MCP nodes can access filesystem, databases, APIs, and other external tools
+# No additional setup required - MCP servers are started automatically
+```
+
 ### File Reference System
 Elf supports automatic file inclusion using `@filename.ext` syntax in any prompt:
 
@@ -97,19 +109,22 @@ You can delete or replace any slice without rippling changes across the codebase
 
 ### 1. Declarative Workflow Definition
    - Workflows are defined in simple YAML files.
-   - Each workflow consists of a sequence of "steps" and "agents" or "tools" within those steps.
+   - Each workflow consists of nodes (agents, tools, MCP integrations) connected by edges.
    - Each agent has its own configuration:
      - System prompt
-     - LLM client (e.g., OpenAI, Anthropic, ..., etc.)
-     - Model (e.g., `gpt-4.1-mini`)
+     - LLM client (e.g., OpenAI, Anthropic, Ollama)
+     - Model (e.g., `gpt-4.1-mini`, `claude-4-sonnet`)
      - Model parameters (e.g., `temperature`)
-     - (Future) Tools it can access
+   - MCP nodes provide direct integration with external tools and services
+   - Support for complex workflow patterns (sequential, react, custom graphs)
 
 ### 2. Workflow Execution
 - A command-line interface (CLI) allows users to run defined workflows.
 - The system dynamically assembles the workflow logic based on the YAML definition.
 - It manages the passage of data (LLM responses) between agents in the sequence.
 - Handles interactions with different LLM clients and their specific parameters.
+- Automatically manages MCP server connections and tool execution.
+- Supports complex workflow patterns with conditional branching and loops.
 
 ### 3. AI-Powered Workflow Optimization (Elf Agent)
 - A specialized "AI Workflow Architect" (Elf) agent can analyze an existing workflow definition.

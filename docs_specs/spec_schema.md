@@ -31,8 +31,9 @@ workflow:                    # (Required) Defines the directed graph
   type:                     #   (Required) one of: sequential, react, evaluator_optimizer, custom_graph
   nodes:                    #   (Required) list of graph nodes
     - id: <string>          #     (Required) unique node identifier
-      kind: <string>        #     (Required) agent | tool | judge | branch
-      ref: <string>         #     (Required) key into llms/functions/workflows
+      kind: <string>        #     (Required) agent | tool | judge | branch | mcp
+      ref: <string>         #     (Optional for mcp nodes, Required for others) key into llms/functions/workflows
+      config: <object>      #     (Optional for most nodes, Required for mcp nodes) node configuration
       stop: <bool>          #     (Optional, default false) mark finish points
   edges:                    #   (Required; can be empty) list of transitions
     - source: <string>      #     (Required) node.id
@@ -128,7 +129,7 @@ functions:
     entrypoint: "mymodule.submodule.process_data"
 ```
 
-**MCP Functions:**
+**MCP Functions (Legacy Pattern - Deprecated):**
 ```yaml
 functions:
   my_mcp_tool:
@@ -137,10 +138,62 @@ functions:
     entrypoint: "mcp://localhost:3000/calculate"
 ```
 
+**Note:** The MCP functions pattern above is deprecated. Use MCP nodes directly in workflows instead (see MCP Nodes section below).
+
 **MCP URI Format:** `mcp://server:port/tool_name`
 - **server**: MCP server hostname or IP
 - **port**: MCP server port (optional, defaults vary by server)
 - **tool_name**: Name of the tool to call on the MCP server
+
+#### MCP Nodes
+
+MCP nodes provide direct integration with Model Context Protocol servers, allowing workflows to execute tools from MCP servers without needing to define them in the `functions` section. This is the recommended approach for MCP integration.
+
+**MCP Node Configuration:**
+```yaml
+workflow:
+  nodes:
+    - id: calculator
+      kind: mcp
+      config:
+        server:
+          command: ["python", "mcp/calculator/server.py"]
+          cwd: "/path/to/project"  # Optional working directory
+        tool: "add"
+        parameters:
+          a: "${state.json.a}"
+          b: "${state.json.b}"
+          operation: "${state.json.operation}"
+```
+
+**MCP Node Fields:**
+- `server.command` (array, required): Command to start the MCP server
+- `server.cwd` (string, optional): Working directory for the server process
+- `tool` (string, required): Name of the tool to call on the MCP server
+- `parameters` (object, optional): Parameters to pass to the tool (supports state variable substitution)
+
+**Parameter Binding:**
+MCP nodes support enhanced parameter binding from workflow state using the `${state.variable}` syntax:
+```yaml
+parameters:
+  # Basic state variable binding
+  input_data: "${state.user_input}"
+  
+  # JSON extraction from previous step output
+  number_a: "${state.json.a}"
+  number_b: "${state.json.b}"
+  operation: "${state.json.operation}"
+  
+  # Static values
+  format: "json"
+  max_results: 10
+```
+
+**JSON Parameter Extraction:**
+The `${state.json.field}` syntax allows extraction of specific fields from JSON data in the previous step's output:
+- The system looks for JSON content in `state.output`
+- Parses the JSON and extracts the specified field
+- Falls back to the original template string if parsing fails
 
 #### `workflow`
 - **Type**: **Workflow** object  
@@ -153,9 +206,17 @@ functions:
 
 **WorkflowNode**
 - `id` (string): unique name  
-- `kind` (string): "agent" / "tool" / "judge" / "branch"  
-- `ref` (string): reference key into `llms`, `functions`, or sub-workflows  
+- `kind` (string): "agent" / "tool" / "judge" / "branch" / "mcp"  
+- `ref` (string): reference key into `llms`, `functions`, or sub-workflows (optional for MCP nodes, required for others)
+- `config` (object): configuration object (required for MCP nodes, optional for others)
 - `stop` (bool): marks finish nodes
+
+**MCP Node Validation:**
+- MCP nodes (`kind: "mcp"`) do not require the `ref` field
+- MCP nodes must have a `config` object with required fields:
+  - `server`: Server configuration with `command` array
+  - `tool`: Tool name to execute
+  - `parameters`: Tool parameters (optional)
 
 **Edge**
 - `source` (string): node.id  
@@ -203,6 +264,52 @@ eval:
   metrics:
     - quality
   dataset_path: "data/test_prompts.jsonl"
+```
+
+### MCP Integration Example
+
+```yaml
+version: "0.1"
+description: "Agent with MCP calculator integration"
+runtime: "langgraph"
+
+llms:
+  analyzer_llm:
+    type: openai
+    model_name: gpt-4o-mini
+    temperature: 0.3
+
+workflow:
+  type: custom_graph
+  nodes:
+    - id: input_analyzer
+      kind: agent
+      ref: analyzer_llm
+      config:
+        prompt: |
+          Extract mathematical operation from: {input}
+          Return JSON: {"a": number, "b": number, "operation": "add|subtract|multiply|divide"}
+    - id: calculator
+      kind: mcp
+      config:
+        server:
+          command: ["python", "mcp/calculator/server.py"]
+        tool: "calculate"
+        parameters:
+          a: "${state.json.a}"
+          b: "${state.json.b}"
+          operation: "${state.json.operation}"
+    - id: result_formatter
+      kind: agent
+      ref: analyzer_llm
+      config:
+        prompt: "Format the calculation result: {output}"
+      stop: true
+  edges:
+    - source: input_analyzer
+      target: calculator
+    - source: calculator
+      target: result_formatter
 ```
 
 ---

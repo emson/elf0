@@ -14,6 +14,7 @@ dependencies = [
     "rich>=14.0.0",
     "anthropic>=0.51.0",
     "mcp[cli]>=1.9.1",
+    "prompt-toolkit>=3.0.51",
 ]
 
 [project.scripts]
@@ -21,7 +22,9 @@ elf = "elf.cli:app"
 
 [dependency-groups]
 dev = [
+    "pytest-asyncio>=1.0.0",
     "pytest>=8.3.5",
+    "mypy>=1.16.0",
 ]
 test = [
 ]

@@ -2,7 +2,6 @@
 import yaml
 from pathlib import Path
 from typing import Dict, Any
-from pydantic import ValidationError
 
 def load_yaml_file(file_path: str) -> Dict[str, Any]:
     """
@@ -91,24 +90,3 @@ def merge_yaml_data(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str,
             result[key] = value
             
     return result
-
-# Maintain backward compatibility
-def load_spec(path: str) -> Any:
-    """
-    Load and validate a YAML spec file into a Spec model.
-    For backward compatibility - imports Spec here to avoid circular import.
-    
-    Args:
-        path: Path to the YAML file
-        
-    Returns:
-        Validated Spec object
-    """
-    from elf.core.spec import Spec
-    
-    data = load_yaml_file(path)
-    try:
-        spec = Spec.model_validate(data)
-    except ValidationError as e:
-        raise ValueError(f"Spec validation error: {e}")
-    return spec

@@ -8,28 +8,11 @@ import logging
 from pydantic import BaseModel, Field
 import json
 import asyncio
-from rich.logging import RichHandler
-from rich.console import Console as RichConsole
 
-# Configure logging
+# Configure logging (This section will be removed)
 # Default max iterations if not specified in the spec's workflow
 DEFAULT_MAX_ITERATIONS = 7
 
-# Configure RichHandler for beautiful logging to stderr
-logging.basicConfig(
-    level=logging.INFO, # Default level, can be overridden by CLI --quiet for specific loggers
-    format="%(message)s", # RichHandler takes care of formatting
-    datefmt="[%X]", # Time format, RichHandler might use its own or this as a hint
-    handlers=[
-        RichHandler(
-            rich_tracebacks=True, 
-            show_path=False, 
-            log_time_format="[%X]", 
-            markup=True,
-            console=RichConsole(stderr=True) # Explicitly send logs to stderr
-        )
-    ]
-)
 # Get a logger specific to elf.core.compiler. The CLI's --quiet flag will target 'elf.core'.
 logger = logging.getLogger(__name__) # This will be 'elf.core.compiler'
 

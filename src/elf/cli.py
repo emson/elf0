@@ -6,6 +6,10 @@ from elf.core.runner import run_workflow
 from rich.console import Console
 from rich.markdown import Markdown
 import os
+from prompt_toolkit import prompt as prompt_toolkit_prompt
+from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.lexers import PygmentsLexer
+from pygments.lexers.special import TextLexer # Using a simple lexer for plain text input
 
 app = typer.Typer(
     name="elf",
@@ -368,35 +372,46 @@ Output only the improved YAML specification."""
 
 def get_multiline_input() -> str:
     """
-    Get multi-line input from user with support for pasting.
+    Get multi-line input from user with support for pasting, arrow key navigation, and history.
     
     Returns empty string if user wants to exit.
-    Uses double Enter or '/submit' to submit prompt.
+    Uses Enter on an empty line or '/submit' to submit prompt.
     """
     lines = []
     console = Console()
     
-    console.print("[dim]💬 Enter your prompt (press Enter twice or type '/submit' on a new line to submit):[/dim]")
+    console.print("[dim]💬 Enter your prompt:[/dim]")
+    
+    history = InMemoryHistory()
     
     try:
         while True:
             try:
-                line = input("   ")
-            except EOFError:
-                return ""
+                # Using a simple TextLexer, you can replace with more specific lexers if needed
+                # For example, if you expect markdown, you could use MarkdownLexer
+                line = prompt_toolkit_prompt("   ", history=history, lexer=PygmentsLexer(TextLexer), multiline=False) 
+            except EOFError: # Handles Ctrl+D
+                return "" 
             
             # Check for submission commands
             if line.strip() == '/submit':
                 break
-            elif line.strip() in ['/exit', '/quit', '/bye']:
-                return ""
-            elif not line.strip() and lines and not lines[-1].strip():
-                # Double empty line (Enter twice) submits
+            elif line.strip().lower() in ['/exit', '/quit', '/bye']:
+                return "" # User wants to exit
+            elif not line.strip() and lines: # Enter on an empty line (after at least one line of input)
+                # Check if the previous line was also effectively empty to allow for blank lines within the prompt
+                if not lines[-1].strip(): 
+                    lines.append(line) # Add the current empty line
+                    break # Submit on double empty line
+                else:
+                    lines.append(line) # Allow single empty lines within the prompt
+            elif not line.strip() and not lines: # First line is empty, treat as submission
                 break
             else:
                 lines.append(line)
     
-    except KeyboardInterrupt:
+    except KeyboardInterrupt: # Handles Ctrl+C
+        console.print("\n[yellow]Input cancelled.[/yellow]")
         return ""
     
     # Join lines and clean up

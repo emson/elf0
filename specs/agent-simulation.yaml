@@ -44,7 +44,7 @@ workflow:
           • mandatory top-level keys  
           • one and only one use of the reserved input placeholder (curly braces around *input*) in the first node  
           • all other data references via `{state.xxx}`  
-          • node field rules (`kind`, `output_key`, valid `workflow.type`, etc.)
+          • node field rules (`id`, `kind`, `ref`, `config`, `output_key`, valid `workflow.type`, etc.)
 
           OUTPUT under:
           ## YAML_RULES
@@ -57,7 +57,8 @@ workflow:
       ref: decomposer_llm
       config:
         prompt: |
-          Your job is to dissect the raw scenario prompt into its constituent elements
+          You are an expert at analysing prompts and breaking them down into their constituent elements, in order to create a graph simulation.
+          Your job is to dissect the raw simulation prompt into its constituent elements, and rewrite it in your own words, using:
           (actors, objects, subsystems, environmental factors, constraints).
           
           ORIGINAL SCENARIO PROMPT
@@ -75,7 +76,7 @@ workflow:
           - <Element 1>: <one-line description>
           - ...
 
-          ## REWRITTEN_SCENARIO
+          ## REWRITTEN_SIMULATION_PROMPT
           <paragraph(s)>
         output_key: scenario_breakdown
 
@@ -127,6 +128,9 @@ workflow:
           Prompt:
           """
           You are <element name>. <behaviour traits>.  
+          <reason /> about the typical characteristics of this element, its behaviours and triggers.
+          Imagine you are this element and incorporate these values and make a prediction of what happens in this scenario, based on your behaviours and traits.
+
           Scenario:
           {{state.scenario_text}}
           Provide your detailed reaction...
@@ -145,7 +149,7 @@ workflow:
         prompt: |
           Use the information below to produce a *schema-compliant* @docs_ai/spec_schema.md simulation YAML spec.
           Think hard about the correct YAML output sturcture @docs_specs/spec_structure.md, go through step by step implementing the graph.
-          - At the top level, `version`, `description`, `runtime` with value of `langgraph` are required.
+          - At the top level, `version` (as `"1.0"`), `description`, `runtime` with value of `langgraph` are required.
           - `llms` must have `model_name` not `model`, and a `type` with value of the provider name.
           - `workflow` has a `type` (sequential, custom_graph, react, evaluator_optimizer) and `nodes` and `edges`.
           - `nodes` each have a `id`, `kind` and `ref` and `config` with a `prompt`, and an `output_key`.
@@ -167,8 +171,9 @@ workflow:
           - Follow the node/edge layout from GRAPH_PLAN and the workflow type in WORKFLOW_TYPE.
           - Define exactly one LLM alias (e.g., `sim_llm`) with model `gpt-4.1-mini`.
           - Each element gets its own `agent` node using its crafted prompt.
-          - Add an `aggregate_responses` node that summarises all `{state.<element>_response}` values into a final report.
-          - Use `stop: true` only on `aggregate_responses`.
+          - Add an `aggregate_outcomes` node that summarises all `{state.<element>_response}` values into a final predictive narrative summary that accurately reflects how the scenario plays out based on the responses of all the elements.
+            - We want the hollistic summary that is the most accurate reflection of the simulation.
+          - Use `stop: true` only on `aggregate_outcomes`.
           - Validate against all YAML_RULES before output.
 
           OUTPUT

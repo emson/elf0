@@ -1,0 +1,175 @@
+version: "0.1"
+description: "An agent that analyzes an input prompt and generates a YAML agent workflow (spec) to solve the prompt's request. It uses @docs_ai/agent_patterns.md for strategy and @docs_specs/spec_schema.md for output format."
+runtime: "langgraph"
+
+llms:
+  prompt_analyzer_llm:
+    type: openai
+    model_name: gpt-4.1-mini 
+    temperature: 0.2
+    params: {}
+  strategy_designer_llm:
+    type: openai
+    model_name: gpt-4.1-mini # Using a more capable model for reasoning
+    temperature: 0.5
+    params: {}
+  yaml_spec_generator_llm:
+    type: openai
+    model_name: gpt-4.1-mini # Using a capable model for YAML generation
+    temperature: 0.1
+    params: {} # While output is YAML, it's delivered as text in a block
+
+workflow:
+  type: sequential
+  nodes:
+    - id: analyze_user_request
+      kind: agent
+      ref: prompt_analyzer_llm
+      config:
+        prompt: |
+          You are an analytical assistant. Your task is to thoroughly analyze the user's input prompt to deeply understand what it is requesting.
+          Focus on:
+          - The primary goal of the prompt.
+          - Key entities or concepts mentioned.
+          - Any explicit or implicit sub-tasks.
+          - The desired output or outcome.
+          IMPORTANT: In your analysis, if you refer to the user's original input, use descriptive terms (e.g., "the user's provided scenario", "the initial request").
+
+          USER INPUT PROMPT:
+          ---
+          {input}
+          ---
+
+          Provide your DETAILED ANALYSIS below:
+        output_key: analysis_text
+
+    - id: reword_user_request
+      kind: agent
+      ref: prompt_analyzer_llm
+      config:
+        prompt: |
+          Based on the original user prompt and its detailed analysis, reword the prompt.
+          The reworded prompt should:
+          - Be in your own words.
+          - Clearly and concisely state the user's core request.
+          - Resolve ambiguities if possible.
+          - Maintain the original intent.
+          IMPORTANT: In your reworded output, if you refer to the original input or concepts from it, use descriptive terms.
+
+          ORIGINAL USER PROMPT:
+          ---
+          {state.input}
+          ---
+          ANALYSIS OF ORIGINAL PROMPT:
+          ---
+          {state.analysis_text}
+          ---
+
+          Provide the REWORDED PROMPT below:
+        output_key: reworded_request_text
+
+    - id: design_workflow_strategy
+      kind: agent
+      ref: strategy_designer_llm
+      config:
+        prompt: |
+          You are an expert LLM prompt engineer specializing in designing agent workflows.
+          Your task is to devise the best logical graph strategy to address the user's reworded request.
+          You will use the agent design patterns described in @docs_ai/agent_patterns.md (which will be provided as context).
+
+          USER REQUEST (reworded):
+          ---
+          {state.reworded_request_text}
+          ---
+
+          INSTRUCTIONS:
+          1. Carefully study the reworded user request.
+          2. Refer to the agent patterns in @docs_ai/agent_patterns.md to identify suitable patterns or combinations.
+          3. In your reasoning, explain how these patterns address the request.
+          4. IMPORTANT RULE FOR YOUR OUTPUT: In your reasoning and selected strategy sections below, if you need to refer to the user's initial prompt, the reworded request, or any initial data, use descriptive terms (e.g., "the user's core request", "the initial scenario provided", "the reworded objective").
+          5. Structure your output exactly as follows, with no additional text before or after these blocks:
+
+          BEGIN REASONING
+          <reason>
+          [Your detailed thought process. Explain which agent patterns from @docs_ai/agent_patterns.md are suitable and why. If combining patterns, explain the flow. This reasoning should lead to your choice of a specific YAML `workflow.type` below.]
+          </reason>
+          END REASONING
+
+          BEGIN SELECTED YAML WORKFLOW TYPE
+          [Clearly state your final recommended YAML `workflow.type` from the allowed values: "sequential", "react", "evaluator_optimizer", "custom_graph". 
+          
+          CRITICAL GUIDANCE for selecting the correct type:
+          - "sequential": Use ONLY when nodes execute one after another in a strict chain (A→B→C→D). Each node has at most one outgoing edge to the next node.
+          - "custom_graph": Use when you have ANY of the following:
+            * Fan-out patterns (one node connecting to multiple nodes, like A→B,C,D)
+            * Fan-in patterns (multiple nodes connecting to one node, like B,C,D→E)
+            * Parallel execution of any kind
+            * Complex routing or branching
+            * Any non-linear flow
+          - "react": Use for agent loops with tool selection and iterative reasoning
+          - "evaluator_optimizer": Use specifically for generator-evaluator loops with iterative refinement
+          
+          If your workflow involves simulating multiple personas/agents in parallel, or any form of parallel processing, you MUST select "custom_graph", NOT "sequential".]
+          END SELECTED YAML WORKFLOW TYPE
+        output_key: strategy_output_block
+
+    - id: generate_workflow_yaml
+      kind: agent
+      ref: yaml_spec_generator_llm
+      stop: true
+      config:
+        prompt: |
+          You are a YAML generation specialist. Your task is to create a complete and valid YAML agent specification.
+          This specification should be based on the user's request, the chosen graph strategy, and the schemas/rules defined in:
+          1. @docs_specs/spec_schema.md (for overall structure and field requirements)
+          2. @docs_ai/flow_rules.md (for data flow, state management, and input/output handling)
+
+          USER REQUEST (reworded):
+          ---
+          {state.reworded_request_text}
+          ---
+
+          FULL STRATEGY DISCUSSION (includes reasoning and selected YAML workflow type):
+          ---
+          {state.strategy_output_block} 
+          ---
+          (Note: Extract the reasoning and the selected YAML workflow type from the block above. The selected type is found between "BEGIN SELECTED YAML WORKFLOW TYPE" and "END SELECTED YAML WORKFLOW TYPE".)
+
+          INSTRUCTIONS FOR YAML GENERATION:
+          1. You MUST strictly adhere to the schema provided in @docs_specs/spec_schema.md.
+          2. You MUST strictly adhere to the data flow and state management rules in @docs_ai/flow_rules.md. This is critical for creating functional workflows.
+          3. The output MUST be a single, valid YAML code block, starting with `version:` and ending with the last line of the YAML. Do not include any explanatory text or symbols, before `version:` or after the YAML ends.
+          4. The generated YAML's `workflow` section must implement the strategy outlined in the reasoning from the strategy discussion. Crucially, the `workflow.type` field within this section MUST be set to the exact value extracted from the "SELECTED YAML WORKFLOW TYPE" block (e.g., `sequential`, `custom_graph`, `react`, `evaluator_optimizer`). This is a mandatory field.
+          5. The `description` field in the generated YAML should concisely describe what the agent does, based on the user request.
+          6. Define necessary LLMs under the `llms` section (e.g., `main_llm`, `evaluator_llm`, `routing_llm`). Use generic but descriptive names. Default to `type: openai` and `model_name: gpt-4o-mini`, `temperature: 0.3`.
+          7. For prompts within the generated workflow nodes (`config.prompt`), follow these critical rules:
+             - For the FIRST node that processes the overall workflow input: Use `input` (curly braces around 'input') as the placeholder.
+             - For ALL OTHER nodes that consume outputs from previous nodes: Use `{state.variable_name}` to reference the specific output_key from the previous node.
+             - IMPORTANT: For nodes using state variables (not the initial input), their prompts should ONLY contain state variable references like `{state.variable_name}`. Do NOT mix state variables with any reference to initial input.
+             - Provide clear, concise prompt outlines that describe the task and reference the appropriate variables.
+          8. Every node that produces an intermediate result to be used by subsequent nodes MUST have an `output_key` defined in its `config` (as per Rule 2 in @docs_ai/flow_rules.md).
+          9. Ensure `nodes` have unique `id`s, correct `kind` (agent, tool, judge, branch, mcp), and valid `ref` to defined LLMs or functions.
+          10. Define `edges` to correctly connect the nodes according to the CHOSEN STRATEGY. Ensure `source` and `target` in edges correctly reference node `id`s.
+          11. CRITICAL VALIDATION: Verify that your edge pattern matches the workflow.type:
+              - If workflow.type is "sequential": Edges must form a chain where each node has at most one outgoing edge
+              - If workflow.type is "custom_graph": Can have any edge pattern including fan-out/fan-in
+              - If you create edges where one node connects to multiple targets (fan-out), the workflow.type MUST be "custom_graph"
+          12. If the strategy involves patterns like 'Evaluator-Optimizer', represent the iterative loop or the distinct generator/evaluator nodes and their connections, following data flow rules.
+          13. If the strategy is 'Routing' or 'custom_graph' with parallel branches, pay close attention to Rule 4 in @docs_ai/flow_rules.md to ensure correct data fan-out.
+          14. Use `stop: true` on nodes that represent the end of a workflow or a significant branch (as per Rule 5 in @docs_ai/flow_rules.md).
+          15. Make sure all node `id`s are unique within the generated spec.
+
+          PRODUCED YAML AGENT SPECIFICATION (ensure this is only the YAML content):
+        output_key: final_generated_yaml
+
+  edges:
+    - source: analyze_user_request
+      target: reword_user_request
+    - source: reword_user_request
+      target: design_workflow_strategy
+    - source: design_workflow_strategy
+      target: generate_workflow_yaml
+
+# Input to this agent will be the user's prompt, automatically available as `input` (curly braces around 'input')
+# The agent will use @docs_ai/agent_patterns.md, @docs_specs/spec_schema.md, and @docs_ai/flow_rules.md from the file system.
+# The final output of this agent is state.final_generated_yaml. 

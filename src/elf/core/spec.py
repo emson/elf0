@@ -4,6 +4,7 @@ from typing import Literal, List, Dict, Union, Optional, ClassVar, Any, Callable
 from pathlib import Path
 from ..utils.yaml_loader import load_yaml_file
 import yaml
+import json
 from typing import Tuple
 
 
@@ -387,6 +388,44 @@ class Spec(BaseModel):
             sort_keys=False,
             allow_unicode=True
         )
+    
+    @classmethod
+    def from_structured_json(cls, json_content: str) -> 'Spec':
+        """
+        Creates a Spec instance from structured JSON output.
+        
+        Args:
+            json_content: JSON string containing spec data
+            
+        Returns:
+            A validated Spec instance
+            
+        Raises:
+            ValueError: If JSON is invalid or doesn't match Spec schema
+        """
+        try:
+            # Clean markdown fences if present
+            cleaned_json = _clean_markdown_fences(json_content, "json")
+            
+            # Parse JSON
+            data = json.loads(cleaned_json)
+            
+            # Validate and return Spec
+            return cls.model_validate(data)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Spec validation error: {str(e)}")
+    
+    @classmethod 
+    def get_json_schema_for_structured_output(cls) -> Dict[str, Any]:
+        """
+        Returns the JSON schema for this Spec model, formatted for LLM structured output.
+        
+        Returns:
+            JSON schema dictionary suitable for OpenAI structured output
+        """
+        return cls.model_json_schema()
     
     @classmethod
     def from_file(cls, spec_path: str, visited: Optional[Set[Path]] = None) -> 'Spec':

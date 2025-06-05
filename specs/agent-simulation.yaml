@@ -146,16 +146,30 @@ workflow:
       ref: yaml_llm
       stop: true
       config:
-        validate_yaml_output: true
+        format: json
         prompt: |
-          Use the information below to produce a *schema-compliant* @docs_ai/spec_schema.md simulation YAML spec.
-          Think hard about the correct YAML output sturcture @docs_specs/spec_structure.md, go through step by step implementing the graph.
-          - At the top level, `version` (as `"1.0"`), `description`, `runtime` with value of `langgraph` are required.
-          - `llms` must have `model_name` not `model`, and a `type` with value of the provider name.
-          - `workflow` has a `type` (sequential, custom_graph, react, evaluator_optimizer) and `nodes` and `edges`.
-          - `nodes` each have a `id`, `kind` and `ref` and `config` with a `prompt`, and an `output_key`.
-          - `edges` have a `source` and `target` and `condition` if applicable.
-          Double check that you have implemented each node correctly with its required fields.
+          Use the information below to produce a *schema-compliant* simulation spec as structured JSON output.
+          Think hard about the correct structure, going step by step implementing the graph.
+          
+          REQUIRED STRUCTURE:
+          - `version` (string): "1.0"
+          - `description` (string): Descriptive text about the simulation
+          - `runtime` (string): "langgraph"
+          - `llms` (object): Dictionary with one LLM definition
+            - Key should be descriptive (e.g., "sim_llm")
+            - Value must have: `type` (string), `model_name` (string)
+          - `workflow` (object):
+            - `type` (string): One of "sequential", "custom_graph", "react", "evaluator_optimizer"
+            - `nodes` (array): Array of node objects, each with:
+              - `id` (string): Unique identifier
+              - `kind` (string): "agent" for LLM nodes
+              - `ref` (string): Reference to LLM key
+              - `config` (object): Contains `prompt` (string)
+              - `output_key` (string): State variable name for output
+              - `stop` (boolean): true only for final node
+            - `edges` (array): Array of edge objects, each with:
+              - `source` (string): Source node id
+              - `target` (string): Target node id
 
           ## YAML RULES
           {state.yaml_rules}
@@ -166,19 +180,17 @@ workflow:
           ## ELEMENT PROMPTS
           {state.element_prompts}
 
-          CRITICAL REQUIREMENTS
-          - The first node must reference the reserved input placeholder (curly braces around the word *input*) **once, within its prompt**. No other node may reference it.
-          - All subsequent nodes must reference data via `{state.variable_name}` only.
-          - Follow the node/edge layout from GRAPH_PLAN and the workflow type in WORKFLOW_TYPE.
-          - Define exactly one LLM alias (e.g., `sim_llm`) with model `gpt-4.1-mini`.
+          CRITICAL REQUIREMENTS:
+          - The first node must reference the reserved input placeholder `{workflow_initial_input}` **once, within its prompt**. No other node may reference it.
+          - All subsequent nodes must reference data via `{state.variable_name}` format only.
+          - Follow the node/edge layout from GRAPH_PLAN and the workflow type specified.
+          - Define exactly one LLM with model `gpt-4.1-mini`.
           - Each element gets its own `agent` node using its crafted prompt.
-          - Add an `aggregate_outcomes` node that summarises all `{state.<element>_response}` values into a final predictive narrative summary that accurately reflects how the scenario plays out based on the responses of all the elements.
-            - We want the hollistic summary that is the most accurate reflection of the simulation.
+          - Add an `aggregate_outcomes` node that summarizes all element responses into a final predictive narrative.
           - Use `stop: true` only on `aggregate_outcomes`.
-          - Validate against all YAML_RULES before output.
+          - Ensure all node IDs in edges exist in the nodes array.
 
-          OUTPUT
-          Print **only** the final YAML code block (no commentary).
+          Generate the complete specification as structured JSON. Do NOT include markdown fences or commentary.
         output_key: simulation_yaml
 
   edges:

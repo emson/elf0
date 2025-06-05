@@ -146,6 +146,7 @@ workflow:
       ref: yaml_llm
       stop: true
       config:
+        validate_yaml_output: true
         prompt: |
           Use the information below to produce a *schema-compliant* @docs_ai/spec_schema.md simulation YAML spec.
           Think hard about the correct YAML output sturcture @docs_specs/spec_structure.md, go through step by step implementing the graph.

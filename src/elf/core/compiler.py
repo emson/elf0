@@ -26,6 +26,10 @@ class WorkflowState(TypedDict):
     workflow_id: Optional[str]
     current_node: Optional[str]
     error_context: Optional[str]
+    # Structured output validation fields
+    structured_output: Optional[Dict[str, Any]]
+    validation_status: Optional[str]  # 'valid', 'invalid', 'error', or None
+    validation_error: Optional[str]
 
 class NodeFunction(Protocol):
     """Protocol defining the interface for node functions."""
@@ -147,6 +151,47 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             )
             response = llm_client.generate(final_prompt_to_llm)
             logger.info(f"✨ [Node: [cyan]{node.id}[/]] LLM Response: '{response[:70]}...'")
+            
+            # Check if this node should validate YAML output
+            validate_yaml = node.config.get('validate_yaml_output', False)
+            if validate_yaml:
+                logger.info(f"🔍 [Node: [cyan]{node.id}[/]] Validating YAML output against Spec schema")
+                try:
+                    structured_output = Spec.create_structured_output(response)
+                    
+                    if structured_output["validation"]["is_valid"]:
+                        logger.info(f"✅ [Node: [cyan]{node.id}[/]] YAML validation successful")
+                        # Store both raw response and structured data
+                        return WorkflowState({
+                            **state,
+                            "output": response,
+                            "structured_output": structured_output,
+                            "validation_status": "valid",
+                            "current_node": node.id,
+                            "error_context": None
+                        })
+                    else:
+                        error_msg = structured_output["validation"]["error"]
+                        logger.error(f"❌ [Node: [cyan]{node.id}[/]] YAML validation failed: {error_msg}")
+                        return WorkflowState({
+                            **state,
+                            "output": response,
+                            "structured_output": structured_output,
+                            "validation_status": "invalid",
+                            "validation_error": error_msg,
+                            "current_node": node.id,
+                            "error_context": f"YAML validation failed: {error_msg}"
+                        })
+                except Exception as e:
+                    logger.error(f"❌ [Node: [cyan]{node.id}[/]] Error during YAML validation: {str(e)}")
+                    return WorkflowState({
+                        **state,
+                        "output": response,
+                        "validation_status": "error",
+                        "validation_error": str(e),
+                        "current_node": node.id,
+                        "error_context": f"YAML validation error: {str(e)}"
+                    })
             
             if node.id == "breakdown_worker":
                 current_iteration_for_node = state.get('iteration_count') or 0
@@ -891,6 +936,10 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
         workflow_id: Optional[str] = None
         current_node: Optional[str] = None
         error_context: Optional[str] = None
+        # Structured output validation fields
+        structured_output: Optional[Dict[str, Any]] = None
+        validation_status: Optional[str] = None  # 'valid', 'invalid', 'error', or None
+        validation_error: Optional[str] = None
     
     # Create a new graph with explicit state schema
     graph = StateGraph(

@@ -213,6 +213,10 @@ The `${state.json.field}` syntax allows extraction of specific fields from JSON 
 - `kind` (string): "agent" / "tool" / "judge" / "branch" / "mcp"  
 - `ref` (string): reference key into `llms`, `functions`, or sub-workflows (optional for MCP nodes, required for others)
 - `config` (object): configuration object (required for MCP nodes, optional for others)
+  - `format` (string, optional): Structured output format - "json" or "yaml"
+    - When `format: json` is specified, the node expects JSON output that will be validated against the Spec schema and converted to clean YAML
+    - When `format: yaml` is specified, the node validates YAML output against the Spec schema  
+    - If no format is specified, output is processed as plain text
 - `stop` (bool): marks finish nodes
 
 **MCP Node Validation:**
@@ -323,7 +327,44 @@ workflow:
 - **Adding new `type`s**: Extend your Pydantic `Spec` model and update the node-factory registry.  
 - **Branching/Loops**: Use `type: custom_graph` and define your own `nodes` & `edges`.  
 - **Human-in-the-loop**: Insert a `branch` node with `condition: "await_user"` and wire in LangGraph's `interrupt()` handler.  
-- **Structured outputs**: Embed a "judge" node that validates with a JSON Schema.
+- **Structured outputs**: Use the `format` field in node config to specify "json" or "yaml" structured output validation.
+
+### Structured Output Examples
+
+#### JSON Format for Spec Generation
+```yaml
+workflow:
+  nodes:
+    - id: generate_spec
+      kind: agent
+      ref: spec_generator_llm
+      config:
+        format: json  # Expects JSON output, validates against Spec schema
+        prompt: |
+          Generate a workflow specification as structured JSON.
+          Do not include markdown fences or commentary.
+          
+          Required structure:
+          - version (string): "1.0"
+          - description (string): Workflow description
+          - runtime (string): "langgraph"
+          - llms (object): LLM definitions
+          - workflow (object): Workflow definition with nodes and edges
+```
+
+#### YAML Format Validation
+```yaml
+workflow:
+  nodes:
+    - id: validate_spec
+      kind: agent  
+      ref: validator_llm
+      config:
+        format: yaml  # Validates YAML output against Spec schema
+        prompt: |
+          Review and output the corrected YAML specification.
+          Ensure all required fields are present and valid.
+```
 
 ### Reference Examples
 

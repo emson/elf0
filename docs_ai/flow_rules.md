@@ -4,10 +4,15 @@ This document outlines critical rules for defining how data flows between nodes 
 
 **Core Principle:** Be explicit about data. The runtime needs to know exactly where data comes from and where it goes.
 
+> **Placeholder Convention**  
+> Throughout this document we illustrate the first‑node placeholder for the initial user input with `{workflow_initial_input}`.  
+> **Do NOT copy `{workflow_initial_input}` into production YAML.** Replace it with the engine’s reserved token—curly braces around the word *input* — when you implement your first node.  
+> Using a surrogate token here prevents the documentation itself from being mistaken as executable YAML when it is provided to an LLM alongside live specs.
+
 ### Rule 1: Initial Workflow Input
 
 *   **1.1.** The very first node in your workflow (the entry point) that needs to process the initial user prompt or input provided to the entire workflow **MUST** use the specific placeholder for initial workflow input (i.e., curly braces around the word 'input') in its `config.prompt` field to receive this data.
-    *   **Note on Examples:** In the YAML examples below (and throughout this document), `"{initial_graph_input}"` is used to represent where the overall workflow input is consumed. When implementing your *actual first node*, you **MUST** use the literal placeholder for initial input (curly braces around 'input').
+    *   **Note on Examples:** In the YAML examples below (and throughout this document), `"{workflow_initial_input}"` is used to represent where the overall workflow input is consumed. When implementing your *actual first node*, you **MUST** use the literal placeholder for initial input (curly braces around 'input').
     *   **Example (Illustrative - see note above):**
         ```yaml
         nodes:
@@ -15,10 +20,10 @@ This document outlines critical rules for defining how data flows between nodes 
             kind: agent
             ref: some_llm
             config:
-              prompt: "Analyze this user request: {initial_graph_input}" # In actual YAML, use the placeholder for initial input (curly braces around 'input') for the first node
+              prompt: "Analyze this user request: {workflow_initial_input}" # In actual YAML, replace {workflow_initial_input} with the placeholder for initial input (curly braces around the word input)
               output_key: processed_request
         ```
-    *   **Why:** The workflow runtime automatically makes the initial overall input available via the literal placeholder for initial input (curly braces around 'input'). Using any other placeholder (e.g., `{user_prompt}`, `{initial_data}`) for this purpose in the actual first node will lead to warnings and unpredictable input handling. The use of `"{initial_graph_input}"` in these rules is to prevent parsing issues when this document itself is processed as context by an LLM that might be sensitive to the literal placeholder string appearing in example code when it also needs to process `{state.variable}` placeholders.
+    *   **Why:** The workflow runtime automatically makes the initial overall input available via the literal reserved input placeholder. Using any other placeholder (e.g., `{user_prompt}`, `{initial_data}`) for this purpose in the actual first node will lead to warnings and unpredictable input handling. The use of `"{workflow_initial_input}"` in these rules is to prevent parsing issues when this document itself is processed as context by an LLM that might be sensitive to the literal placeholder string appearing in example code when it also needs to process `{state.variable}` placeholders.
 
 ### Rule 2: Defining Node Outputs (State Variables)
 
@@ -38,7 +43,7 @@ This document outlines critical rules for defining how data flows between nodes 
 
 ### Rule 3: Referencing Node Outputs (Consuming State Variables)
 
-*   **3.1.** When a node's prompt needs to consume the output of a *previous* node, it **MUST** reference that output using the format `{state.your_output_key_name}` within its `config.prompt`. It can also reference the initial workflow input using `{state.input}` if needed (assuming the first node didn't consume/overwrite it, or if it was explicitly passed through).
+*   **3.1.** When a node's prompt needs to consume the output of a *previous* node, it **MUST** reference that output using the format `{state.your_output_key_name}` within its `config.prompt`. It can also reference the initial workflow input using the reserved input placeholder if needed (assuming the first node didn't consume/overwrite it, or if it was explicitly passed through).
     *   **Example (Correct):**
         ```yaml
         nodes:
@@ -46,7 +51,7 @@ This document outlines critical rules for defining how data flows between nodes 
             kind: agent
             ref: llm_1
             config:
-              prompt: "Initial processing of: {initial_graph_input}" # In actual YAML, use the placeholder for initial input (curly braces around 'input') for the first node   
+              prompt: "Initial processing of: {workflow_initial_input}" # In actual YAML, replace {workflow_initial_input} with the placeholder for initial input (curly braces around the word input)   
               output_key: first_step_output                             
           - id: second_step                                             
             kind: agent                                                 
@@ -74,7 +79,7 @@ This document outlines critical rules for defining how data flows between nodes 
               kind: agent
               ref: main_llm
               config:
-                prompt: "Prepare data from: {initial_graph_input}" # In actual YAML, use the placeholder for initial input (curly braces around 'input') for the first node
+                prompt: "Prepare data from: {workflow_initial_input}" # In actual YAML, replace {workflow_initial_input} with the placeholder for initial input (curly braces around the word input)
                 output_key: prepared_data
             - id: process_data_type_x # Node B
               kind: agent
@@ -96,7 +101,7 @@ This document outlines critical rules for defining how data flows between nodes 
               target: process_data_type_y
             # ... other edges ...
         ```
-    *   **Why:** This ensures that each parallel branch receives the same, correctly scoped input derived from the preceding node. Trying to implicitly pass data or relying on a generic `input (curly braces around 'input')` for parallel branches will cause errors like "Can receive only one value per step" because the runtime cannot determine how to distribute or manage the state for concurrent operations without these explicit instructions.
+    *   **Why:** This ensures that each parallel branch receives the same, correctly scoped input derived from the preceding node. Trying to implicitly pass data or relying on a generic reserved input placeholder for parallel branches will cause errors like "Can receive only one value per step" because the runtime cannot determine how to distribute or manage the state for concurrent operations without these explicit instructions.
 
 ### Rule 5: Terminating Nodes (Stop Points)
 
@@ -117,7 +122,7 @@ This document outlines critical rules for defining how data flows between nodes 
 ### Rule 6: Avoiding Compiler Input Append Behavior
 
 *   **6.1.** For nodes that consume ONLY state variables (not the initial workflow input), ensure their prompts do NOT trigger the compiler's automatic input appending behavior.
-    *   **Context:** The ELF compiler has specific behavior: if a node's prompt doesn't contain the literal placeholder for initial input (curly braces around 'input'), it will automatically append the raw user input to the prompt. This can cause issues in parallel execution scenarios.
+    *   **Context:** The ELF compiler has specific behavior: if a node's prompt doesn't contain the reserved input placeholder, it will automatically append the raw user input to the prompt. This can cause issues in parallel execution scenarios.
     *   **Example (Correct - node using only state variables):**
         ```yaml
         nodes:
@@ -139,7 +144,7 @@ This document outlines critical rules for defining how data flows between nodes 
             config:
               prompt: |
                 Based on the analysis: {state.analysis_result}
-                # Missing any reference to input, compiler will append raw input
+                # Missing any reference to the reserved input placeholder, compiler will append raw input
               output_key: summary
         ```
     *   **Why:** When multiple nodes run in parallel and all receive the appended raw input due to this compiler behavior, it can cause "Can receive only one value per step" errors in the state management system. Nodes should be explicit about whether they need the initial input or only state variables.
@@ -196,4 +201,42 @@ This document outlines critical rules for defining how data flows between nodes 
         ```
     *   **Why:** Mismatched workflow types and edge patterns cause runtime errors. The execution engine uses the workflow type to determine how to process nodes. A "sequential" type expects linear execution, while parallel patterns require "custom_graph" to handle concurrent state updates properly.
 
-By strictly following these rules, LLMs (and human developers) can construct YAML agent workflows that are more robust, predictable, and less prone to data flow and state management errors, particularly when dealing with the Langchain backend. 
+### Rule 8: Choosing the Correct Node Type
+
+*   **8.1.** **Agent Nodes (`kind: agent`)** should be used for ALL LLM-based processing, including:
+    - Processing the initial workflow input
+    - Text generation, analysis, or reasoning
+    - Persona simulation or role-playing
+    - Any task that requires sending a prompt to an LLM
+    
+*   **8.2.** **MCP Nodes (`kind: mcp`)** should ONLY be used for external tool integration:
+    - Calling calculators, databases, or file systems
+    - Integrating with external APIs via MCP servers  
+    - Any task that requires executing external tools, not LLM processing
+    - MCP nodes require both `server` and `tool` configurations in their `config`
+    
+*   **8.3.** **Common Mistake to Avoid:** Do NOT use MCP nodes for input processing or text generation. If you need to process user input or generate responses, use `agent` nodes.
+    
+    *   **Example (Incorrect - using MCP for input processing):**
+        ```yaml
+        nodes:
+          - id: input_processor
+            kind: mcp  # WRONG! This should be 'agent'
+            config:
+              output_key: processed_input
+        ```
+        
+    *   **Example (Correct - using agent for input processing):**
+        ```yaml
+        nodes:
+          - id: input_processor
+            kind: agent  # Correct for LLM-based processing
+            ref: main_llm
+            config:
+              prompt: "Process this input: {workflow_initial_input}" # In actual YAML, replace {workflow_initial_input} with the placeholder for initial input (curly braces around the word input)   
+              output_key: processed_input
+        ```
+        
+*   **Why:** Mixing up node types leads to validation errors and workflow failures. Each node type has specific requirements and purposes. Using the wrong type will cause the workflow compiler to fail with configuration errors.
+
+By strictly following these rules, LLMs (and human developers) can construct YAML agent workflows that are more robust, predictable, and less prone to data flow and state management errors, particularly when dealing with the Langchain backend.

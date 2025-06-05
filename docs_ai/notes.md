@@ -1,20 +1,4 @@
 # General Project Notes and Todos
-
-
-   Create a scenario simulation. We have a company that creates waste analytics software, we have 3 people we want to simulate:
-   1. CEO, he has bipolar, is inspiring but doesn't understand how to build a product
-   2. CFO, she is a narcissist and has a big ego, she has strong influence over the CEO
-   3. CTO, he is an excellent technologist, and well liked in the company, but his suggestions to the CEO and CFO are not really listened to, due to their egos
-   The company is called Topo, and is a startup and is struggling.
-   Output an agent YAML that we can give scenario prompts and get an idea how each party will react.
-
----
-
-The Topo business is running out of money, and has 2 months left. The CTO is highlighting problems, but the CFO is influencing the CEO too much, and they do not get their hands dirty to fix them. The CTO has had arguements with the CFO, and CEO. There is a worry that it will go insolvent. work through this scenario, to find out what happens.
-
-
----
-
 Based on my analysis, here are the key missing elements that would make ELF significantly more powerful:
 
 Critical Production Gaps

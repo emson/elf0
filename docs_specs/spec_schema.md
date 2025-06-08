@@ -14,6 +14,7 @@ llms:                        # (Required) Named LLM clients
     temperature: <float>     #   (Optional, default 0.0) sampling temperature
     params:                  #   (Optional) provider-specific keyword args
       <param>: <value>
+    - **Note on `params`**: This field is for additional, provider-specific keyword arguments that take simple values (string, float, or integer). For complex, nested parameters (e.g., OpenAI's `response_format` which expects an object like `{"type": "json_object"}`), do not place them directly in `params`. Such parameters might need to be handled as top-level fields within the LLM definition if supported by the schema, or handled by the underlying LLM client integration. The `params` field is intended for flat key-value pairs.
 retrievers:                  # (Optional) Named Retriever configs
   <retriever_name>:
     type:                    #   one of: qdrant, redis, weaviate
@@ -84,6 +85,8 @@ eval:                        # (Optional) evaluation harness
   - `model_name`: string  
   - `temperature`: float (default 0.0)  
   - `params`: map of provider-specific kwargs
+
+**Note on `params`**: This field is for additional, provider-specific keyword arguments that take simple values (string, float, or integer). For complex, nested parameters (e.g., OpenAI's `response_format` which expects an object like `{"type": "json_object"}`), do not place them directly in `params`. Such parameters might need to be handled as top-level fields within the LLM definition if supported by the schema, or handled by the underlying LLM client integration. The `params` field is intended for flat key-value pairs.
 
 ```yaml
 llms:
@@ -199,8 +202,9 @@ The `${state.json.field}` syntax allows extraction of specific fields from JSON 
 - **Type**: **Workflow** object  
 - **Required**  
 - Describes your directed (or cyclic) graph.  
+- **CRUCIAL NOTE**: The `type` field (e.g., "sequential", "custom_graph", "react", "evaluator_optimizer") within this `workflow` block is **ABSOLUTELY MANDATORY**. Its absence is a common validation error. This field dictates how the nodes and edges are processed by the runtime. Please ensure it is always specified.
 - **Workflow Fields**:
-  - `type`: "sequential" | "react" | "evaluator_optimizer" | "custom_graph"  
+  - `type`: "sequential" | "react" | "evaluator_optimizer" | "custom_graph"  # This field is **REQUIRED**
   - `nodes`: array of **WorkflowNode**  
   - `edges`: array of **Edge**
 
@@ -209,6 +213,10 @@ The `${state.json.field}` syntax allows extraction of specific fields from JSON 
 - `kind` (string): "agent" / "tool" / "judge" / "branch" / "mcp"  
 - `ref` (string): reference key into `llms`, `functions`, or sub-workflows (optional for MCP nodes, required for others)
 - `config` (object): configuration object (required for MCP nodes, optional for others)
+  - `format` (string, optional): Structured output format - "json" or "yaml"
+    - When `format: json` is specified, the node expects JSON output that will be validated against the Spec schema and converted to clean YAML
+    - When `format: yaml` is specified, the node validates YAML output against the Spec schema  
+    - If no format is specified, output is processed as plain text
 - `stop` (bool): marks finish nodes
 
 **MCP Node Validation:**
@@ -319,7 +327,44 @@ workflow:
 - **Adding new `type`s**: Extend your Pydantic `Spec` model and update the node-factory registry.  
 - **Branching/Loops**: Use `type: custom_graph` and define your own `nodes` & `edges`.  
 - **Human-in-the-loop**: Insert a `branch` node with `condition: "await_user"` and wire in LangGraph's `interrupt()` handler.  
-- **Structured outputs**: Embed a "judge" node that validates with a JSON Schema.
+- **Structured outputs**: Use the `format` field in node config to specify "json" or "yaml" structured output validation.
+
+### Structured Output Examples
+
+#### JSON Format for Spec Generation
+```yaml
+workflow:
+  nodes:
+    - id: generate_spec
+      kind: agent
+      ref: spec_generator_llm
+      config:
+        format: json  # Expects JSON output, validates against Spec schema
+        prompt: |
+          Generate a workflow specification as structured JSON.
+          Do not include markdown fences or commentary.
+          
+          Required structure:
+          - version (string): "1.0"
+          - description (string): Workflow description
+          - runtime (string): "langgraph"
+          - llms (object): LLM definitions
+          - workflow (object): Workflow definition with nodes and edges
+```
+
+#### YAML Format Validation
+```yaml
+workflow:
+  nodes:
+    - id: validate_spec
+      kind: agent  
+      ref: validator_llm
+      config:
+        format: yaml  # Validates YAML output against Spec schema
+        prompt: |
+          Review and output the corrected YAML specification.
+          Ensure all required fields are present and valid.
+```
 
 ### Reference Examples
 

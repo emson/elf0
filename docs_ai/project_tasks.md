@@ -105,6 +105,16 @@
 - [ ] Add comprehensive Python tool tests
 - [ ] Create Python tool development documentation
 
+### Structured Output Framework
+- [x] Implement `format` field for node configuration with "json" and "yaml" support
+- [x] Add JSON structured output processing with Spec schema validation
+- [x] Create automatic JSON-to-YAML conversion for clean output generation
+- [x] Add markdown fence cleaning for robust LLM output handling
+- [x] Integrate structured output processing into compiler workflow
+- [x] Add comprehensive test coverage for structured output functionality
+- [x] Update documentation with `format` field usage and examples
+- [x] Replace non-standard `validate_yaml_output` with industry-standard `format` approach
+
 ### ReAct Pattern Implementation
 - [ ] Implement ReAct controller with reasoning/action/observation loop
 - [ ] Create action framework for tool integration

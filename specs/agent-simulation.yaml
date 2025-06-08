@@ -1,0 +1,204 @@
+version: "0.1"
+description: "Meta-agent that turns any scenario description into a complete LangGraph simulation spec. The generated spec role-plays each discovered element and aggregates an outcome report."
+
+runtime: "langgraph"
+
+llms:
+  rule_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.2
+    params: {}
+  decomposer_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.3
+    params: {}
+  strategist_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.5
+    params: {}
+  element_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.4
+    params: {}
+  yaml_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.1
+    params: {}
+
+workflow:
+  type: sequential
+  nodes:
+    # 1. Summarise the schema and flow rules
+    - id: gather_rules
+      kind: agent
+      ref: rule_llm
+      config:
+        prompt: |
+          You have access to @docs_ai/spec_schema.md and @docs_ai/flow_rules.md.
+          Extract the non-negotiable requirements for a valid LangGraph YAML spec:
+          • mandatory top-level keys  
+          • one and only one use of the reserved input placeholder (curly braces around *input*) in the first node  
+          • all other data references via `{state.xxx}`  
+          • node field rules (`id`, `kind`, `ref`, `config`, `output_key`, valid `workflow.type`, etc.)
+
+          OUTPUT under:
+          ## YAML_RULES
+          - <one rule per line>
+        output_key: yaml_rules
+
+    # 2. Break down the user's scenario and rewrite it clearly
+    - id: analyse_scenario
+      kind: agent
+      ref: decomposer_llm
+      config:
+        prompt: |
+          You are an expert at analysing prompts and breaking them down into their constituent elements, in order to create a graph simulation.
+          Your job is to dissect the raw simulation prompt into its constituent elements, and rewrite it in your own words, using:
+          (actors, objects, subsystems, environmental factors, constraints).
+          
+          ORIGINAL SCENARIO PROMPT
+          ------------------------
+          {input}
+          ------------------------
+
+          Provide:
+          1. **Element List** - bullet list with a short behavioural note for each element.
+          2. **Rewritten Scenario** - your own concise, unambiguous restatement.
+
+          Format exactly:
+
+          ## ELEMENTS
+          - <Element 1>: <one-line description>
+          - ...
+
+          ## REWRITTEN_SIMULATION_PROMPT
+          <paragraph(s)>
+        output_key: scenario_breakdown
+
+    # 3. Choose patterns and overall graph structure
+    - id: map_interactions
+      kind: agent
+      ref: strategist_llm
+      config:
+        prompt: |
+          Using @docs_ai/agent_patterns.md plus the element list below, design the optimal
+          graph structure for a simulation.
+
+          {state.scenario_breakdown}
+
+          Produce:
+
+          BEGIN REASONING
+          <reason>
+          [why particular patterns fit]
+          </reason>
+          END REASONING
+
+          BEGIN WORKFLOW_TYPE
+          [sequential | custom_graph | react | evaluator_optimizer]
+          END WORKFLOW_TYPE
+
+          BEGIN GRAPH_PLAN
+          - node list with brief role (e.g. scenario_input, <element>_agent, aggregator)
+          - edge plan (who feeds whom)
+          END GRAPH_PLAN
+        output_key: graph_plan
+
+    # 4. Craft a detailed simulation prompt for each element
+    - id: make_element_prompts
+      kind: agent
+      ref: element_llm
+      config:
+        prompt: |
+          Build a role-play prompt for each element so that, when given the scenario text,
+          it responds exactly as that element would.
+
+          ELEMENT LIST AND REWRITTEN SCENARIO
+          -----------------------------------
+          {state.scenario_breakdown}
+
+          For each element, output:
+
+          ### <Element Name>
+          Prompt:
+          """
+          You are <element name>. <behaviour traits>.  
+          <reason /> about the typical characteristics of this element, its behaviours and triggers.
+          Imagine you are this element and incorporate these values and make a prediction of what happens in this scenario, based on your behaviours and traits.
+
+          Scenario:
+          {{state.scenario_text}}
+          Provide your detailed reaction...
+          """
+          
+          Combine all into a single block labelled:
+          ## ELEMENT_PROMPTS
+        output_key: element_prompts
+
+    # 5. Generate the final simulation YAML
+    - id: build_simulation_yaml
+      kind: agent
+      ref: yaml_llm
+      stop: true
+      config:
+        format: json
+        prompt: |
+          Use the information below to produce a *schema-compliant* simulation spec as structured JSON output.
+          Think hard about the correct structure, going step by step implementing the graph.
+          
+          REQUIRED STRUCTURE:
+          - `version` (string): "1.0"
+          - `description` (string): Descriptive text about the simulation
+          - `runtime` (string): "langgraph"
+          - `llms` (object): Dictionary with one LLM definition
+            - Key should be descriptive (e.g., "sim_llm")
+            - Value must have: `type` (string), `model_name` (string)
+          - `workflow` (object):
+            - `type` (string): One of "sequential", "custom_graph", "react", "evaluator_optimizer"
+            - `nodes` (array): Array of node objects, each with:
+              - `id` (string): Unique identifier
+              - `kind` (string): "agent" for LLM nodes
+              - `ref` (string): Reference to LLM key
+              - `config` (object): Contains `prompt` (string)
+              - `output_key` (string): State variable name for output
+              - `stop` (boolean): true only for final node
+            - `edges` (array): Array of edge objects, each with:
+              - `source` (string): Source node id
+              - `target` (string): Target node id
+
+          ## YAML RULES
+          {state.yaml_rules}
+
+          ## GRAPH PLAN
+          {state.graph_plan}
+
+          ## ELEMENT PROMPTS
+          {state.element_prompts}
+
+          CRITICAL REQUIREMENTS:
+          - The first node must reference the reserved input placeholder `{workflow_initial_input}` **once, within its prompt**. No other node may reference it.
+          - All subsequent nodes must reference data via `{state.variable_name}` format only.
+          - Follow the node/edge layout from GRAPH_PLAN and the workflow type specified.
+          - Define exactly one LLM with model `gpt-4.1-mini`.
+          - Each element gets its own `agent` node using its crafted prompt.
+          - Add an `aggregate_outcomes` node that summarizes all element responses into a final predictive narrative.
+          - Use `stop: true` only on `aggregate_outcomes`.
+          - Ensure all node IDs in edges exist in the nodes array.
+
+          Generate the complete specification as structured JSON. Do NOT include markdown fences or commentary.
+        output_key: simulation_yaml
+
+  edges:
+    - source: gather_rules
+      target: analyse_scenario
+    - source: analyse_scenario
+      target: map_interactions
+    - source: map_interactions
+      target: make_element_prompts
+    - source: make_element_prompts
+      target: build_simulation_yaml

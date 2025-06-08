@@ -26,6 +26,15 @@ class WorkflowState(TypedDict):
     workflow_id: Optional[str]
     current_node: Optional[str]
     error_context: Optional[str]
+    # Structured output validation fields
+    structured_output: Optional[Dict[str, Any]]
+    validation_status: Optional[str]  # 'valid', 'invalid', 'error', or None
+    validation_error: Optional[str]
+    # Format processing fields
+    structured_data: Optional[Dict[str, Any]]
+    raw_json: Optional[str]
+    format_status: Optional[str]  # 'converted', 'error', or None
+    format_error: Optional[str]
 
 class NodeFunction(Protocol):
     """Protocol defining the interface for node functions."""
@@ -147,6 +156,66 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             )
             response = llm_client.generate(final_prompt_to_llm)
             logger.info(f"✨ [Node: [cyan]{node.id}[/]] LLM Response: '{response[:70]}...'")
+            
+            # Check if this node has a structured output format
+            output_format = node.config.get('format')
+            if output_format:
+                logger.info(f"🔍 [Node: [cyan]{node.id}[/]] Processing structured output format: {output_format}")
+                try:
+                    if output_format == 'json':
+                        # Handle JSON structured output for Spec generation
+                        spec_instance = Spec.from_structured_json(response)
+                        yaml_output = spec_instance.to_yaml_string()
+                        
+                        logger.info(f"✅ [Node: [cyan]{node.id}[/]] Structured JSON validation successful")
+                        return WorkflowState({
+                            **state,
+                            "output": yaml_output,  # Clean YAML output
+                            "structured_data": spec_instance.model_dump(exclude_none=True),
+                            "raw_json": response,
+                            "format_status": "converted",
+                            "current_node": node.id,
+                            "error_context": None
+                        })
+                    elif output_format == 'yaml':
+                        # Handle YAML format (existing logic)
+                        structured_output = Spec.create_structured_output(response)
+                        
+                        if structured_output["validation"]["is_valid"]:
+                            logger.info(f"✅ [Node: [cyan]{node.id}[/]] YAML validation successful")
+                            return WorkflowState({
+                                **state,
+                                "output": structured_output["yaml_content"],
+                                "structured_output": structured_output,
+                                "validation_status": "valid",
+                                "current_node": node.id,
+                                "error_context": None
+                            })
+                        else:
+                            error_msg = structured_output["validation"]["error"]
+                            logger.error(f"❌ [Node: [cyan]{node.id}[/]] YAML validation failed: {error_msg}")
+                            return WorkflowState({
+                                **state,
+                                "output": response,
+                                "structured_output": structured_output,
+                                "validation_status": "invalid",
+                                "validation_error": error_msg,
+                                "current_node": node.id,
+                                "error_context": f"YAML validation failed: {error_msg}"
+                            })
+                    else:
+                        logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] Unknown format: {output_format}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ [Node: [cyan]{node.id}[/]] Error during structured output processing: {str(e)}")
+                    return WorkflowState({
+                        **state,
+                        "output": response,
+                        "format_status": "error",
+                        "format_error": str(e),
+                        "current_node": node.id,
+                        "error_context": f"Structured output error: {str(e)}"
+                    })
             
             if node.id == "breakdown_worker":
                 current_iteration_for_node = state.get('iteration_count') or 0
@@ -891,6 +960,15 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
         workflow_id: Optional[str] = None
         current_node: Optional[str] = None
         error_context: Optional[str] = None
+        # Structured output validation fields
+        structured_output: Optional[Dict[str, Any]] = None
+        validation_status: Optional[str] = None  # 'valid', 'invalid', 'error', or None
+        validation_error: Optional[str] = None
+        # Format processing fields
+        structured_data: Optional[Dict[str, Any]] = None
+        raw_json: Optional[str] = None
+        format_status: Optional[str] = None  # 'converted', 'error', or None
+        format_error: Optional[str] = None
     
     # Create a new graph with explicit state schema
     graph = StateGraph(

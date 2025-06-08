@@ -3,6 +3,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Literal, List, Dict, Union, Optional, ClassVar, Any, Callable, Set
 from pathlib import Path
 from ..utils.yaml_loader import load_yaml_file
+import yaml
+import json
+from typing import Tuple
 
 
 class CircularReferenceError(Exception):
@@ -13,6 +16,49 @@ class CircularReferenceError(Exception):
 class WorkflowReferenceError(Exception):
     """Raised when there's an error processing workflow references."""
     pass
+
+
+def _clean_markdown_fences(content: str, expected_language: Optional[str] = None) -> str:
+    """
+    Removes markdown code fences from content.
+    
+    Args:
+        content: The content that may be wrapped in markdown code fences
+        expected_language: Optional language identifier (e.g., 'yaml', 'json')
+        
+    Returns:
+        Clean content with markdown fences removed
+    """
+    cleaned = content.strip()
+    
+    # Handle language-specific fences first (e.g., ```yaml, ```json)
+    if expected_language:
+        fence_start = f"```{expected_language}"
+        if cleaned.startswith(fence_start):
+            # Remove the language-specific fence start and any following whitespace
+            cleaned = cleaned[len(fence_start):].lstrip('\n\r ')
+        elif cleaned.startswith("```"):
+            # Generic fence handling
+            first_newline = cleaned.find('\n')
+            if first_newline != -1:
+                cleaned = cleaned[first_newline + 1:]
+            else:
+                # No newline found, just remove the ```
+                cleaned = cleaned[3:]
+    elif cleaned.startswith("```"):
+        # No expected language, handle generic fences
+        first_newline = cleaned.find('\n')
+        if first_newline != -1:
+            cleaned = cleaned[first_newline + 1:]
+        else:
+            # No newline found, just remove the ```
+            cleaned = cleaned[3:]
+    
+    # Remove trailing fences
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3].rstrip('\n\r ')
+    
+    return cleaned.strip()
 
 
 def _deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
@@ -265,6 +311,121 @@ class Spec(BaseModel):
                     raise ValueError(f"MCP node '{node.id}' must have 'tool' configuration")
                     
         return self
+    
+    @classmethod
+    def validate_yaml_string(cls, yaml_content: str) -> Tuple[bool, Optional['Spec'], Optional[str]]:
+        """
+        Validates a YAML string against the Spec schema.
+        
+        Args:
+            yaml_content: The YAML content as a string (may be wrapped in markdown fences)
+            
+        Returns:
+            A tuple of (is_valid, spec_object, error_message)
+        """
+        try:
+            # Clean markdown fences from YAML content
+            cleaned_yaml = _clean_markdown_fences(yaml_content, "yaml")
+            
+            if not cleaned_yaml:
+                return False, None, "YAML content is empty after cleaning"
+            
+            # Parse YAML content
+            data = yaml.safe_load(cleaned_yaml)
+            if data is None:
+                return False, None, "YAML content is empty or null"
+            
+            # Validate against Spec schema
+            spec = cls.model_validate(data)
+            return True, spec, None
+            
+        except yaml.YAMLError as e:
+            return False, None, f"YAML parsing error: {str(e)}"
+        except Exception as e:
+            return False, None, f"Validation error: {str(e)}"
+    
+    @classmethod
+    def create_structured_output(cls, yaml_content: str) -> Dict[str, Any]:
+        """
+        Creates a structured output dictionary that includes validation status and parsed spec.
+        
+        Args:
+            yaml_content: The YAML content as a string (may be wrapped in markdown fences)
+            
+        Returns:
+            A dictionary with validation status, spec data, and error information
+        """
+        # Clean markdown fences for consistent output
+        cleaned_yaml = _clean_markdown_fences(yaml_content, "yaml")
+        
+        is_valid, spec, error = cls.validate_yaml_string(yaml_content)
+        
+        result = {
+            "validation": {
+                "is_valid": is_valid,
+                "error": error
+            },
+            "yaml_content": cleaned_yaml,
+            "raw_content": yaml_content.strip(),
+            "spec_data": None
+        }
+        
+        if spec:
+            result["spec_data"] = spec.model_dump(exclude_none=True)
+        
+        return result
+    
+    def to_yaml_string(self) -> str:
+        """
+        Converts the Spec instance to a YAML string.
+        
+        Returns:
+            YAML representation of the spec
+        """
+        return yaml.dump(
+            self.model_dump(exclude_none=True),
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True
+        )
+    
+    @classmethod
+    def from_structured_json(cls, json_content: str) -> 'Spec':
+        """
+        Creates a Spec instance from structured JSON output.
+        
+        Args:
+            json_content: JSON string containing spec data
+            
+        Returns:
+            A validated Spec instance
+            
+        Raises:
+            ValueError: If JSON is invalid or doesn't match Spec schema
+        """
+        try:
+            # Clean markdown fences if present
+            cleaned_json = _clean_markdown_fences(json_content, "json")
+            
+            # Parse JSON
+            data = json.loads(cleaned_json)
+            
+            # Validate and return Spec
+            return cls.model_validate(data)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Spec validation error: {str(e)}")
+    
+    @classmethod 
+    def get_json_schema_for_structured_output(cls) -> Dict[str, Any]:
+        """
+        Returns the JSON schema for this Spec model, formatted for LLM structured output.
+        
+        Returns:
+            JSON schema dictionary suitable for OpenAI structured output
+        """
+        return cls.model_json_schema()
     
     @classmethod
     def from_file(cls, spec_path: str, visited: Optional[Set[Path]] = None) -> 'Spec':

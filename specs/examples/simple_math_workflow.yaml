@@ -7,7 +7,7 @@ runtime: "langgraph"
 llms:
   math_llm:
     type: "openai"
-    model_name: "gpt-4o-mini"
+    model_name: "gpt-4.1-mini"
     temperature: 0.1
 
 # Simple sequential workflow

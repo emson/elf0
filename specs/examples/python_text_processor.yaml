@@ -1,0 +1,40 @@
+version: "0.1"
+description: "Text processing workflow with Python functions"
+runtime: "langgraph"
+
+llms:
+  text_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.3
+
+functions:
+  process_text:
+    type: python
+    name: "Text Processor"
+    entrypoint: "elf.functions.utils.text_processor"
+
+workflow:
+  type: sequential
+  nodes:
+    - id: generate_text
+      kind: agent
+      ref: text_llm
+      config:
+        prompt: "Generate a short paragraph about: ${state.input}"
+        
+    - id: transform
+      kind: tool
+      ref: process_text
+      config:
+        parameters:
+          operation: "uppercase"
+          
+    - id: count
+      kind: tool
+      ref: process_text
+      config:
+        parameters:
+          operation: "count_words"
+      stop: true
+  edges: []

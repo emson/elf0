@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 import json
 import asyncio
 from .function_loader import function_loader
+from .exceptions import UserExitRequested
 
 # Configure logging (This section will be removed)
 # Default max iterations if not specified in the spec's workflow
@@ -27,6 +28,8 @@ class WorkflowState(TypedDict):
     workflow_id: Optional[str]
     current_node: Optional[str]
     error_context: Optional[str]
+    # User interaction fields
+    user_exit_requested: Optional[bool]  # Flag when user requests to exit
     # Structured output validation fields
     structured_output: Optional[Dict[str, Any]]
     validation_status: Optional[str]  # 'valid', 'invalid', 'error', or None
@@ -573,6 +576,9 @@ def make_tool_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                         # Convert other types to string
                         return {**state, "output": str(result)}
                         
+                except UserExitRequested:
+                    # Let UserExitRequested propagate up to terminate the workflow
+                    raise
                 except Exception as e:
                     logger.error(f"❌ Python function error: {str(e)}")
                     return {
@@ -584,13 +590,14 @@ def make_tool_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             return load_tool(python_function_wrapper)
             
         except Exception as load_error:
-            logger.error(f"❌ Failed to load Python function: {str(load_error)}")
+            error_msg = str(load_error)
+            logger.error(f"❌ Failed to load Python function: {error_msg}")
             
             def error_function(state: WorkflowState) -> WorkflowState:
                 return {
                     **state,
-                    "output": f"Failed to load function '{function_spec.entrypoint}': {str(load_error)}",
-                    "error_context": f"Function loading error: {str(load_error)}"
+                    "output": f"Failed to load function '{function_spec.entrypoint}': {error_msg}",
+                    "error_context": f"Function loading error: {error_msg}"
                 }
             
             return error_function
@@ -1014,6 +1021,8 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
         workflow_id: Optional[str] = None
         current_node: Optional[str] = None
         error_context: Optional[str] = None
+        # User interaction fields
+        user_exit_requested: Optional[bool] = None  # Flag when user requests to exit
         # Structured output validation fields
         structured_output: Optional[Dict[str, Any]] = None
         validation_status: Optional[str] = None  # 'valid', 'invalid', 'error', or None

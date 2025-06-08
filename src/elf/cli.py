@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List, Optional, Any
 import json
 from elf.core.runner import run_workflow
+from elf.core.exceptions import UserExitRequested
 from elf.utils.file_utils import parse_at_references, parse_context_files, list_spec_files, extract_spec_description # Added import
 import rich
 import sys
@@ -11,7 +12,6 @@ from rich.markdown import Markdown
 from rich.rule import Rule # Added import
 import os
 import logging
-from prompt_toolkit import prompt as prompt_toolkit_prompt
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.lexers import PygmentsLexer
 from pygments.lexers.special import TextLexer # Using a simple lexer for plain text input
@@ -273,7 +273,12 @@ def agent_command(
     processed_prompt = prepare_workflow_input(cleaned_prompt, context_content)
     
     # Run workflow
-    result = run_workflow(spec_path, processed_prompt, session_id)
+    try:
+        result = run_workflow(spec_path, processed_prompt, session_id)
+    except UserExitRequested:
+        # User requested to exit, end gracefully
+        rich.console.print("\n[yellow]Workflow terminated by user.[/yellow]")
+        raise typer.Exit(code=0)
     
     # Handle output
     if output_path:
@@ -364,7 +369,12 @@ Output only the improved YAML specification."""
         typer.secho("Improving YAML specification...", fg=typer.colors.BLUE)
     
     # Run the optimizer workflow
-    result = run_workflow(optimizer_spec_path, optimization_prompt, session_id)
+    try:
+        result = run_workflow(optimizer_spec_path, optimization_prompt, session_id)
+    except UserExitRequested:
+        # User requested to exit during optimization
+        rich.console.print("\n[yellow]Optimization terminated by user.[/yellow]")
+        raise typer.Exit(code=0)
     
     # Extract the improved YAML from the result
     if isinstance(result, dict) and 'output' in result:
@@ -486,7 +496,12 @@ def prompt_yaml_command(
                 final_prompt = prepare_workflow_input(cleaned_prompt, context_content)
                 
                 # Run the workflow with processed prompt
-                result = run_workflow(spec_path, final_prompt, session_id)
+                try:
+                    result = run_workflow(spec_path, final_prompt, session_id)
+                except UserExitRequested:
+                    # User requested to exit during workflow, break the interactive loop
+                    rich.console.print("\n[yellow]Workflow terminated by user.[/yellow]")
+                    break
                 
                 # Display result (goes to stdout via display_workflow_result)
                 # "Response:" header is essential UI in interactive mode.
@@ -517,7 +532,6 @@ def list_specs_command():
     Descriptions are extracted from a 'description' field in the YAML or the first comment line.
     """
     specs_dir = Path("./specs")
-    logger = logging.getLogger('elf.cli')
 
     if not specs_dir.exists() or not specs_dir.is_dir():
         rich.console.print(f"[yellow]Warning:[/] Specs directory '{specs_dir}' not found.")

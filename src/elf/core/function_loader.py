@@ -2,11 +2,10 @@
 import importlib
 import inspect
 import logging
-import re
 from typing import Dict, Any, Callable, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .compiler import WorkflowState
+    pass
 
 logger = logging.getLogger(__name__)
 

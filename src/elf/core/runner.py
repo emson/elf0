@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any, Dict
 from elf.core.spec import load_spec
 from elf.core.compiler import compile_to_langgraph
+from .exceptions import UserExitRequested
 
 def run_workflow(spec_path: Path, prompt: str, session_id: str) -> Dict[str, Any]:
     """
@@ -14,20 +15,33 @@ def run_workflow(spec_path: Path, prompt: str, session_id: str) -> Dict[str, Any
         
     Returns:
         The final state of the workflow execution
+        
+    Raises:
+        UserExitRequested: When user requests to exit via /exit, /quit, or /bye
     """
-    # Load and validate the spec
-    spec = load_spec(str(spec_path))
-    
-    # Compile to appropriate runtime
-    if spec.runtime == 'langgraph':
-        graph = compile_to_langgraph(spec)
-        # For LangGraph 0.4.3, we need to compile the graph first
-        compiled = graph.compile()
-        # Then we can invoke it
-        result = compiled.invoke(
-            {'input': prompt},
-            config={'configurable': {'thread_id': session_id}}
-        )
-        return result
-    else:
-        raise ValueError(f"Unsupported runtime: {spec.runtime}")
+    try:
+        # Load and validate the spec
+        spec = load_spec(str(spec_path))
+        
+        # Compile to appropriate runtime
+        if spec.runtime == 'langgraph':
+            graph = compile_to_langgraph(spec)
+            # For LangGraph 0.4.3, we need to compile the graph first
+            compiled = graph.compile()
+            # Then we can invoke it
+            result = compiled.invoke(
+                {'input': prompt},
+                config={'configurable': {'thread_id': session_id}}
+            )
+            
+            # Check if user requested to exit during workflow execution
+            if result.get('user_exit_requested'):
+                raise UserExitRequested("User requested to exit during workflow execution")
+                
+            return result
+        else:
+            raise ValueError(f"Unsupported runtime: {spec.runtime}")
+            
+    except UserExitRequested:
+        # Re-raise to let the CLI handle the exit gracefully
+        raise

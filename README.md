@@ -82,6 +82,20 @@ uv run elf agent specs/examples/mcp_workflow.yaml --prompt "Calculate 15 + 30"
 # No additional setup required - MCP servers are started automatically
 ```
 
+### Python Function Integration
+Execute workflows with custom Python functions for data processing and user interaction:
+
+```bash
+# Run workflow with Python functions (see specs/examples/python_calculator.yaml)
+uv run elf agent specs/examples/python_calculator.yaml --prompt "Calculate"
+
+# Interactive workflow with user input
+uv run elf agent specs/examples/python_function_test.yaml --prompt "TestUser"
+
+# Text processing with Python functions
+uv run elf agent specs/examples/python_text_processor.yaml --prompt "artificial intelligence"
+```
+
 ### File Reference System
 Elf supports automatic file inclusion using `@filename.ext` syntax in any prompt:
 
@@ -116,6 +130,7 @@ You can delete or replace any slice without rippling changes across the codebase
      - Model (e.g., `gpt-4.1-mini`, `claude-4-sonnet`)
      - Model parameters (e.g., `temperature`)
    - MCP nodes provide direct integration with external tools and services
+   - Python functions enable custom tools, user interaction, and file processing
    - Support for complex workflow patterns (sequential, react, custom graphs)
 
 ### 2. Workflow Execution
@@ -124,6 +139,7 @@ You can delete or replace any slice without rippling changes across the codebase
 - It manages the passage of data (LLM responses) between agents in the sequence.
 - Handles interactions with different LLM clients and their specific parameters.
 - Automatically manages MCP server connections and tool execution.
+- Executes custom Python functions with parameter binding from workflow state.
 - Supports complex workflow patterns with conditional branching and loops.
 
 ### 3. AI-Powered Workflow Optimization (Elf Agent)

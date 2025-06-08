@@ -8,6 +8,7 @@ import logging
 from pydantic import BaseModel, Field
 import json
 import asyncio
+from .function_loader import function_loader
 
 # Configure logging (This section will be removed)
 # Default max iterations if not specified in the spec's workflow
@@ -542,20 +543,57 @@ def make_tool_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
         raise ValueError(f"Function reference '{node.ref}' not found in spec.functions")
     
     if function_spec.type == "python":
-        # For Python functions, we need to resolve the actual callable
-        # This is a simplified approach - in practice, you'd import the module and get the function
         logger.info(f"🐍 Loading Python tool: {function_spec.name}")
         
-        # For now, return a placeholder function that indicates Python tool loading
-        # In a full implementation, you'd resolve the entrypoint and import the function
-        def python_tool_placeholder(state: WorkflowState) -> WorkflowState:
-            return {
-                **state,
-                "output": f"Python tool '{function_spec.name}' (entrypoint: {function_spec.entrypoint}) - Implementation needed",
-                "error_context": "Python tool loading not fully implemented"
-            }
-        
-        return python_tool_placeholder
+        try:
+            # Load the actual function
+            func = function_loader.load_function(function_spec.entrypoint)
+            
+            # Create wrapper that handles parameter binding
+            def python_function_wrapper(state: WorkflowState) -> WorkflowState:
+                try:
+                    # Get parameters from node config
+                    parameters = node.config.get('parameters', {}) if node.config else {}
+                    
+                    # Bind parameters from state and config
+                    bound_params = function_loader.bind_parameters(func, state, parameters)
+                    
+                    # Execute function
+                    logger.info(f"🔧 Executing Python function: {function_spec.entrypoint}")
+                    result = func(**bound_params)
+                    
+                    # Handle return value
+                    if isinstance(result, dict):
+                        # Function returned state update
+                        return {**state, **result}
+                    elif isinstance(result, str):
+                        # Function returned string output
+                        return {**state, "output": result}
+                    else:
+                        # Convert other types to string
+                        return {**state, "output": str(result)}
+                        
+                except Exception as e:
+                    logger.error(f"❌ Python function error: {str(e)}")
+                    return {
+                        **state,
+                        "output": f"Function error: {str(e)}",
+                        "error_context": f"Python function '{function_spec.entrypoint}' failed: {str(e)}"
+                    }
+            
+            return load_tool(python_function_wrapper)
+            
+        except Exception as load_error:
+            logger.error(f"❌ Failed to load Python function: {str(load_error)}")
+            
+            def error_function(state: WorkflowState) -> WorkflowState:
+                return {
+                    **state,
+                    "output": f"Failed to load function '{function_spec.entrypoint}': {str(load_error)}",
+                    "error_context": f"Function loading error: {str(load_error)}"
+                }
+            
+            return error_function
         
     elif function_spec.type == "mcp":
         # For MCP functions, create a placeholder that explains the new architecture
@@ -787,7 +825,8 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
     """
     Configures all edges in the `StateGraph` based on `spec.workflow.edges`.
 
-    This function processes edges from the specification:
+    For sequential workflows, automatically creates edges between consecutive nodes.
+    For other workflow types, processes edges from the specification:
     1. Groups edges by their `source` node.
     2. For each source node:
         a. If there are conditional edges (edges with a `condition` string):
@@ -808,6 +847,21 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
     """
     assert spec.workflow is not None, "Workflow must be present for compilation"
     logger.info("🔄 Building workflow edges...")
+    
+    # Handle sequential workflows by automatically creating edges between consecutive nodes
+    if spec.workflow.type == "sequential":
+        logger.info("📋 Sequential workflow detected - creating automatic edges between consecutive nodes")
+        nodes = spec.workflow.nodes
+        for i in range(len(nodes) - 1):
+            current_node = nodes[i]
+            next_node = nodes[i + 1]
+            logger.info(f"    → Adding sequential edge: [bright_blue]{current_node.id}[/] → [green]{next_node.id}[/]")
+            graph.add_edge(current_node.id, next_node.id)
+        
+        # Also process any additional edges from the edges list (for sequential workflows with custom overrides)
+        if spec.workflow.edges:
+            logger.info("📋 Processing additional custom edges for sequential workflow")
+    
     edges_by_source: Dict[str, List[Edge]] = {}
     for edge in spec.workflow.edges:
         edges_by_source.setdefault(edge.source, []).append(edge)

@@ -57,12 +57,15 @@ def _create_exit_state(state: WorkflowState, user_response: str) -> WorkflowStat
 
 def _collect_simple_input() -> str:
     """Collect input using simple input() method."""
-    print("Enter your response (press Enter to submit):")
+    console = Console(stderr=True)
+    console.print("[dim]Enter your response (press Enter to submit):[/dim]")
     return input("> ")
 
 def _collect_enhanced_input() -> str:
     """Collect input using enhanced multi-line prompt_toolkit."""
-    print("Enter your response: ('/exit'| Enter twice or '/send' to send)\n")
+    console = Console(stderr=True)
+    console.print("[dim]Commands: '/exit', '/quit', '/bye' to quit | Enter twice or '/send' to send[/dim]")
+    console.print()
     
     lines = []
     history = InMemoryHistory()
@@ -116,7 +119,12 @@ def get_user_input(state: WorkflowState, prompt: str = "Please provide input:") 
     Returns:
         Updated workflow state with user response
     """
-    print(f"\n📝 {prompt}")
+    console = Console(stderr=True)
+    
+    # Display the LLM's question with professional styling
+    console.print("\n[bold blue]Assistant:[/bold blue]")
+    console.print(prompt)
+    console.print()  # Add spacing
     
     # Collect user input based on terminal capability
     try:
@@ -126,7 +134,7 @@ def get_user_input(state: WorkflowState, prompt: str = "Please provide input:") 
             user_response = _collect_simple_input()
     except (KeyboardInterrupt, Exception) as e:
         if isinstance(e, KeyboardInterrupt):
-            print("\nInput cancelled.")
+            console.print("\n[yellow]Input cancelled.[/yellow]")
             return {**state, 'user_input': "", 'output': "User cancelled input"}
         else:
             # Fallback to simple input on any prompt_toolkit error

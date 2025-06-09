@@ -44,11 +44,16 @@ workflow:
           {state.analysis}
 
           Your task:
-          - Identify the single most important question this Twitter post should answer to engage this audience effectively.
-          - Reason step-by-step about how to structure the post to address this question honestly and openly.
-          - Write a twitter tweet of around 280 characters that answers just this one question ONLY
+          1. Identify the single most important question this Twitter post should answer to engage this audience effectively.
+          2. Reason step-by-step about how to structure the post to address this question honestly and openly.
+          3. Write a draft twitter tweet of around 280 characters that answers just this one question.
 
-          Output only your detailed reasoning.
+          Output your complete reasoning including:
+          - The key question identified
+          - Your step-by-step reasoning about structure
+          - The draft tweet text
+          
+          Format your output clearly with all three components.
       output_key: workflow_reasoning
       stop: false
 
@@ -57,16 +62,19 @@ workflow:
       ref: writer_llm
       config:
         prompt: |
-          Using the reasoning provided:
+          You are tasked with creating a Twitter post based on the following reasoning and analysis:
+
+          Reasoning from previous analysis:
           {state.workflow_reasoning}
 
-          Rewrite the reasoning into a perfect, informative Twitter post tailored for the identified audience.
+          Your task is to transform this reasoning into a perfect, informative Twitter post.
+          
           Requirements:
           - Write in UK English.
-          - Use a curious, authoritative, and honest tone, like a knowledgeable friend, but be spareing as if trying to fit them into a tweet.
-          - Use a very human format with thoughtful words choices
+          - Use a curious, authoritative, and honest tone, like a knowledgeable friend, but be sparing as if trying to fit them into a tweet.
+          - Use a very human format with thoughtful word choices
           - Express an opinion that will make the audience think and feel something
-          - Have an emotional goal you want to convey to the audience, e.g. vulnerability, annoyance, humour, excitement, ..., etc.
+          - Have an emotional goal you want to convey to the audience, e.g. vulnerability, annoyance, humour, excitement, etc.
           - Do not use emojis or dashes.
           - Keep changes minimal but effective.
           - Output only the final rewritten tweet text in ONLY 280 characters (or near enough).

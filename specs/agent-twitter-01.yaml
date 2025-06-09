@@ -76,6 +76,7 @@ workflow:
           - Express an opinion that will make the audience think and feel something
           - Have an emotional goal you want to convey to the audience, e.g. vulnerability, annoyance, humour, excitement, etc.
           - Do not use emojis or dashes.
+          - Web links like mysite.com are penalised by twitter, so change them to `mysite[dot]com` instead.
           - Keep changes minimal but effective.
           - Output only the final rewritten tweet text in ONLY 280 characters (or near enough).
 

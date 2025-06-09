@@ -40,7 +40,7 @@ class SimpleFunctionLoader:
             module_path, function_name = entrypoint.rsplit('.', 1)
             
             # Import the module
-            logger.info(f"🐍 Importing module: {module_path}")
+            logger.info(f"[blue]Importing {module_path}[/blue]")
             module = importlib.import_module(module_path)
             
             # Get the function
@@ -57,11 +57,11 @@ class SimpleFunctionLoader:
             
             # Cache and return
             self._function_cache[entrypoint] = func
-            logger.info(f"✅ Successfully loaded function: {entrypoint}")
+            logger.info(f"[green]✓ Loaded function: {entrypoint}[/green]")
             return func
             
         except Exception as e:
-            logger.error(f"❌ Failed to load function '{entrypoint}': {str(e)}")
+            logger.error(f"[red]✗ Failed to load function {entrypoint}: {str(e)}[/red]")
             raise ImportError(f"Could not load function '{entrypoint}': {str(e)}") from e
     
     def _validate_function_signature(self, func: Callable, entrypoint: str) -> None:
@@ -70,8 +70,7 @@ class SimpleFunctionLoader:
         
         # Check if function accepts state parameter
         if 'state' not in sig.parameters:
-            logger.warning(f"⚠️ Function '{entrypoint}' doesn't have 'state' parameter. "
-                         f"It may not work correctly with workflow state.")
+            logger.warning(f"[yellow]⚠ Function {entrypoint} missing 'state' parameter[/yellow]")
     
     def bind_parameters(self, func: Callable, state: Dict[str, Any], parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -106,7 +105,7 @@ class SimpleFunctionLoader:
                     # Static value
                     bound_params[param_name] = param_value
             else:
-                logger.warning(f"⚠️ Parameter '{param_name}' not found in function signature")
+                logger.warning(f"[yellow]⚠ Parameter {param_name} not found in function signature[/yellow]")
         
         return bound_params
 

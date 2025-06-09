@@ -43,11 +43,11 @@ def load_env_file(env_path: Optional[str] = None) -> None:
         # override=True allows .env to take precedence over system variables, useful for local dev
         loaded = load_dotenv(dotenv_path=str(path_to_use), override=True)
         if loaded:
-            logger.info(f"Environment variables loaded from: {path_to_use}")
+            logger.info(f"[dim]Environment loaded from {path_to_use.name}[/dim]")
         else:
-            logger.warning(f"Found .env file at {path_to_use}, but it might be empty or failed to load.")
+            logger.warning("[yellow]⚠ .env file found but empty or failed to load[/yellow]")
     else:
-        logger.info(f".env file not found at {path_to_use}. Relying on system environment variables.")
+        logger.info("[dim]No .env file - using system environment[/dim]")
 
 def get_api_key(provider_name: str) -> Optional[str]:
     """
@@ -70,7 +70,7 @@ def get_api_key(provider_name: str) -> Optional[str]:
     
     # Check if provider requires API key
     if not PROVIDER_CONFIG[provider_name_lower]['requires_api_key']:
-        logger.info(f"Provider '{provider_name}' does not require an API key.")
+        logger.info(f"[dim]Provider {provider_name} - no API key required[/dim]")
         return None
         
     env_var_name = f"{provider_name.upper()}_API_KEY"
@@ -80,7 +80,7 @@ def get_api_key(provider_name: str) -> Optional[str]:
     if api_key is None or api_key.strip() == "":
         raise ValueError(f"Required API key {env_var_name}")
         
-    logger.info(f"API key found for provider '{provider_name}' using environment variable {env_var_name}.")
+    logger.info(f"[green]✓ API key found for {provider_name}[/green]")
     return api_key
 
 def create_llm_config(config: Union[Dict[str, Any], LLMConfig], llm_type: Optional[str] = None) -> LLMConfig:

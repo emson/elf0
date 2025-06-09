@@ -1,0 +1,66 @@
+version: "0.1"
+description: "Create a perfect LinkedIn post by analyzing the input text, identifying the audience, reasoning about structure, and rewriting with minimal changes in a curious and authoritative friend style without emojis."
+runtime: "langgraph"
+
+llms:
+  main_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.7
+  writer_llm:
+    type: anthropic
+    model_name: claude-4-sonnet
+    temperature: 0.7
+
+
+workflow:
+  type: sequential
+  nodes:
+    - id: analyze_and_identify_audience
+      kind: agent
+      ref: main_llm
+      config:
+        prompt: |
+          You are given the following input text: {workflow_initial_input}
+          Your task is to read and understand this text, then think about who the audience is for this text.
+          Output your analysis and the identified audience clearly.
+      output_key: audience_analysis
+      stop: false
+
+    - id: reason_about_structure
+      kind: agent
+      ref: main_llm
+      config:
+        prompt: |
+          Based on the audience analysis below, reason about how to structure the perfect version of the original text to appeal to this audience.
+
+          Audience analysis:
+          {state.audience_analysis}
+
+          Provide detailed reasoning on how to best structure the text.
+      output_key: workflow_reasoning
+      stop: false
+
+    - id: rewrite_post
+      kind: agent
+      ref: main_llm
+      config:
+        prompt: |
+          Using the original text and the reasoning on how to structure it, rewrite the text to enhance for this audience.
+          Make minimal changes in order to create the perfect LinkedIn post for the identified audience.
+          Write in the style of a curious and authoritative friend.
+          Do not use emojis or these dashes `—`, use a very human format.
+
+          Original text:
+          {workflow_initial_input}
+
+          Reasoning:
+          {state.workflow_reasoning}
+      output_key: rewritten_prompt
+      stop: true
+
+  edges: 
+    - source: analyze_and_identify_audience
+      target: reason_about_structure
+    - source: reason_about_structure
+      target: rewrite_post

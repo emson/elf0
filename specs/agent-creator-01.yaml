@@ -94,6 +94,52 @@ llms:
         - Comprehensive generation plan from the planner
         - (Optional) Structured feedback from validator for iterative refinement
         
+        **CRITICAL OUTPUT STRUCTURE:**
+        You MUST generate a complete YAML file that follows this EXACT structure (all fields shown are REQUIRED unless marked optional):
+        
+        ```
+        version: "0.1"                         # REQUIRED
+        description: "<description>"           # REQUIRED - describe the workflow purpose
+        runtime: "langgraph"                   # REQUIRED
+        
+        llms:                                  # REQUIRED section
+          <llm_name>:                          # e.g., "main_llm", "analyzer_llm"
+            type: openai                       # Must be: openai, anthropic, or ollama
+            model_name: <string>               # e.g., gpt-4.1-mini
+            temperature: <float>               # 0.0-1.0
+            params:                            # Optional
+              max_tokens: <int>
+              system_prompt: |                 # Optional but recommended
+                <system prompt text>
+        
+        retrievers: {}                         # Optional - can be empty dict
+        memory: {}                             # Optional - can be empty dict
+        functions: {}                          # Optional - can be empty dict
+        
+        workflow:                              # REQUIRED section
+          type: <string>                       # REQUIRED - sequential, custom_graph, react, or evaluator_optimizer
+          max_iterations: <int>                # Optional - for evaluator_optimizer type
+          nodes:                               # REQUIRED - list of nodes
+            - id: <string>                     # Unique identifier
+              kind: agent                      # agent, tool, judge, branch, or mcp
+              ref: <llm_name>                  # Must match a key in llms section
+              config:                          # Optional but usually needed
+                prompt: |                      # The prompt template
+                  <prompt text>
+              output_key: <string>             # Optional - state variable name
+              stop: false                      # true only for the final node
+              
+          edges:                               # REQUIRED - list of edges
+            - source: <node_id>
+              target: <node_id>
+              condition: <string>              # Optional - Python expression
+        
+        eval:                                  # Optional section
+          metrics:                             # Optional
+            - <metric_name>
+          dataset_path: <string>               # Optional
+        ```
+        
         **Core Requirements:**
         1. **Schema Adherence**: Strictly follow docs_specs/spec_schema.md structure
            - Required fields: version, runtime, llms, workflow (type, nodes, edges)
@@ -127,20 +173,23 @@ llms:
            - Enhance prompts, conditions, and workflow robustness
            - Maintain consistency while implementing improvements
         
-        **Generation Process:**
-        1. <think/> Analyze the plan, user request, and any feedback
-        2. Structure the YAML following the exact schema order
-        3. Implement the chosen pattern with precise node/edge definitions
-        4. Craft specific, actionable system prompts for each LLM
-        5. Create robust conditional expressions and error handling
-        6. Add clear documentation and inline comments
+        **STRICT RULES:**
+        1. The FIRST node's prompt must contain {workflow_initial_input} exactly once
+        2. Subsequent nodes reference data via {state.variable_name}
+        3. All node IDs in edges must match actual node IDs in the nodes list
+        4. The LAST node must have stop: true
+        5. LLM type must be one of: openai, anthropic, ollama
+        6. All node refs must match keys defined in the llms section
+        7. For evaluator_optimizer workflows, include proper conditions on edges
+        8. Conditions must use safe expressions (no eval() risks)
         
-        **Output Requirements:**
-        - ONLY the complete, valid YAML specification
-        - No explanations, markdown formatting, or additional text
+        **OUTPUT REQUIREMENTS:**
+        - Generate ONLY the complete YAML content
+        - Do NOT include markdown fences (```yaml or ```)
+        - Do NOT include any explanations, preamble, or commentary
+        - The output must be valid YAML that can be parsed directly
         - Proper YAML syntax with consistent indentation
         - All referenced components must be defined
-        - Conditions must use safe expressions (no eval() risks)
 
   validator:
     type: openai
@@ -238,21 +287,77 @@ workflow:
       kind: "agent"
       ref: "planner"
       stop: false
+      config:
+        prompt: |
+          Analyze the following user request and create a comprehensive generation plan for an LLM agent workflow YAML specification:
+
+          {workflow_initial_input}
+
+          Follow the analysis framework in your system prompt and output a detailed JSON plan.
 
     - id: "generate_spec"
       kind: "agent" 
       ref: "generator"
       stop: false
+      config:
+        format: yaml
+        prompt: |
+          Generate a complete YAML specification based on:
+
+          User Request:
+          {workflow_initial_input}
+
+          Generation Plan:
+          {state.plan_generation}
+
+          Validator Feedback (if any):
+          {state.validate_spec}
+
+          Follow your system prompt instructions to create a schema-compliant YAML specification.
+          Output ONLY the complete YAML content with no markdown fences or explanations.
 
     - id: "validate_spec"
       kind: "judge"
       ref: "validator"
       stop: false
+      config:
+        prompt: |
+          Evaluate the generated YAML specification:
+
+          Generated YAML:
+          {state.generate_spec}
+
+          Original Plan:
+          {state.plan_generation}
+
+          User Request:
+          {workflow_initial_input}
+
+          Provide comprehensive evaluation following your system prompt criteria.
 
     - id: "finalize_spec"
       kind: "agent"
       ref: "generator"
       stop: true
+      config:
+        format: yaml
+        prompt: |
+          Produce the final, polished YAML specification incorporating all feedback:
+
+          User Request:
+          {workflow_initial_input}
+
+          Generation Plan:
+          {state.plan_generation}
+
+          Latest Validator Feedback:
+          {state.validate_spec}
+
+          Previous YAML:
+          {state.generate_spec}
+
+          Generate the final YAML specification addressing all feedback and ensuring highest quality.
+          Output ONLY the complete YAML content with no markdown fences or explanations.
 
   edges:
     # Initial planning to generation flow

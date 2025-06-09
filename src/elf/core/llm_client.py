@@ -106,14 +106,20 @@ class AnthropicProvider(BaseLLMProvider):
             # Prepare messages
             messages = [{"role": "user", "content": prompt}]
             
+            # Build kwargs for the API call
+            kwargs = {
+                "model": self.model_name,
+                "max_tokens": max_tokens,
+                "temperature": self.temperature,
+                "messages": messages
+            }
+            
+            # Only add system if it has a value
+            if final_system_prompt:
+                kwargs["system"] = final_system_prompt
+            
             # Create the completion
-            response = self.client.messages.create(
-                model=self.model_name,
-                max_tokens=max_tokens,
-                temperature=self.temperature,
-                system=final_system_prompt,
-                messages=messages
-            )
+            response = self.client.messages.create(**kwargs)
             
             # Extract and return the response text
             return response.content[0].text

@@ -146,9 +146,9 @@ workflow:
       ref: yaml_llm
       stop: true
       config:
-        format: json
+        format: yaml
         prompt: |
-          Use the information below to produce a *schema-compliant* simulation spec as structured JSON output.
+          Use the information below to produce a *schema-compliant* simulation spec as YAML output.
           Think hard about the correct structure, going step by step implementing the graph.
           
           REQUIRED STRUCTURE:
@@ -190,7 +190,7 @@ workflow:
           - Use `stop: true` only on `aggregate_outcomes`.
           - Ensure all node IDs in edges exist in the nodes array.
 
-          Generate the complete specification as structured JSON. Do NOT include markdown fences or commentary.
+          Generate the complete specification as valid YAML. Do NOT include markdown fences, preamble, summary or commentary.
         output_key: simulation_yaml
 
   edges:

@@ -1,0 +1,83 @@
+version: "0.2"                                  # Bumped version for improved spec
+description: "Generate an informative Twitter/X post by analyzing input text, identifying the audience, reasoning about the key question to address, and rewriting in a curious, authoritative, and honest UK English style without emojis or dashes."
+runtime: "langgraph"
+
+llms:
+  main_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.5                           # Lowered temperature for more focused reasoning
+    max_tokens: 512                           # Added max_tokens for controlled output length
+  writer_llm:
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
+    temperature: 0.7
+    params:
+      max_tokens: 280                         # Keep tweet length limit
+
+workflow:
+  type: sequential
+  nodes:
+    - id: analyze_input
+      kind: agent
+      ref: main_llm
+      config:
+        prompt: |
+          You will be given the following text as input:
+          {workflow_initial_input}
+
+          Your tasks:
+          1. Read and understand the text thoroughly.
+          2. Identify and clearly describe the primary audience for this text.
+          3. Provide your analysis in a clear, concise manner.
+
+          Output only your audience analysis.
+      output_key: analysis
+      stop: false
+
+    - id: reason_structure
+      kind: agent
+      ref: main_llm
+      config:
+        prompt: |
+          Given the audience analysis below:
+          {state.analysis}
+
+          Your task:
+          - Identify the single most important question this Twitter post should answer to engage this audience effectively.
+          - Reason step-by-step about how to structure the post to address this question honestly and openly.
+          - Write a twitter tweet of around 280 characters that answers just this one question ONLY
+
+          Output only your detailed reasoning.
+      output_key: workflow_reasoning
+      stop: false
+
+    - id: rewrite_post
+      kind: agent
+      ref: writer_llm
+      config:
+        prompt: |
+          Using the reasoning provided:
+          {state.workflow_reasoning}
+
+          Rewrite the reasoning into a perfect, informative Twitter post tailored for the identified audience.
+          Requirements:
+          - Write in UK English.
+          - Use a curious, authoritative, and honest tone, like a knowledgeable friend, but be spareing as if trying to fit them into a tweet.
+          - Use a very human format with thoughtful words choices
+          - Express an opinion that will make the audience think and feel something
+          - Have an emotional goal you want to convey to the audience, e.g. vulnerability, annoyance, humour, excitement, ..., etc.
+          - Do not use emojis or dashes.
+          - Keep changes minimal but effective.
+          - Output only the final rewritten tweet text in ONLY 280 characters (or near enough).
+
+      output_key: rewritten_post
+      stop: true
+
+  edges:
+    - source: analyze_input
+      target: reason_structure
+    - source: reason_structure
+      target: rewrite_post
+
+# Added comments and refined prompts for clarity, style, and schema compliance. Adjusted LLM parameters for optimal output control.

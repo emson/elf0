@@ -1,0 +1,102 @@
+version: "0.1"
+description: "Workflow that analyses input, reasons about workflow design, and generates a complete spec"
+runtime: "langgraph"
+
+llms:
+  rewriter_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.3
+  strategist_llm:
+    type: openai
+    model_name: gpt-4.1
+    temperature: 0.5
+  worker_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.4
+
+workflow:
+  type: sequential
+  nodes:
+    - id: rewrite_input
+      kind: agent
+      ref: rewriter_llm
+      config:
+        prompt: |
+          Rewrite the following user prompt clearly and unambiguously:
+
+          {workflow_initial_input}
+      output_key: rewritten_prompt
+
+    - id: select_workflow
+      kind: agent
+      ref: strategist_llm
+      config:
+        prompt: |
+          Given the rewritten prompt below, reason about the best workflow pattern to process it.
+          Consider agent patterns in @docs_ai/agent_patterns.md
+          Output your reasoning and specify the recommended workflow graph pattern (sequential, custom_graph, react, evaluator_optimizer)
+          as a mermaid diagram so that the edges in the new YAML file can be correctly generated.
+
+          Prompt: {state.rewritten_prompt}
+      output_key: workflow_reasoning
+
+    - id: generate_spec
+      kind: agent
+      ref: worker_llm
+      config:
+        format: yaml
+        prompt: |
+          Using the following input and reasoning, generate a complete LangGraph YAML spec that implements the workflow:
+
+          Rewritten prompt: {state.rewritten_prompt}
+          Workflow reasoning: {state.workflow_reasoning}
+
+          CRITICAL: Follow this EXACT structure (all fields shown are REQUIRED unless marked optional):
+
+          ```
+          version: "0.1"                    # REQUIRED
+          description: "<description>"      # REQUIRED - describe the workflow purpose
+          runtime: "langgraph"             # REQUIRED
+          
+          llms:                            # REQUIRED section
+            <llm_name>:                    # e.g., "main_llm"
+              type: openai                 # Must be: openai, anthropic, or ollama
+              model_name: gpt-4.1-mini     # Model identifier
+              temperature: 0.7             # Optional, 0.0-1.0
+              
+          workflow:                        # REQUIRED section
+            type: sequential               # REQUIRED - or: custom_graph, react, evaluator_optimizer
+            nodes:                         # REQUIRED - list of nodes
+              - id: <string>               # Unique identifier
+                kind: agent                # Usually "agent" for LLM nodes
+                ref: <llm_name>            # Must match a key in llms section
+                config:                    # Optional
+                  prompt: |                # The prompt template
+                    <prompt text>
+                output_key: <string>       # Optional - state variable name
+                stop: false                # true only for the final node
+                
+            edges:                         # REQUIRED - can be empty list for sequential
+              - source: <node_id>
+                target: <node_id>
+          ```
+
+          RULES:
+          1. The FIRST node's prompt must contain {workflow_initial_input} exactly once
+          2. Subsequent nodes reference data via {state.variable_name}
+          3. Node IDs in edges must match actual node IDs
+          4. The LAST node must have stop: true
+          5. For the workflow add the correct edges that represent the workflow logic (see agent design patterns/mermaid diagram)
+          6. LLM type must be one of: openai, anthropic, ollama (NOT "openai/chat")
+
+          Output the complete YAML specification. Do NOT include markdown fences, preamble, summary or commentary.
+      output_key: final_spec
+      stop: true
+
+  edges:
+    - source: rewrite_input
+      target: select_workflow
+    - source: select_workflow
+      target: generate_spec

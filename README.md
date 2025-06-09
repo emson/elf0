@@ -1,4 +1,4 @@
-# Elf: AI Workflow Architect
+# Elf: sElf Improving YAML Agent Compiler and Runner
 
 **Elf is a Python framework for defining, executing, and intelligently improving LLM-powered agent workflows.**
 

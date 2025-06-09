@@ -10,6 +10,8 @@ import sys
 from rich.console import Console as RichConsole
 from rich.markdown import Markdown
 from rich.rule import Rule # Added import
+from rich.spinner import Spinner
+from rich.live import Live
 import os
 import logging
 from prompt_toolkit.history import InMemoryHistory
@@ -18,6 +20,7 @@ from pygments.lexers.special import TextLexer # Using a simple lexer for plain t
 from prompt_toolkit.output.defaults import create_output as pt_create_output
 from prompt_toolkit import PromptSession # Added for specifying output
 from rich.logging import RichHandler # Added
+import contextlib
 
 # Configure global Rich console for stderr
 # This is used by the RichHandler's default console if not specified,
@@ -119,6 +122,18 @@ def _conditional_secho(message: str, **kwargs):
     is_error = kwargs.get("fg") == typer.colors.RED
     if app_state.verbose_mode or is_error:
         typer.secho(message, **kwargs)
+
+@contextlib.contextmanager
+def progress_spinner(message: str):
+    """Context manager that shows a spinner with message in non-verbose mode."""
+    if app_state.verbose_mode:
+        # In verbose mode, just yield without showing spinner
+        yield
+    else:
+        # In non-verbose mode, show spinner
+        spinner = Spinner("dots", text=f"[dim]{message}[/dim]")
+        with Live(spinner, console=rich.console, refresh_per_second=10):
+            yield
 
 def prepare_workflow_input(prompt: str, context_content: str) -> str:
     """Combine context content with user prompt."""
@@ -274,7 +289,8 @@ def agent_command(
     
     # Run workflow
     try:
-        result = run_workflow(spec_path, processed_prompt, session_id)
+        with progress_spinner("Running workflow..."):
+            result = run_workflow(spec_path, processed_prompt, session_id)
     except UserExitRequested:
         # User requested to exit, end gracefully
         rich.console.print("\n[yellow]Workflow terminated by user.[/yellow]")
@@ -370,7 +386,8 @@ Output only the improved YAML specification."""
     
     # Run the optimizer workflow
     try:
-        result = run_workflow(optimizer_spec_path, optimization_prompt, session_id)
+        with progress_spinner("Optimizing YAML specification..."):
+            result = run_workflow(optimizer_spec_path, optimization_prompt, session_id)
     except UserExitRequested:
         # User requested to exit during optimization
         rich.console.print("\n[yellow]Optimization terminated by user.[/yellow]")
@@ -497,7 +514,8 @@ def prompt_yaml_command(
                 
                 # Run the workflow with processed prompt
                 try:
-                    result = run_workflow(spec_path, final_prompt, session_id)
+                    with progress_spinner("Processing..."):
+                        result = run_workflow(spec_path, final_prompt, session_id)
                 except UserExitRequested:
                     # User requested to exit during workflow, break the interactive loop
                     rich.console.print("\n[yellow]Workflow terminated by user.[/yellow]")

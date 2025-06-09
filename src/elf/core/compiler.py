@@ -119,7 +119,7 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     if isinstance(potential_prompt, str):
         prompt_template_str = potential_prompt
     elif potential_prompt is not None: # 'prompt' key exists in config but its value is not a string
-        logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] 'prompt' in node config is not a string (type: {type(potential_prompt).__name__}). Will ignore node-specific prompt template.")
+        logger.warning(f"[yellow]⚠ [Node: {node.id}] Invalid prompt type - ignored[/yellow]")
 
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
@@ -136,17 +136,13 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 else:
                     final_prompt_to_llm = prompt_template_str
                     if user_provided_input:
-                        logger.warning(
-                            f"⚠️ [Node: [cyan]{node.id}[/]] Prompt template lacks '{{input}}' placeholder. "
-                            f"User input ('{user_provided_input[:70]}...') will be appended to the template. "
-                            "Consider adding '{input}' to your prompt template for explicit placement."
-                        )
+                        logger.warning(f"[yellow]⚠ [Node: {node.id}] Missing {{input}} placeholder - user input appended[/yellow]")
                         final_prompt_to_llm += "\n\nUser Input: " + user_provided_input
             elif user_provided_input:
                 final_prompt_to_llm = user_provided_input
             else:
                 error_msg = f"Node {node.id} (type: {node.kind}) has no prompt template in config and no 'input' in state. Cannot proceed."
-                logger.error(f"❌ [Node: [cyan]{node.id}[/]] {error_msg}")
+                logger.error(f"[red]✗ [Node: {node.id}] {error_msg}[/red]")
                 return WorkflowState({
                     **state,
                     "output": f"ConfigurationError: {error_msg}",
@@ -154,24 +150,21 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     "error_context": error_msg
                 })
 
-            logger.info(
-                f"🤖 [Node: [cyan]{node.id}[/]] ({iteration_str}) (LLM: {llm_client.spec.type}:{llm_client.spec.model_name}) "
-                f"Sending to LLM (first 200 chars): '{final_prompt_to_llm[:200]}...'"
-            )
+            logger.info(f"[blue][Node: {node.id}] LLM call ({iteration_str}) {llm_client.spec.type}:{llm_client.spec.model_name}[/blue]")
             response = llm_client.generate(final_prompt_to_llm)
-            logger.info(f"✨ [Node: [cyan]{node.id}[/]] LLM Response: '{response[:70]}...'")
+            logger.info(f"[dim][Node: {node.id}] Response: {response[:50]}...[/dim]")
             
             # Check if this node has a structured output format
             output_format = node.config.get('format')
             if output_format:
-                logger.info(f"🔍 [Node: [cyan]{node.id}[/]] Processing structured output format: {output_format}")
+                logger.info(f"[blue][Node: {node.id}] Processing {output_format} format[/blue]")
                 try:
                     if output_format == 'json':
                         # Handle JSON structured output for Spec generation
                         spec_instance = Spec.from_structured_json(response)
                         yaml_output = spec_instance.to_yaml_string()
                         
-                        logger.info(f"✅ [Node: [cyan]{node.id}[/]] Structured JSON validation successful")
+                        logger.info(f"[green]✓ [Node: {node.id}] JSON validation passed[/green]")
                         return WorkflowState({
                             **state,
                             "output": yaml_output,  # Clean YAML output
@@ -186,7 +179,7 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                         structured_output = Spec.create_structured_output(response)
                         
                         if structured_output["validation"]["is_valid"]:
-                            logger.info(f"✅ [Node: [cyan]{node.id}[/]] YAML validation successful")
+                            logger.info(f"[green]✓ [Node: {node.id}] YAML validation passed[/green]")
                             return WorkflowState({
                                 **state,
                                 "output": structured_output["yaml_content"],
@@ -197,7 +190,7 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                             })
                         else:
                             error_msg = structured_output["validation"]["error"]
-                            logger.error(f"❌ [Node: [cyan]{node.id}[/]] YAML validation failed: {error_msg}")
+                            logger.error(f"[red]✗ [Node: {node.id}] YAML validation failed: {error_msg}[/red]")
                             return WorkflowState({
                                 **state,
                                 "output": response,
@@ -208,10 +201,10 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                                 "error_context": f"YAML validation failed: {error_msg}"
                             })
                     else:
-                        logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] Unknown format: {output_format}")
+                        logger.warning(f"[yellow]⚠ [Node: {node.id}] Unknown format: {output_format}[/yellow]")
                         
                 except Exception as e:
-                    logger.error(f"❌ [Node: [cyan]{node.id}[/]] Error during structured output processing: {str(e)}")
+                    logger.error(f"[red]✗ [Node: {node.id}] Structured output error: {str(e)}[/red]")
                     return WorkflowState({
                         **state,
                         "output": response,
@@ -238,7 +231,7 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 "error_context": None
             })
         except Exception as e:
-            logger.error(f"❌ [Node: [cyan]{node.id}[/]] LLM Error: {str(e)}", exc_info=True)
+            logger.error(f"[red]✗ [Node: {node.id}] LLM error: {str(e)}[/red]", exc_info=True)
             # Preserve original state from before this node's execution on error
             return {
                 **state, 
@@ -269,13 +262,13 @@ def load_tool(fn: Any) -> NodeFunction:
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
             if fn is None:
-                logger.warning("⚠️ Tool function is None, returning input as output")
+                logger.warning("[yellow]⚠ Tool function is None - returning input as output[/yellow]")
                 return {
                     **state,
                     "output": state.get("input", "")
                 }
             
-            logger.info(f"🔧 Executing tool function: {getattr(fn, '__name__', 'unknown')}")
+            logger.info(f"[blue]Executing tool: {getattr(fn, '__name__', 'unknown')}[/blue]")
             
             # Execute the tool function with the current state
             if callable(fn):
@@ -300,14 +293,14 @@ def load_tool(fn: Any) -> NodeFunction:
                         "output": str(result)
                     }
             else:
-                logger.warning("⚠️ Tool function is not callable")
+                logger.warning("[yellow]⚠ Tool function is not callable[/yellow]")
                 return {
                     **state,
                     "output": f"Tool function {fn} is not callable"
                 }
                 
         except Exception as e:
-            logger.error(f"❌ Tool execution error: {str(e)}")
+            logger.error(f"[red]✗ Tool execution error: {str(e)}[/red]")
             return {
                 **state,
                 "output": f"Tool error: {str(e)}"
@@ -336,7 +329,7 @@ def make_mcp_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
-            logger.info(f"🌐 [Node: [cyan]{node.id}[/]] Executing MCP tool: {mcp_node.tool_name}")
+            logger.info(f"[blue][Node: {node.id}] Executing MCP tool: {mcp_node.tool_name}[/blue]")
             
             # Convert state to regular dict for MCP node
             state_dict = dict(state)
@@ -355,7 +348,7 @@ def make_mcp_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     # No event loop running, create one
                     result_state = asyncio.run(mcp_node.execute(state_dict))
                 
-                logger.info(f"✨ [Node: [cyan]{node.id}[/]] MCP tool completed successfully")
+                logger.info(f"[green]✓ [Node: {node.id}] MCP tool completed[/green]")
                 
                 # Use the output field from the result state if available, otherwise fallback to mcp_result
                 output = result_state.get("output", result_state.get("mcp_result", ""))
@@ -368,7 +361,7 @@ def make_mcp_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 })
                 
             except MCPConnectionError as e:
-                logger.error(f"❌ [Node: [cyan]{node.id}[/]] MCP connection error: {str(e)}")
+                logger.error(f"[red]✗ [Node: {node.id}] MCP connection error: {str(e)}[/red]")
                 return WorkflowState({
                     **state,
                     "output": f"MCP Connection Error: {str(e)}",
@@ -376,7 +369,7 @@ def make_mcp_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     "error_context": f"MCP connection error: {str(e)}"
                 })
             except MCPToolError as e:
-                logger.error(f"❌ [Node: [cyan]{node.id}[/]] MCP tool error: {str(e)}")
+                logger.error(f"[red]✗ [Node: {node.id}] MCP tool error: {str(e)}[/red]")
                 return WorkflowState({
                     **state,
                     "output": f"MCP Tool Error: {str(e)}",
@@ -384,7 +377,7 @@ def make_mcp_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     "error_context": f"MCP tool error: {str(e)}"
                 })
             except asyncio.TimeoutError:
-                logger.error(f"❌ [Node: [cyan]{node.id}[/]] MCP tool timed out")
+                logger.error(f"[red]✗ [Node: {node.id}] MCP tool timed out[/red]")
                 return WorkflowState({
                     **state,
                     "output": "MCP Tool Error: Tool execution timed out",
@@ -393,7 +386,7 @@ def make_mcp_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 })
                 
         except Exception as e:
-            logger.error(f"❌ [Node: [cyan]{node.id}[/]] Unexpected error in MCP node: {str(e)}", exc_info=True)
+            logger.error(f"[red]✗ [Node: {node.id}] Unexpected MCP error: {str(e)}[/red]", exc_info=True)
             return WorkflowState({
                 **state,
                 "output": f"Unexpected error: {str(e)}",
@@ -427,7 +420,7 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             # Determine input for the judge
             input_to_judge = state.get("output")
             if input_to_judge is None:
-                logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] Input from previous node (state['output']) is None. Using state['input'] as fallback: '{str(state.get('input', ''))[:70]}...'")
+                logger.warning(f"[yellow]⚠ [Node: {node.id}] No output from previous node - using input as fallback[/yellow]")
                 input_to_judge = state.get("input", "") 
             
             # Iteration display
@@ -438,11 +431,11 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             max_iter_display = getattr(spec.workflow, 'max_iterations', None) or DEFAULT_MAX_ITERATIONS
             iteration_str = f"Iteration {current_iter_display}/{max_iter_display}"
 
-            logger.info(f"⚖️ [Node: [cyan]{node.id}[/]] ({iteration_str}) (LLM: {judge_llm_client.spec.type}:{judge_llm_client.spec.model_name}) Evaluating: '{str(input_to_judge)[:70]}...'")
+            logger.info(f"[blue][Node: {node.id}] Judge evaluation ({iteration_str}) {judge_llm_client.spec.type}:{judge_llm_client.spec.model_name}[/blue]")
             
             judgment_prompt = str(input_to_judge)
             raw_llm_output = judge_llm_client.generate(judgment_prompt)
-            logger.info(f"📊 [Node: [cyan]{node.id}[/]] Judge Raw Output: '{raw_llm_output[:200]}...'") # Show a bit more for JSON
+            logger.info(f"[dim][Node: {node.id}] Judge output: {raw_llm_output[:50]}...[/dim]") # Show a bit more for JSON
 
             parsed_score_value: Optional[float] = None
             
@@ -459,7 +452,7 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 cleaned_json_str = cleaned_json_str.strip()
                 
                 if not cleaned_json_str:
-                    logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] Cleaned JSON string is empty. Raw: '{raw_llm_output}'")
+                    logger.warning(f"[yellow]⚠ [Node: {node.id}] Empty JSON string after cleaning[/yellow]")
                     raise ValueError("Cleaned JSON string is empty.")
 
                 data = json.loads(cleaned_json_str)
@@ -468,11 +461,11 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     if isinstance(score_from_json, (int, float)):
                         parsed_score_value = float(score_from_json)
                     else:
-                        logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] 'evaluation_score' in JSON is not a number: {score_from_json}. Type: {type(score_from_json)}")
+                        logger.warning(f"[yellow]⚠ [Node: {node.id}] Invalid evaluation_score type: {type(score_from_json).__name__}[/yellow]")
                 else:
-                    logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] 'evaluation_score' not found in JSON or output is not a dict. Parsed JSON: {data}")
+                    logger.warning(f"[yellow]⚠ [Node: {node.id}] Missing evaluation_score in JSON[/yellow]")
             except (json.JSONDecodeError, ValueError, TypeError) as e:
-                logger.error(f"❌ [Node: [cyan]{node.id}[/]] Failed to parse 'evaluation_score'. Error: {type(e).__name__} - {e}. Raw: '{raw_llm_output}'")
+                logger.error(f"[red]✗ [Node: {node.id}] Failed to parse evaluation_score: {type(e).__name__}[/red]")
 
             # This is the iteration_count for the *output* state of this node.
             iteration_count_for_next_state = (state.get('iteration_count') or 0) + 1
@@ -482,7 +475,7 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 final_score_for_state = parsed_score_value
             else:
                 final_score_for_state = 0.0
-                logger.warning(f"⚠️ [Node: [cyan]{node.id}[/]] Defaulting 'evaluation_score' to 0.0 due to parsing failure or missing key.")
+                logger.warning(f"[yellow]⚠ [Node: {node.id}] Defaulting evaluation_score to 0.0[/yellow]")
 
             return {
                 **state,
@@ -491,7 +484,7 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 "evaluation_score": final_score_for_state
             }
         except Exception as e:
-            logger.error(f"❌ [Node: [cyan]{node.id}[/]] Unhandled Exception: {type(e).__name__} - {str(e)}", exc_info=True)
+            logger.error(f"[red]✗ [Node: {node.id}] Unhandled exception: {type(e).__name__}[/red]", exc_info=True)
             return {
                 **state,
                 "output": f"Error in Judge Node '{node.id}': {type(e).__name__} - {str(e)}",
@@ -546,7 +539,7 @@ def make_tool_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
         raise ValueError(f"Function reference '{node.ref}' not found in spec.functions")
     
     if function_spec.type == "python":
-        logger.info(f"🐍 Loading Python tool: {function_spec.name}")
+        logger.info(f"[blue]Loading Python tool: {function_spec.name}[/blue]")
         
         try:
             # Load the actual function
@@ -562,7 +555,7 @@ def make_tool_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     bound_params = function_loader.bind_parameters(func, state, parameters)
                     
                     # Execute function
-                    logger.info(f"🔧 Executing Python function: {function_spec.entrypoint}")
+                    logger.info(f"[blue]Executing {function_spec.entrypoint}[/blue]")
                     result = func(**bound_params)
                     
                     # Handle return value
@@ -580,7 +573,7 @@ def make_tool_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     # Let UserExitRequested propagate up to terminate the workflow
                     raise
                 except Exception as e:
-                    logger.error(f"❌ Python function error: {str(e)}")
+                    logger.error(f"[red]✗ Python function error: {str(e)}[/red]")
                     return {
                         **state,
                         "output": f"Function error: {str(e)}",
@@ -591,7 +584,7 @@ def make_tool_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             
         except Exception as load_error:
             error_msg = str(load_error)
-            logger.error(f"❌ Failed to load Python function: {error_msg}")
+            logger.error(f"[red]✗ Failed to load Python function: {error_msg}[/red]")
             
             def error_function(state: WorkflowState) -> WorkflowState:
                 return {
@@ -604,7 +597,7 @@ def make_tool_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
         
     elif function_spec.type == "mcp":
         # For MCP functions, create a placeholder that explains the new architecture
-        logger.info(f"🌐 MCP function '{function_spec.name}' detected - use MCP nodes instead")
+        logger.info(f"[blue]MCP function {function_spec.name} - use MCP nodes instead[/blue]")
         
         def mcp_function_placeholder(state: WorkflowState) -> WorkflowState:
             return {
@@ -816,16 +809,16 @@ def add_nodes_to_graph(graph: StateGraph, spec: Spec) -> None:
         spec: The workflow specification containing the list of nodes.
     """
     assert spec.workflow is not None, "Workflow must be present for compilation"
-    logger.info("🔄 Building workflow nodes...")
+    logger.info("[blue]Building workflow nodes[/blue]")
     for node in spec.workflow.nodes:
-        logger.info(f"🔩 Adding Node: [bright_blue]{node.id}[/] ({node.kind})")
+        logger.info(f"[dim]  Adding node: {node.id} ({node.kind})[/dim]")
         factory = NodeFactoryRegistry.get(node.kind)
         node_fn = factory(spec, node)
         graph.add_node(node.id, node_fn)
         
         # If this is a stop node, add an edge to END
         if node.stop:
-            logger.info(f"🏁 Adding end condition for node: {node.id}")
+            logger.info(f"[dim]  End condition: {node.id}[/dim]")
             graph.add_edge(node.id, END)
 
 def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
@@ -853,28 +846,28 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
         spec: The workflow specification containing the list of edges.
     """
     assert spec.workflow is not None, "Workflow must be present for compilation"
-    logger.info("🔄 Building workflow edges...")
+    logger.info("[blue]Building workflow edges[/blue]")
     
     # Handle sequential workflows by automatically creating edges between consecutive nodes
     if spec.workflow.type == "sequential":
-        logger.info("📋 Sequential workflow detected - creating automatic edges between consecutive nodes")
+        logger.info("[dim]Sequential workflow - auto-linking nodes[/dim]")
         nodes = spec.workflow.nodes
         for i in range(len(nodes) - 1):
             current_node = nodes[i]
             next_node = nodes[i + 1]
-            logger.info(f"    → Adding sequential edge: [bright_blue]{current_node.id}[/] → [green]{next_node.id}[/]")
+            logger.info(f"[dim]  {current_node.id} → {next_node.id}[/dim]")
             graph.add_edge(current_node.id, next_node.id)
         
         # Also process any additional edges from the edges list (for sequential workflows with custom overrides)
         if spec.workflow.edges:
-            logger.info("📋 Processing additional custom edges for sequential workflow")
+            logger.info("[dim]Processing custom edges[/dim]")
     
     edges_by_source: Dict[str, List[Edge]] = {}
     for edge in spec.workflow.edges:
         edges_by_source.setdefault(edge.source, []).append(edge)
     
     for source, edges_from_source in edges_by_source.items():
-        logger.info(f"🔗 Processing edges from Node: [bright_blue]{source}[/]")
+        logger.info(f"[dim]Processing edges from {source}[/dim]")
         
         conditional_edges = [e for e in edges_from_source if e.condition]
         unconditional_edges = [e for e in edges_from_source if not e.condition]
@@ -882,20 +875,15 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
         if conditional_edges:
             # If there are any conditional edges, all decisions from this node
             # must go through a single conditional router.
-            logger.info(f"  路由: Node [bright_blue]{source}[/] has conditional logic. All outgoing edges managed by a router.") # Using Rich markup for node name
+            logger.info(f"[dim]  Conditional routing for {source}[/dim]")
 
             default_target: Optional[str] = None
             if len(unconditional_edges) > 1:
-                logger.warning(
-                    f"  ⚠️ Node {source} has multiple unconditional edges ({[e.target for e in unconditional_edges]}) "
-                    f"alongside conditional ones. The first unconditional edge target "
-                    f"'{unconditional_edges[0].target}' will be used as the default fallback. "
-                    "Define explicit conditions for all paths or ensure a single default path for clarity."
-                )
+                logger.warning(f"[yellow]⚠ Multiple unconditional edges from {source} - using first as default[/yellow]")
                 default_target = unconditional_edges[0].target
             elif unconditional_edges:
                 default_target = unconditional_edges[0].target
-                logger.info(f"  → Default target for {source} (if no conditions met): {default_target}")
+                logger.info(f"[dim]  Default target: {default_target}[/dim]")
 
 
             # Create a router function that evaluates conditions and falls back to default_target or END
@@ -911,27 +899,21 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
                 ]
 
                 def router(state: Dict[str, Any]) -> str:
-                    logger.info(f"  [Router for {source_node_id}] Evaluating state.get('output'): '{state.get('output')}'") # Log the state output
+                    logger.info(f"[dim]  Router evaluating: {str(state.get('output', ''))[:30]}...[/dim]") # Log the state output
                     for condition_fn, target_node_name in condition_target_pairs:
                         try:
                             if condition_fn(state): # condition_fn should return boolean
-                                logger.info(f"  路由: [bright_blue]{source_node_id}[/] -> Condition met, routing to '[green]{target_node_name}[/]'")
+                                logger.info(f"[dim]  Routing {source_node_id} → {target_node_name}[/dim]")
                                 return target_node_name # Router returns the key for the ends_map
                         except Exception as e:
-                            logger.error(
-                                f"❌ Routing Error for [bright_blue]{source_node_id}[/] evaluating condition for [green]{target_node_name}[/]: {str(e)}. "
-                                "Attempting to continue with other conditions or fallback."
-                            )
+                            logger.error(f"[red]✗ Routing error for {source_node_id}: {str(e)}[/red]")
                             # In a production system, you might want to raise or handle this more specifically
                     
                     if def_target:
-                        logger.info(f"  路由: [bright_blue]{source_node_id}[/] -> No conditional route, routing to default '[green]{def_target}[/]'")
+                        logger.info(f"[dim]  Default routing {source_node_id} → {def_target}[/dim]")
                         return def_target
                     
-                    logger.warning(
-                        f"  ⚠️ Router for [bright_blue]{source_node_id}[/]: No condition met and no default target. Routing to [yellow]END[/]. "
-                        "Ensure graph logic correctly leads to a defined state or END."
-                    )
+                    logger.warning(f"[yellow]⚠ No route found for {source_node_id} - routing to END[/yellow]")
                     return END # LangGraph's END sentinel if no path is chosen
 
                 return router
@@ -954,23 +936,19 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
         
         elif unconditional_edges: # No conditional edges from this source, only unconditional ones.
             if len(unconditional_edges) > 1:
-                 logger.info(f"    扇出: Node [bright_blue]{source}[/] has multiple unconditional edges (fan-out): {[e.target for e in unconditional_edges]}") # Rich markup
+                 logger.info(f"[dim]  Fan-out from {source}: {[e.target for e in unconditional_edges]}[/dim]")
             for edge in unconditional_edges:
-                logger.info(f"    → Adding direct edge from [bright_blue]{source}[/] to: [green]{edge.target}[/]") # Rich markup
+                logger.info(f"[dim]  {source} → {edge.target}[/dim]")
                 graph.add_edge(edge.source, edge.target)  # ✅ FIXED: Actually add the edge
         else:
             # This case means the node is a leaf node in terms of defined edges.
             # If it's not a 'stop: true' node, the graph might halt here if no global end is reached.
-            logger.info(f"  🛑 Node [bright_blue]{source}[/] has no outgoing edges defined in the spec.") # Rich markup
+            logger.info(f"[dim]  No outgoing edges from {source}[/dim]")
             
             # Check if this node should have edges but doesn't
             node = next((n for n in spec.workflow.nodes if n.id == source), None)
             if node and not node.stop:
-                logger.warning(
-                    f"  ⚠️ Node [bright_blue]{source}[/] has no outgoing edges and stop=False. "
-                    f"This may cause the workflow to terminate unexpectedly. "
-                    f"Consider adding edges or setting stop=True."
-                )
+                logger.warning(f"[yellow]⚠ Node {source} has no edges and stop=False - may terminate unexpectedly[/yellow]")
 
 
 def compile_to_langgraph(spec: Spec) -> StateGraph:
@@ -1001,7 +979,7 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
     Raises:
         ValueError: If the spec doesn't have a workflow (references should be resolved by now).
     """
-    logger.info("[bold green]🚀 Compiling workflow...[/bold green]")
+    logger.info("[blue]Compiling workflow[/blue]")
     
     # Ensure the spec has a workflow (references should be resolved by this point)
     if not spec.workflow:
@@ -1044,8 +1022,8 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
     
     # Set the entry point
     if workflow.nodes:
-        logger.info(f"🎯 Setting entry point: [bright_blue]{workflow.nodes[0].id}[/]")
+        logger.info(f"[dim]Entry point: {workflow.nodes[0].id}[/dim]")
         graph.set_entry_point(workflow.nodes[0].id)
     
-    logger.info("[bold green]✅ Workflow compilation complete[/bold green]")
+    logger.info("[green]✓ Workflow compilation complete[/green]")
     return graph

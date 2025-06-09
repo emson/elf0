@@ -1,0 +1,143 @@
+version: "0.3"                                  # Bumped version for final optimized spec
+description: "Analyze input text to identify audience and key question, then generate either a single informative Twitter post or a tweet thread in UK English with a curious, authoritative, and honest tone, avoiding emojis and dashes."
+runtime: "langgraph"
+
+llms:
+  main_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.4                           # Slightly lowered for focused analysis and reasoning
+    params:
+      max_tokens: 512                         # Controlled output length for analysis and reasoning
+  writer_llm:
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
+    temperature: 0.7
+    params:
+      max_tokens: 1024                        # Increased max tokens to allow for tweet threads
+
+retrievers: {}
+memory: {}
+functions: {}
+
+workflow:
+  type: custom_graph                           # Custom graph to handle branching for single tweet vs thread
+  nodes:
+    - id: analyze_input
+      kind: agent
+      ref: main_llm
+      config:
+        prompt: |
+          You will be given the following text as input:
+          {workflow_initial_input}
+
+          Your tasks:
+          1. Read and understand the text thoroughly.
+          2. Identify and clearly describe the primary audience for this text.
+          3. Determine if the input contains one main point suitable for a single tweet, or multiple points/detail requiring a tweet thread.
+          4. Provide your audience analysis and your conclusion about single tweet vs thread in a clear, concise manner.
+
+          Output format:
+          Audience Analysis: <your analysis>
+          Tweet Format: <"single" or "thread">
+
+          Output ONLY this information, clearly labeled.
+      output_key: analysis_and_format
+      stop: false
+
+    - id: reason_structure
+      kind: agent
+      ref: main_llm
+      config:
+        prompt: |
+          Given the audience analysis and tweet format below:
+          {state.analysis_and_format}
+
+          Your tasks:
+          1. Identify the single most important question this Twitter content should answer to engage this audience effectively.
+          2. Reason step-by-step about how to structure the content to address this question honestly and openly.
+          3. If the tweet format is "single", write a draft tweet of around 280 characters answering this question.
+          4. If the tweet format is "thread", outline a tweet thread plan with each tweet's main point, ensuring each is under 280 characters.
+
+          Output your complete reasoning including:
+          - The key question identified
+          - Your step-by-step reasoning about structure
+          - The draft tweet text (if single) OR the thread outline (if thread)
+
+          Format your output clearly with all three components.
+      output_key: workflow_reasoning
+      stop: false
+
+    - id: decide_path
+      kind: branch
+      config:
+        condition: |
+          {state.analysis_and_format}.lower().find('tweet format: single') != -1
+      stop: false
+
+    - id: rewrite_single
+      kind: agent
+      ref: writer_llm
+      config:
+        prompt: |
+          You are tasked with creating a single Twitter post based on the following reasoning and analysis:
+
+          Reasoning from previous analysis:
+          {state.workflow_reasoning}
+
+          Requirements:
+          - Write in UK English.
+          - Use a curious, authoritative, and honest tone, like a knowledgeable friend.
+          - Use thoughtful word choices and express an opinion that evokes emotion (e.g., vulnerability, humour, excitement).
+          - Do not use emojis or dashes.
+          - Replace web links like mysite.com with mysite[dot]com.
+          - Keep the tweet within 280 characters.
+          - Output ONLY the final tweet text.
+
+      output_key: final_tweet
+      stop: true
+
+    - id: rewrite_thread
+      kind: agent
+      ref: writer_llm
+      config:
+        prompt: |
+          You are tasked with creating a Twitter thread based on the following reasoning and analysis:
+
+          Reasoning from previous analysis:
+          {state.workflow_reasoning}
+
+          Requirements:
+          - Write in UK English.
+          - Use a curious, authoritative, and honest tone, like a knowledgeable friend.
+          - Each tweet should be under 280 characters.
+          - Use thoughtful word choices and express opinions that evoke emotion.
+          - Do not use emojis or dashes.
+          - Replace web links like mysite.com with mysite[dot]com.
+          - Output ONLY the final thread as a numbered list of tweets, each on its own line.
+
+      output_key: final_thread
+      stop: true
+
+  edges:
+    - source: analyze_input
+      target: reason_structure
+    - source: reason_structure
+      target: decide_path
+    - source: decide_path
+      target: rewrite_single
+      condition: "{state.analysis_and_format}.lower().find('tweet format: single') != -1"
+    - source: decide_path
+      target: rewrite_thread
+      condition: "{state.analysis_and_format}.lower().find('tweet format: thread') != -1"
+
+eval: {}                                    # No evaluation metrics specified
+
+# Comments:
+# - Changed workflow type to custom_graph to enable branching between single tweet and thread generation.
+# - Added a branch node 'decide_path' to route workflow based on analysis output.
+# - Prompts refined for clarity, explicit output formatting, and stepwise instructions.
+# - LLM parameters adjusted to balance output control and length for threads.
+# - Output keys and references updated for consistent state variable usage.
+# - Conditions on edges use explicit string search to determine path, ensuring robustness.
+# - Final nodes have stop: true as required.

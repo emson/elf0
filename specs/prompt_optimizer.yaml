@@ -5,10 +5,12 @@ runtime: "langgraph"
 llms:
   generator:
     type: "openai"
-    model_name: "gpt-4.1-mini"
-    temperature: 0.5
+    model_name: "o3"
+    temperature: 1
+    # model_name: "gpt-4.1"
+    # temperature: 0.5
     params:
-      max_tokens: 4000
+      # max_tokens: 4000
       system_prompt: |
         You are a world-class prompt engineering specialist with deep expertise in crafting prompts that elicit high-quality code from large language models.
         When given an initial user prompt, follow these steps:
@@ -20,7 +22,7 @@ llms:
 
   evaluator:
     type: "openai"
-    model_name: "gpt-4.1-mini"
+    model_name: "gpt-4.1"
     temperature: 0
     params:
       max_tokens: 1000

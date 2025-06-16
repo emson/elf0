@@ -5,10 +5,10 @@ runtime: "langgraph"
 llms:
   spec_generator:
     type: "openai"
-    model_name: "gpt-4.1-mini"
+    model_name: "gpt-4.1"
     temperature: 0.2
     params:
-      max_tokens: 3000
+      max_tokens: 4000
       stream: true
       top_p: 0.9
       presence_penalty: 0.0
@@ -90,7 +90,7 @@ llms:
 
   spec_evaluator:
     type: "openai"
-    model_name: "gpt-4.1-mini"
+    model_name: "gpt-4.1"
     temperature: 0.0
     params:
       max_tokens: 1500

@@ -1,47 +1,48 @@
-version: "0.3"                                  # Bumped version for final optimized spec
-description: "Analyze input text to identify audience and key question, then generate either a single informative Twitter post or a tweet thread in UK English with a curious, authoritative, and honest tone, avoiding emojis and dashes."
+version: "0.4"
+description: "Analyzes input text to identify audience and key question, then generates a well-structured, informative Twitter post or a numbered tweet thread in UK English with a curious, authoritative, and honest tone, avoiding emojis and dashes in text (except for markdown list formatting)."
 runtime: "langgraph"
 
 llms:
   main_llm:
     type: openai
     model_name: gpt-4.1-mini
-    temperature: 0.4                           # Slightly lowered for focused analysis and reasoning
+    temperature: 0.3  # Focused, consistent analysis and reasoning
     params:
-      max_tokens: 512                         # Controlled output length for analysis and reasoning
+      max_tokens: 512
   writer_llm:
     type: anthropic
     model_name: claude-sonnet-4-20250514
-    temperature: 0.7
+    temperature: 0.7  # More creative, engaging writing
     params:
-      max_tokens: 1024                        # Increased max tokens to allow for tweet threads
+      max_tokens: 2048  # Increased for longer, well-structured threads
 
 retrievers: {}
 memory: {}
 functions: {}
 
 workflow:
-  type: custom_graph                           # Custom graph to handle branching for single tweet vs thread
+  type: custom_graph
   nodes:
     - id: analyze_input
       kind: agent
       ref: main_llm
       config:
         prompt: |
-          You will be given the following text as input:
-          {workflow_initial_input}
+          ROLE: Expert social media strategist.
 
-          Your tasks:
-          1. Read and understand the text thoroughly.
+          INSTRUCTIONS:
+          1. Carefully read the following input text:
+             {workflow_initial_input}
           2. Identify and clearly describe the primary audience for this text.
-          3. Determine if the input contains one main point suitable for a single tweet, or multiple points/detail requiring a tweet thread.
-          4. Provide your audience analysis and your conclusion about single tweet vs thread in a clear, concise manner.
+          3. Decide if the content is best expressed as a "single" tweet or a "thread":
+             - Choose "thread" if the input contains multiple key points, detailed explanations, or a narrative that benefits from multiple tweets.
+             - Otherwise, choose "single".
+          4. Output ONLY the following, clearly labeled:
 
-          Output format:
           Audience Analysis: <your analysis>
           Tweet Format: <"single" or "thread">
 
-          Output ONLY this information, clearly labeled.
+          Do NOT include any extra commentary or explanation.
       output_key: analysis_and_format
       stop: false
 
@@ -50,21 +51,36 @@ workflow:
       ref: main_llm
       config:
         prompt: |
-          Given the audience analysis and tweet format below:
+          ROLE: Expert Twitter content strategist.
+
+          INPUT:
           {state.analysis_and_format}
 
-          Your tasks:
-          1. Identify the single most important question this Twitter content should answer to engage this audience effectively.
-          2. Reason step-by-step about how to structure the content to address this question honestly and openly.
-          3. If the tweet format is "single", write a draft tweet of around 280 characters answering this question.
-          4. If the tweet format is "thread", outline a tweet thread plan with each tweet's main point, ensuring each is under 280 characters.
+          TASKS:
+          1. Identify the single most important question this Twitter content should answer to engage the specified audience.
+          2. Reason step-by-step about how to structure the content to answer this question honestly and openly.
+          3. If Tweet Format is "single":
+             - Write a draft tweet (max 280 characters) that answers the key question.
+          4. If Tweet Format is "thread":
+             - Outline a thread structure:
+               a. Main statement or valuable insight as the first tweet.
+               b. Each following tweet should present a key takeaway, fact, or opinion, each backed up with supporting details or points.
+               c. Each tweet should be under 280 characters.
+               d. For supporting points within a tweet, use markdown '-' dashes for bullet points.
+               e. Specify the total number of tweets in the thread.
+               f. Vary sentence lengths and rhythm so the thread feels spontaneous rather than rigid.
+          5. Tailor every tweet to the chosen audience to boost their skills, provide value or entertain them.
+          6. Integrate concrete examples, facts or quotations lifted directly from SOURCE_INPUT.
+          7. Maintain a warm, ethical tone, avoid hype.
+          8. Forbidden: emojis, “game-changer”, en-dashes/hyphens connecting words (e.g. no “must-read”).
 
-          Output your complete reasoning including:
-          - The key question identified
-          - Your step-by-step reasoning about structure
-          - The draft tweet text (if single) OR the thread outline (if thread)
+          OUTPUT FORMAT:
+          Key Question or Insight: 1/n <your question or insight>
+          Reasoning: <step-by-step reasoning with real examples and facts>
+          Draft Tweet: <if single>
+          Thread Outline: <if thread, numbered list with main statement and supporting tweets, include total count>
 
-          Format your output clearly with all three components.
+          Output ONLY as specified above, no extra text.
       output_key: workflow_reasoning
       stop: false
 
@@ -72,7 +88,7 @@ workflow:
       kind: branch
       config:
         condition: |
-          {state.analysis_and_format}.lower().find('tweet format: single') != -1
+          'tweet format: thread' in {state.analysis_and_format}.lower()
       stop: false
 
     - id: rewrite_single
@@ -80,20 +96,18 @@ workflow:
       ref: writer_llm
       config:
         prompt: |
-          You are tasked with creating a single Twitter post based on the following reasoning and analysis:
+          ROLE: Twitter copywriter.
 
-          Reasoning from previous analysis:
+          BASED ON:
           {state.workflow_reasoning}
 
-          Requirements:
-          - Write in UK English.
+          INSTRUCTIONS:
+          - Write a single tweet in UK English, max 280 characters.
           - Use a curious, authoritative, and honest tone, like a knowledgeable friend.
           - Use thoughtful word choices and express an opinion that evokes emotion (e.g., vulnerability, humour, excitement).
-          - Do not use emojis or dashes.
+          - Do NOT use emojis or dashes (except for web links).
           - Replace web links like mysite.com with mysite[dot]com.
-          - Keep the tweet within 280 characters.
-          - Output ONLY the final tweet text.
-
+          - Output ONLY the final tweet text, no explanations or extra text.
       output_key: final_tweet
       stop: true
 
@@ -102,20 +116,29 @@ workflow:
       ref: writer_llm
       config:
         prompt: |
-          You are tasked with creating a Twitter thread based on the following reasoning and analysis:
+          ROLE: Twitter thread specialist.
 
-          Reasoning from previous analysis:
+          BASED ON:
           {state.workflow_reasoning}
 
-          Requirements:
-          - Write in UK English.
+          INSTRUCTIONS:
+          - Write a well-structured Twitter thread in UK English.
+          - The first tweet should be a main statement or valuable insight.
+          - Each subsequent tweet should present a key takeaway, fact, or opinion, backed up with supporting details or points.
+          - For supporting points within a tweet, use markdown '-' dashes for bullet points.
+          - Each tweet must be under 280 characters.
+          - Number each tweet in the format "n/N" (e.g., "3/10") at the start of each tweet, where N is the total number of tweets in the thread.
           - Use a curious, authoritative, and honest tone, like a knowledgeable friend.
-          - Each tweet should be under 280 characters.
-          - Use thoughtful word choices and express opinions that evoke emotion.
-          - Do not use emojis or dashes.
+          - Do NOT use emojis or dashes (except for markdown list formatting and web links).
           - Replace web links like mysite.com with mysite[dot]com.
-          - Output ONLY the final thread as a numbered list of tweets, each on its own line.
+          - Output ONLY the final thread as a numbered list of tweets, each on its own line, no extra text.
 
+          EXAMPLE OUTPUT:
+          1/5 Main statement...
+          2/5 - Key point one
+              - Supporting detail
+          3/5 Another insight...
+          ...
       output_key: final_thread
       stop: true
 
@@ -125,19 +148,18 @@ workflow:
     - source: reason_structure
       target: decide_path
     - source: decide_path
-      target: rewrite_single
-      condition: "{state.analysis_and_format}.lower().find('tweet format: single') != -1"
-    - source: decide_path
       target: rewrite_thread
-      condition: "{state.analysis_and_format}.lower().find('tweet format: thread') != -1"
+      condition: "'tweet format: thread' in {state.analysis_and_format}.lower()"
+    - source: decide_path
+      target: rewrite_single
+      condition: "'tweet format: single' in {state.analysis_and_format}.lower()"
 
-eval: {}                                    # No evaluation metrics specified
+eval: {}
 
 # Comments:
-# - Changed workflow type to custom_graph to enable branching between single tweet and thread generation.
-# - Added a branch node 'decide_path' to route workflow based on analysis output.
-# - Prompts refined for clarity, explicit output formatting, and stepwise instructions.
-# - LLM parameters adjusted to balance output control and length for threads.
-# - Output keys and references updated for consistent state variable usage.
-# - Conditions on edges use explicit string search to determine path, ensuring robustness.
-# - Final nodes have stop: true as required.
+# - Prompts are role-based and step-by-step for clarity and optimal LLM output.
+# - Thread output is structured with markdown dashes for bullet points and tweet numbering as "n/N".
+# - All nodes and edges are schema-compliant and mutually exclusive.
+# - Output is strictly limited to required content for downstream reliability.
+# - LLM parameters are tuned for analysis (main_llm) and creative writing (writer_llm).
+# - Maintains maintainability and clarity with inline comments.

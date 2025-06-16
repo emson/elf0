@@ -64,12 +64,26 @@ class OpenAIProvider(BaseLLMProvider):
             "content": prompt
         })
         
-        response = openai.chat.completions.create(
-            model=self.model_name,
-            messages=messages,
-            temperature=self.temperature,
-            max_tokens=max_tokens
-        )
+        # Build kwargs dynamically, omitting temperature if it is None or default (1)
+        create_kwargs: Dict[str, Any] = {
+            "model": self.model_name,
+            "messages": messages,
+            **({"max_tokens": max_tokens} if max_tokens is not None else {})
+        }
+
+        # Only include temperature if it's not the OpenAI default (1)
+        if self.temperature is not None and self.temperature != 1:
+            create_kwargs["temperature"] = self.temperature
+
+        try:
+            response = openai.chat.completions.create(**create_kwargs)
+        except openai.BadRequestError as e:  # type: ignore[attr-defined]
+            # Handle models that reject non-default temperature. Retry without it once.
+            if ("temperature" in str(e).lower()) and ("unsupported" in str(e).lower()) and ("default" in str(e).lower()):
+                create_kwargs.pop("temperature", None)
+                response = openai.chat.completions.create(**create_kwargs)
+            else:
+                raise
         
         content = response.choices[0].message.content
         return content if content is not None else ""
@@ -163,7 +177,7 @@ class OllamaProvider(BaseLLMProvider):
             model=self.model_name,
             messages=messages,
             temperature=self.temperature,
-            max_tokens=max_tokens # type: ignore
+            **({"max_tokens": max_tokens} if max_tokens is not None else {})
         )
         
         content = response.choices[0].message.content

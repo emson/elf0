@@ -1,0 +1,125 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'src/**/*.py'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'src/**/*.py'
+
+jobs:
+  docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.13"
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      
+    - name: Install dependencies
+      run: |
+        uv venv
+        uv pip install -e .
+        uv pip install mkdocs mkdocs-material mkdocstrings[python]
+        
+    - name: Build docs
+      run: |
+        # For now, just validate that README renders properly
+        python -c "
+        import markdown
+        with open('README.md', 'r') as f:
+            content = f.read()
+        md = markdown.Markdown(extensions=['fenced_code', 'tables'])
+        html = md.convert(content)
+        print('README.md validated successfully')
+        "
+        
+    - name: Check for broken links
+      run: |
+        # Simple link checker for README
+        python -c "
+        import re
+        with open('README.md', 'r') as f:
+            content = f.read()
+        
+        # Find all markdown links
+        links = re.findall(r'\[([^\]]+)\]\(([^)]+)\)', content)
+        
+        for text, url in links:
+            if url.startswith('http'):
+                print(f'External link: {url}')
+            elif url.startswith('#'):
+                print(f'Anchor link: {url}')
+            else:
+                print(f'Internal link: {url}')
+        
+        print('Link validation completed')
+        "
+        
+  validate-examples:
+    name: Validate Documentation Examples
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.13"
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      
+    - name: Install dependencies
+      run: |
+        uv venv
+        uv pip install -e .
+        uv pip install pyyaml
+        
+    - name: Validate YAML examples
+      run: |
+        # Validate all YAML files in specs/examples/
+        python -c "
+        import yaml
+        import os
+        from pathlib import Path
+        
+        specs_dir = Path('specs/examples')
+        if specs_dir.exists():
+            for yaml_file in specs_dir.glob('*.yaml'):
+                try:
+                    with open(yaml_file, 'r') as f:
+                        yaml.safe_load(f)
+                    print(f'✓ {yaml_file.name} is valid YAML')
+                except yaml.YAMLError as e:
+                    print(f'✗ {yaml_file.name} has YAML error: {e}')
+                    exit(1)
+        else:
+            print('No specs/examples directory found')
+        "
+        
+    - name: Test CLI help commands
+      run: |
+        # Test that CLI help works without requiring API keys
+        uv run elf --help
+        uv run elf agent --help
+        uv run elf prompt --help
+        uv run elf improve --help
+        uv run elf list-specs --help

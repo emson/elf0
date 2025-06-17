@@ -1,0 +1,137 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.13"]
+        # Add more Python versions as needed
+        include:
+          - os: ubuntu-latest
+            python-version: "3.12"
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+        
+    - name: Install dependencies
+      run: |
+        uv venv
+        uv pip install -e .
+        uv pip install pytest pytest-asyncio mypy ruff
+        
+    - name: Run linter (ruff)
+      run: |
+        uv run ruff check src/ tests/
+        
+    - name: Run type checker (mypy)
+      run: |
+        uv run mypy src/
+        
+    - name: Run tests
+      run: |
+        uv run pytest tests/ -v --tb=short
+      env:
+        # Mock API keys for testing
+        OPENAI_API_KEY: test-key-not-real
+        ANTHROPIC_API_KEY: test-key-not-real
+        DEEPSEEK_API_KEY: test-key-not-real
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.13"
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      
+    - name: Install dependencies
+      run: |
+        uv venv
+        uv pip install -e .
+        uv pip install safety bandit
+        
+    - name: Run safety check
+      run: |
+        uv run safety check
+        
+    - name: Run bandit security scan
+      run: |
+        uv run bandit -r src/ -f json -o bandit-report.json || true
+        uv run bandit -r src/ -f txt
+        
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-scan-results
+        path: bandit-report.json
+
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.13"
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      
+    - name: Install dependencies
+      run: |
+        uv venv
+        uv pip install -e .
+        uv pip install pytest pytest-asyncio pytest-cov
+        
+    - name: Run tests with coverage
+      run: |
+        uv run pytest tests/ --cov=src/elf --cov-report=xml --cov-report=html
+      env:
+        OPENAI_API_KEY: test-key-not-real
+        ANTHROPIC_API_KEY: test-key-not-real
+        DEEPSEEK_API_KEY: test-key-not-real
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        
+    - name: Upload coverage HTML
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-html
+        path: htmlcov/

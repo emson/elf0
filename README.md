@@ -33,18 +33,34 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 uv pip install -e .
 ```
 
-### 3. Set up your API key
-Add to the a `.env` file or as environment variables:
+### 3. Set up your API keys
+Configure your environment using the provided template:
+
+```bash
+# Copy the environment template
+cp .env.example .env
+
+# Edit .env with your actual API keys
+# The file contains detailed instructions and all supported providers
+```
+
+**Quick setup for common providers:**
 ```bash
 # For OpenAI (recommended for beginners)
 export OPENAI_API_KEY="your-api-key-here"
 
-# OR for Anthropic
+# OR for Anthropic (Claude)
 export ANTHROPIC_API_KEY="your-api-key-here"
 
 # OR use Ollama locally (no API key needed)
 # Install Ollama from https://ollama.ai/ and run: ollama pull llama2
 ```
+
+**Supported LLM providers:**
+- **OpenAI**: GPT-4, GPT-3.5, etc. - Get API key from [platform.openai.com](https://platform.openai.com/api-keys)
+- **Anthropic**: Claude models - Get API key from [console.anthropic.com](https://console.anthropic.com/)
+- **DeepSeek**: Advanced models - Get API key from [platform.deepseek.com](https://platform.deepseek.com/)
+- **Ollama**: Local models (free) - No API key required, install from [ollama.ai](https://ollama.ai/)
 
 ### 4. Run your first workflow
 ```bash
@@ -918,12 +934,17 @@ mypy src/
 
 ---
 
+## 📄 License
+
+ELF is licensed under the [Apache License 2.0](LICENSE). This means you can freely use, modify, and distribute this software, even for commercial purposes, as long as you include the original license and copyright notice.
+
 ## 🙏 Acknowledgments
 
 - Built with [LangGraph](https://github.com/langchain-ai/langgraph) for workflow orchestration
 - Powered by [Rich](https://github.com/Textualize/rich) for beautiful terminal output  
 - Uses [uv](https://github.com/astral-sh/uv) by [Astral](https://astral.sh/) for blazingly fast Python package management
 - Supports [MCP](https://modelcontextprotocol.io/) for tool integration
+- Inspired by NVIDIA's AgentIQ framework for AI workflow design patterns
 
 ---
 

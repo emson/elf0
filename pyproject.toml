@@ -15,6 +15,7 @@ dependencies = [
     "anthropic>=0.51.0",
     "mcp[cli]>=1.9.1",
     "prompt-toolkit>=3.0.51",
+    "claude-code-sdk>=0.0.10",
 ]
 
 [project.scripts]

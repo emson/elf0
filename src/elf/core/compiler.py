@@ -39,6 +39,8 @@ class WorkflowState(TypedDict):
     raw_json: Optional[str]
     format_status: Optional[str]  # 'converted', 'error', or None
     format_error: Optional[str]
+    # Claude Code integration fields
+    claude_code_result: Optional[Dict[str, Any]]
 
 class NodeFunction(Protocol):
     """Protocol defining the interface for node functions."""
@@ -131,13 +133,25 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
 
             final_prompt_to_llm: str
             if prompt_template_str:
-                if "{input}" in prompt_template_str:
-                    final_prompt_to_llm = prompt_template_str.format(input=user_provided_input)
-                else:
-                    final_prompt_to_llm = prompt_template_str
-                    if user_provided_input:
-                        logger.warning(f"[yellow]⚠ [Node: {node.id}] Missing {{input}} placeholder - user input appended[/yellow]")
-                        final_prompt_to_llm += "\n\nUser Input: " + user_provided_input
+                # Support multiple state fields in template
+                template_kwargs = {
+                    "input": user_provided_input,
+                    "output": state.get("output", ""),
+                    "iteration_count": state.get("iteration_count", 0),
+                    "evaluation_score": state.get("evaluation_score", 0.0)
+                }
+                
+                try:
+                    final_prompt_to_llm = prompt_template_str.format(**template_kwargs)
+                except KeyError as e:
+                    logger.warning(f"[yellow]⚠ [Node: {node.id}] Template variable {e} not found in state, using partial formatting[/yellow]")
+                    # Fall back to just input formatting for compatibility
+                    if "{input}" in prompt_template_str:
+                        final_prompt_to_llm = prompt_template_str.format(input=user_provided_input)
+                    else:
+                        final_prompt_to_llm = prompt_template_str
+                        if user_provided_input:
+                            final_prompt_to_llm += "\n\nUser Input: " + user_provided_input
             elif user_provided_input:
                 final_prompt_to_llm = user_provided_input
             else:
@@ -396,6 +410,119 @@ def make_mcp_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     
     return node_fn
 
+def make_claude_code_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
+    """
+    Creates a node function that executes Claude Code SDK tasks.
+
+    The node function uses the Claude Code SDK to perform various code-related tasks
+    such as code generation, analysis, modification, and general chat interactions.
+    
+    Args:
+        spec: The full workflow specification (not used in current implementation but included for consistency)
+        node: The WorkflowNode containing Claude Code configuration
+        
+    Returns:
+        A node function compatible with StateGraph that executes Claude Code tasks
+    """
+    from .nodes.claude_code_node import ClaudeCodeNode, ClaudeCodeConnectionError, ClaudeCodeExecutionError
+    
+    # Create Claude Code node instance
+    try:
+        claude_code_node = ClaudeCodeNode(node.config)
+    except Exception as e:
+        # Capture error details immediately to avoid closure scope issues
+        error_message = str(e)
+        node_id = node.id
+        
+        # If there's an error creating the node, return a function that reports the error
+        def error_node_fn(state: WorkflowState) -> WorkflowState:
+            error_msg = f"Claude Code node configuration error: {error_message}"
+            logger.error(f"[red]✗ [Node: {node_id}] {error_msg}[/red]")
+            return WorkflowState({
+                **state,
+                "output": error_msg,
+                "current_node": node_id,
+                "error_context": error_msg
+            })
+        return error_node_fn
+    
+    def node_fn(state: WorkflowState) -> WorkflowState:
+        try:
+            logger.info(f"[blue][Node: {node.id}] Executing Claude Code task: {claude_code_node.task}[/blue]")
+            
+            # Convert state to regular dict for Claude Code node
+            state_dict = dict(state)
+            
+            # Execute Claude Code task
+            try:
+                # Handle async execution with proper event loop management
+                import concurrent.futures
+                
+                def run_claude_code():
+                    """Run Claude Code in a new event loop in a separate thread"""
+                    # Create a new event loop for this thread
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        return loop.run_until_complete(claude_code_node.execute(state_dict))
+                    finally:
+                        loop.close()
+                        asyncio.set_event_loop(None)
+                
+                # Always run in a separate thread to avoid event loop conflicts
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(run_claude_code)
+                    result_state = future.result(timeout=120.0)  # Longer timeout for code operations
+                
+                logger.info(f"[green]✓ [Node: {node.id}] Claude Code task completed[/green]")
+                
+                # Use the output field from the result state
+                output = result_state.get("output", "")
+                
+                return WorkflowState({
+                    **state,
+                    "output": output,
+                    "claude_code_result": result_state.get("claude_code_result"),
+                    "current_node": node.id,
+                    "error_context": None
+                })
+                
+            except ClaudeCodeConnectionError as e:
+                logger.error(f"[red]✗ [Node: {node.id}] Claude Code connection error: {str(e)}[/red]")
+                return WorkflowState({
+                    **state,
+                    "output": f"Claude Code Connection Error: {str(e)}",
+                    "current_node": node.id,
+                    "error_context": f"Claude Code connection error: {str(e)}"
+                })
+            except ClaudeCodeExecutionError as e:
+                logger.error(f"[red]✗ [Node: {node.id}] Claude Code execution error: {str(e)}[/red]")
+                return WorkflowState({
+                    **state,
+                    "output": f"Claude Code Execution Error: {str(e)}",
+                    "current_node": node.id,
+                    "error_context": f"Claude Code execution error: {str(e)}"
+                })
+            except asyncio.TimeoutError:
+                logger.error(f"[red]✗ [Node: {node.id}] Claude Code task timed out[/red]")
+                return WorkflowState({
+                    **state,
+                    "output": "Claude Code Error: Task execution timed out",
+                    "current_node": node.id,
+                    "error_context": "Claude Code task timeout"
+                })
+                
+        except Exception as e:
+            logger.error(f"[red]✗ [Node: {node.id}] Unexpected Claude Code error: {str(e)}[/red]", exc_info=True)
+            return WorkflowState({
+                **state,
+                "output": f"Unexpected Claude Code error: {str(e)}",
+                "current_node": node.id,
+                "error_context": f"Unexpected Claude Code error: {type(e).__name__}"
+            })
+    
+    return node_fn
+
 def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     """
     Creates a node function that uses a designated LLM to evaluate/judge the workflow state.
@@ -620,6 +747,7 @@ class NodeFactoryRegistry:
         "judge": lambda spec, node: make_judge_node(spec, node),
         "branch": lambda spec, node: make_branch_node(node),
         "mcp": make_mcp_node,
+        "claude_code": make_claude_code_node,
     }
     
     @classmethod

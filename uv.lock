@@ -95,6 +95,18 @@ wheels = [
 ]
 
 [[package]]
+name = "claude-code-sdk"
+version = "0.0.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/38/f5/6c69e0f26cc4dc0f473dcad3fa0138c17d620f6fd5e8019edc47a958579f/claude_code_sdk-0.0.10.tar.gz", hash = "sha256:9fb5d40089845b21de07b0f9dc6e48482c6b819ed5a7cc35dfdcd674b9592213", size = 11538 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/05/c719217354c8a783689cf94faecc222d725732a4cd3d285a9ee160c8449e/claude_code_sdk-0.0.10-py3-none-any.whl", hash = "sha256:cf4153b1723ff0d7c6a1c281540651c059d6c53b02654cc1ab9e9a85b7092a94", size = 10344 },
+]
+
+[[package]]
 name = "click"
 version = "8.1.8"
 source = { registry = "https://pypi.org/simple" }
@@ -130,6 +142,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "anthropic" },
+    { name = "claude-code-sdk" },
     { name = "langgraph" },
     { name = "mcp", extra = ["cli"] },
     { name = "openai" },
@@ -151,6 +164,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=0.51.0" },
+    { name = "claude-code-sdk", specifier = ">=0.0.10" },
     { name = "langgraph", specifier = ">=0.4.3" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.9.1" },
     { name = "openai", specifier = ">=1.78.1" },

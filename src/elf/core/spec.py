@@ -187,7 +187,7 @@ class WorkflowNode(BaseModel):
     """
     
     id: str
-    kind: Literal['agent', 'tool', 'judge', 'branch', 'mcp']
+    kind: Literal['agent', 'tool', 'judge', 'branch', 'mcp', 'claude_code']
     ref: Optional[str] = None     # key into llms/functions/sub-workflows (not used for MCP nodes)
     config: Dict[str, Any] = Field(default_factory=dict)
     stop: bool = False
@@ -309,6 +309,11 @@ class Spec(BaseModel):
                     raise ValueError(f"MCP node '{node.id}' must have 'server' configuration")
                 if 'tool' not in node.config:
                     raise ValueError(f"MCP node '{node.id}' must have 'tool' configuration")
+            elif node.kind == 'claude_code':
+                # Claude Code nodes use config directly, similar to MCP nodes
+                if not node.config:
+                    raise ValueError(f"Claude Code node '{node.id}' must have configuration")
+                # Basic validation - we'll validate specific fields in the node implementation
                     
         return self
     

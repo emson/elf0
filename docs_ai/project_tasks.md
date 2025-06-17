@@ -117,6 +117,20 @@
 - [x] Update documentation with `format` field usage and examples
 - [x] Replace non-standard `validate_yaml_output` with industry-standard `format` approach
 
+### Claude Code SDK Integration (Complete)
+- [x] Implement Claude Code node type for workflow integration
+- [x] Add support for generate_code, analyze_code, modify_code, and chat tasks
+- [x] Create async event loop isolation to prevent LangGraph conflicts
+- [x] Implement comprehensive error handling with graceful SDK fallbacks
+- [x] Add parameter binding with ${state.variable} syntax support
+- [x] Create mock response system for SDK compatibility issues
+- [x] Add Claude Code node factory and registration
+- [x] Extend WorkflowState with claude_code_result field
+- [x] Enhance LLM prompt templating to support {output} and other state variables
+- [x] Create comprehensive test suite following testing principles
+- [x] Add example workflows (claude_code_example.yaml, claude_code_self_improvement.yaml)
+- [x] Update documentation with Claude Code integration usage and examples
+
 ### ReAct Pattern Implementation
 - [ ] Implement ReAct controller with reasoning/action/observation loop
 - [ ] Create action framework for tool integration

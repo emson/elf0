@@ -4,6 +4,7 @@ The tool can also be run to improve the YAML agent workflows and even it's own w
 
 Key Features:
 - Execute YAML-defined agent workflows with multiple LLM providers (OpenAI, Anthropic, Ollama)
+- Claude Code SDK integration for AI-powered code generation, analysis, and modification
 - MCP (Model Context Protocol) integration for external tool access
 - Self-improvement capabilities for optimizing YAML specifications
 - Interactive prompt sessions with workflow agents
@@ -33,6 +34,7 @@ Key Features:
 - `pyyaml`
 - `typer`
 - `rich` (for enhanced CLI output and formatting)
+- `claude-code-sdk` >= 0.0.10 (for Claude Code integration)
 </dependencies>
 
 <cli_commands>
@@ -44,6 +46,7 @@ Key Features:
 - `elf agent <spec_path> --prompt "Your prompt" --context file1.txt file2.py` - Include context files
 - `elf agent <spec_path> --prompt "Analyze @config.yaml and @main.py"` - Use @file references for automatic context
 - Supports workflows with MCP nodes for external tool integration (filesystem, databases, APIs)
+- Supports workflows with Claude Code nodes for AI-powered code generation and modification
 
 ### Self-Improvement
 - `elf improve yaml <spec_path>` - Improve a YAML workflow specification
@@ -61,6 +64,16 @@ Use @filename.ext within any prompt to automatically include file contents as co
 - Example: "Explain this code @main.py and compare it to @test.py"
 - Works in both command-line prompts and interactive mode
 - Combines with existing --context flag functionality
+
+## Claude Code Integration
+The framework supports Claude Code SDK integration for AI-powered code development:
+- **Claude Code Nodes**: Direct integration with Claude Code SDK in workflow YAML (kind: claude_code)
+- **Task Types**: Support for generate_code, analyze_code, modify_code, and chat tasks
+- **Async Event Loop Management**: Proper isolation to prevent conflicts with LangGraph event loops
+- **Parameter Binding**: Dynamic parameter binding from workflow state using ${state.variable} syntax
+- **Tool Integration**: Support for filesystem, bash, and other Claude Code tools
+- **Mock Mode**: Graceful fallback with mock responses when SDK has compatibility issues
+- **Examples Available**: See specs/examples/claude_code_example.yaml and claude_code_self_improvement.yaml
 
 ## MCP Integration
 The framework supports MCP (Model Context Protocol) nodes for external tool integration:

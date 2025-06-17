@@ -5,7 +5,7 @@ runtime: "langgraph"
 llms:
   claude_sonnet:
     type: "anthropic"
-    model_name: "claude-3-sonnet-20240229"
+    model_name: claude-sonnet-4-20250514
     temperature: 0.7
     params:
       max_tokens: 4096

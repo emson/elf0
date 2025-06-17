@@ -408,6 +408,7 @@ A **workflow** is a sequence of AI agents and tools working together. Think of i
 - **Agent nodes**: AI models that process text (OpenAI, Anthropic, Ollama)
 - **Tool nodes**: Custom Python functions for data processing
 - **MCP nodes**: External tools via Model Context Protocol
+- **Claude Code nodes**: AI-powered code generation, analysis, and modification
 
 ### Edges
 **Edges** connect nodes together, defining the flow of data:
@@ -542,6 +543,37 @@ workflow:
     - id: process
       kind: tool
       ref: text_processor
+```
+
+### Claude Code Integration
+Use Claude Code SDK for AI-powered code generation, analysis, and modification:
+**NB: You will need the Claude API keys set up for this**
+
+```bash
+# Generate code from requirements
+uv run elf agent specs/examples/claude_code_example.yaml --prompt "Create a Python calculator function"
+
+# Self-improvement workflow for ELF platform
+uv run elf agent specs/examples/claude_code_self_improvement.yaml --prompt "Add better error handling to ELF workflows"
+```
+
+**Claude Code Node Types:**
+- `generate_code`: Create new code from requirements
+- `analyze_code`: Review code for quality, security, and performance
+- `modify_code`: Improve existing code with specific changes
+- `chat`: General conversation with code-aware AI
+
+```yaml
+# Example Claude Code node in workflow
+nodes:
+  - id: code_generator
+    kind: claude_code
+    config:
+      task: "generate_code"
+      prompt: "Create a Python function based on: {input}"
+      output_format: "text"
+      tools: ["filesystem", "bash"]
+      temperature: 0.2
 ```
 
 ### MCP (Model Context Protocol) Integration
@@ -822,6 +854,15 @@ uv run elf improve yaml specs/basic_chat.yaml --prompt "Make this workflow bette
 #### MCP Integration
 ```bash
 uv run elf agent specs/examples/mcp_workflow.yaml --prompt "Calculate compound interest for $1000 at 5% for 10 years"
+```
+
+#### Claude Code Integration
+```bash
+# AI-powered code generation and improvement
+uv run elf agent specs/examples/claude_code_example.yaml --prompt "Create a REST API with authentication"
+
+# Self-evolving AI platform capabilities  
+uv run elf agent specs/examples/claude_code_self_improvement.yaml --prompt "Add logging capabilities to ELF workflows"
 ```
 
 #### Complex Workflows

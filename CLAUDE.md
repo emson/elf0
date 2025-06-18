@@ -6,6 +6,9 @@
 - Run specific workflow: `uv run elf agent workflows/basic_chat.yaml --prompt "Your prompt"`
 - Test: `uv run pytest tests/ --timeout=300`
 - Test with coverage: `uv run pytest tests/ --cov=src/elf --timeout=300`
+- Test (skip external deps): `uv run pytest tests/ -m "not requires_external"`
+- Test integration only: `uv run pytest tests/ -m "integration"`
+- Test with external resources: `ELF_RUN_INTEGRATION_TESTS=1 uv run pytest tests/`
 - Lint: `ruff check src/`
 - Type check: `mypy src/`
 - Security scan: `uv pip install safety && uv run safety check` (optional - may conflict with pydantic versions)

@@ -49,7 +49,7 @@ jobs:
         
     - name: Run tests
       run: |
-        uv run pytest tests/ -v --tb=short
+        uv run pytest tests/ -v --tb=short -m "not requires_external"
       env:
         # Mock API keys for testing
         OPENAI_API_KEY: test-key-not-real
@@ -124,7 +124,7 @@ jobs:
     - name: Run tests with coverage
       timeout-minutes: 8
       run: |
-        uv run pytest tests/ --cov=src/elf --cov-report=term --timeout=300 -v --tb=short
+        uv run pytest tests/ --cov=src/elf --cov-report=term --timeout=300 -v --tb=short -m "not requires_external"
       env:
         OPENAI_API_KEY: test-key-not-real
         ANTHROPIC_API_KEY: test-key-not-real

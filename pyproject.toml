@@ -80,8 +80,9 @@ addopts = [
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
+    "integration: marks tests as integration tests requiring external resources",
     "unit: marks tests as unit tests",
+    "requires_external: marks tests requiring external services (Node.js, npm, etc.)",
 ]
 
 [tool.coverage.run]

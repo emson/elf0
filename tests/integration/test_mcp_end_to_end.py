@@ -6,11 +6,17 @@ from pathlib import Path
 from elf.core.mcp_client import SimpleMCPClient
 from elf.core.nodes.mcp_node import MCPNode
 
+# Skip integration tests in CI environments unless explicitly enabled
+CI_SKIP = os.getenv("CI") and not os.getenv("ELF_RUN_INTEGRATION_TESTS")
+
 
 class TestMCPIntegrationReal:
     """Integration tests for MCP with real server scenarios"""
     
     @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.requires_external
+    @pytest.mark.skipif(CI_SKIP, reason="Skipping real MCP server tests in CI (requires Node.js/npm)")
     async def test_filesystem_mcp_server_if_available(self):
         """Test with real filesystem MCP server if available"""
         # Create temp directory with test file
@@ -24,7 +30,13 @@ class TestMCPIntegrationReal:
             ])
             
             try:
-                connected = await client.connect()
+                # Add timeout to connection attempt (30 seconds max)
+                import asyncio
+                try:
+                    connected = await asyncio.wait_for(client.connect(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    pytest.skip("MCP server connection timed out")
+                
                 if not connected:
                     pytest.skip("Filesystem MCP server not available")
                 
@@ -43,7 +55,12 @@ class TestMCPIntegrationReal:
             except Exception as e:
                 pytest.skip(f"MCP server test skipped: {e}")
             finally:
-                await client.disconnect()
+                # Ensure proper cleanup
+                try:
+                    await asyncio.wait_for(client.disconnect(), timeout=5.0)
+                except (asyncio.TimeoutError, Exception):
+                    # Force cleanup if disconnect hangs
+                    pass
     
     @pytest.mark.asyncio 
     async def test_mcp_node_end_to_end(self):

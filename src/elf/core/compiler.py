@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 import json
 import asyncio
 from .function_loader import function_loader
-from .exceptions import UserExitRequested
+from .exceptions import UserExitRequested, WorkflowValidationError
 
 # Configure logging (This section will be removed)
 # Default max iterations if not specified in the spec's workflow
@@ -936,7 +936,8 @@ def add_nodes_to_graph(graph: StateGraph, spec: Spec) -> None:
         graph: The `StateGraph` instance to which nodes will be added.
         spec: The workflow specification containing the list of nodes.
     """
-    assert spec.workflow is not None, "Workflow must be present for compilation"
+    if spec.workflow is None:
+        raise WorkflowValidationError("Workflow must be present for compilation")
     logger.info("[blue]Building workflow nodes[/blue]")
     for node in spec.workflow.nodes:
         logger.info(f"[dim]  Adding node: {node.id} ({node.kind})[/dim]")
@@ -973,7 +974,8 @@ def add_edges_to_graph(graph: StateGraph, spec: Spec) -> None:
         graph: The `StateGraph` instance to which edges will be added.
         spec: The workflow specification containing the list of edges.
     """
-    assert spec.workflow is not None, "Workflow must be present for compilation"
+    if spec.workflow is None:
+        raise WorkflowValidationError("Workflow must be present for compilation")
     logger.info("[blue]Building workflow edges[/blue]")
     
     # Handle sequential workflows by automatically creating edges between consecutive nodes

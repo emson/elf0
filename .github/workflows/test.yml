@@ -91,7 +91,7 @@ jobs:
         
     - name: Run bandit security scan
       run: |
-        uv run bandit -r src/ -f json -o bandit-report.json || true
+        uv run bandit -r src/ -f json -o bandit-report.json
         uv run bandit -r src/ -f txt
         
     - name: Upload security scan results

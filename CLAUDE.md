@@ -11,7 +11,8 @@
 - Test with external resources: `ELF_RUN_INTEGRATION_TESTS=1 uv run pytest tests/`
 - Lint: `ruff check src/`
 - Type check: `mypy src/`
-- Security scan: `uv pip install safety && uv run safety check` (optional - may conflict with pydantic versions)
+- Security scan (bandit): `uv run bandit -r src/`
+- Security scan (safety): `uv pip install safety && uv run safety check` (optional - may conflict with pydantic versions)
 
 ## Git Commands
 - Check status: `git status`

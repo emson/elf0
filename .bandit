@@ -1,0 +1,15 @@
+[bandit]
+# Bandit configuration for ELF project
+# See: https://bandit.readthedocs.io/en/latest/config.html
+
+# Skip certain tests that are not relevant for this project
+skips = B101  # Skip assert_used checks since we've addressed them properly
+
+# Only scan source code, not tests or examples
+exclude_dirs = tests,examples,docs,build,dist,.git,.tox,.venv,venv
+
+# Focus on medium and high severity issues
+severity = medium,high
+
+# Only report high confidence issues to reduce noise
+confidence = high

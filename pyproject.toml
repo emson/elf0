@@ -52,7 +52,7 @@ dev = [
     "ruff>=0.6.9",
     "pre-commit>=4.0.0",
     "bandit>=1.7.0",
-    "safety>=3.5.0,<4.0.0",
+    # safety removed due to pydantic version conflict
 ]
 test = [
     "pytest>=8.3.5",

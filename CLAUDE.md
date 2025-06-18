@@ -6,6 +6,27 @@
 - Run specific workflow: `uv run elf agent workflows/basic_chat.yaml --prompt "Your prompt"`
 - Lint: `ruff check src/`
 - Type check: `mypy src/`
+- Security scan: `uv pip install safety && uv run safety check` (optional - may conflict with pydantic versions)
+
+## Git Commands
+- Check status: `git status`
+- View changes: `git diff`
+- Add files: `git add <file>` or `git add .` for all changes
+- Commit: `git commit -m "message"`
+- Push: `git push origin <branch-name>`
+- Pull latest: `git pull origin <branch-name>`
+- Create branch: `git checkout -b <branch-name>`
+- Switch branch: `git checkout <branch-name>`
+
+## Git Guidelines
+- Always check `git status` and `git diff` before committing
+- Write clear, descriptive commit messages
+- Use imperative mood in commit messages (e.g., "Fix bug" not "Fixed bug")
+- Commit related changes together in logical units
+- Never commit secrets, API keys, or sensitive information
+- Use meaningful branch names (e.g., feature/add-logging, fix/memory-leak)
+- Always review changes before pushing to remote
+- For commits with Claude Code assistance, include attribution in commit message
 
 ## Code Style
 - Use PEP 8 conventions with 4-space indentation

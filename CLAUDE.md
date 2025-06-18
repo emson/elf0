@@ -13,6 +13,7 @@
 - Type check: `mypy src/`
 - Security scan (bandit): `uv run bandit -r src/`
 - Security scan (safety): `uv pip install safety && uv run safety check` (optional - may conflict with pydantic versions)
+- Build docs: `uv pip install -e . --group docs && uv run mkdocs build`
 
 ## Git Commands
 - Check status: `git status`

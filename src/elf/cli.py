@@ -78,9 +78,9 @@ improve_app = typer.Typer(
 @app.callback()
 def main_callback(
     verbose: bool = typer.Option(
+        False,
         "--verbose",
         "-v",
-        default=False,
         help="Enable verbose logging output. Shows INFO level logs from ELF and HTTP libraries."
     )
 ) -> None:

@@ -9,7 +9,7 @@ from typing import (
     Optional,
 )
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 import yaml
 
 from elf.utils.yaml_loader import load_yaml_file
@@ -117,7 +117,8 @@ class LLM(BaseModel):
     api_key: str | None = None
 
     @field_validator("temperature")
-    def check_temperature(self, v: float) -> float:
+    @classmethod
+    def check_temperature(cls, v: float) -> float:
         """Validate that temperature is within valid range."""
         if v < 0 or v > 1:
             msg = "Temperature must be between 0 and 1"
@@ -160,7 +161,8 @@ class Function(BaseModel):
     entrypoint: str  # dotted path or MCP URI
 
     @field_validator("entrypoint")
-    def validate_entrypoint(self, v: str, info) -> str:
+    @classmethod
+    def validate_entrypoint(cls, v: str, info: ValidationInfo) -> str:
         """Check that entrypoint has proper format."""
         # Get the function type from the validation context
         func_type = info.data.get("type")
@@ -217,7 +219,8 @@ class Edge(BaseModel):
     condition: str | None = None  # python expression on state
 
     @field_validator("condition")
-    def validate_condition(self, v: str | None) -> str | None:
+    @classmethod
+    def validate_condition(cls, v: str | None) -> str | None:
         """Validate that condition is a valid Python expression."""
         # This is a simple check - in production code you might
         # want more robust validation

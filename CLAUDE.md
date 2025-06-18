@@ -4,6 +4,8 @@
 - Install: `uv venv && uv pip install -e .`
 - Run: `uv run elf`
 - Run specific workflow: `uv run elf agent workflows/basic_chat.yaml --prompt "Your prompt"`
+- Test: `uv run pytest tests/ --timeout=300`
+- Test with coverage: `uv run pytest tests/ --cov=src/elf --timeout=300`
 - Lint: `ruff check src/`
 - Type check: `mypy src/`
 - Security scan: `uv pip install safety && uv run safety check` (optional - may conflict with pydantic versions)

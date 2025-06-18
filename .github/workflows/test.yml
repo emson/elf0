@@ -122,12 +122,20 @@ jobs:
         uv pip install -e . --group test
         
     - name: Run tests with coverage
+      timeout-minutes: 8
       run: |
-        uv run pytest tests/ --cov=src/elf --cov-report=xml --cov-report=html
+        uv run pytest tests/ --cov=src/elf --cov-report=term --timeout=300 -v --tb=short
       env:
         OPENAI_API_KEY: test-key-not-real
         ANTHROPIC_API_KEY: test-key-not-real
         DEEPSEEK_API_KEY: test-key-not-real
+        
+    - name: Generate coverage reports
+      timeout-minutes: 2
+      run: |
+        uv run coverage xml
+        uv run coverage html
+      continue-on-error: true
         
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

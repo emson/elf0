@@ -1,7 +1,8 @@
 # tests/core/test_mcp_integration.py
 import pytest
-from elf.core.spec import Function, Spec
+
 from elf.core.compiler import make_tool_node
+from elf.core.spec import Function, Spec
 
 
 class TestMCPFunctionValidation:
@@ -84,7 +85,7 @@ class TestMCPArchitectureCompatibility:
             name="test_tool",
             entrypoint="mcp://localhost:3000/echo"
         )
-        
+
         # Function validation should still work
         assert function_spec.type == "mcp"
         assert function_spec.entrypoint == "mcp://localhost:3000/echo"
@@ -95,8 +96,8 @@ class TestMCPToolNodeFactory:
 
     def test_make_tool_node_mcp_function(self):
         """Test make_tool_node with MCP function returns placeholder explaining new architecture."""
-        from elf.core.spec import Spec, Workflow, WorkflowNode
-        
+        from elf.core.spec import Workflow, WorkflowNode
+
         # Create a spec with an MCP function
         spec = Spec(
             llms={},
@@ -115,12 +116,12 @@ class TestMCPToolNodeFactory:
                 edges=[]
             )
         )
-        
+
         node = WorkflowNode(id="tool_node", kind="tool", ref="mcp_tool")
-        
+
         node_fn = make_tool_node(spec, node)
         assert callable(node_fn)
-        
+
         # Test that it returns the expected placeholder message
         result = node_fn({"input": "test"})
         assert "Use MCP nodes instead" in result["output"]
@@ -128,8 +129,8 @@ class TestMCPToolNodeFactory:
 
     def test_make_tool_node_python_function(self):
         """Test make_tool_node with Python function."""
-        from elf.core.spec import Spec, Workflow, WorkflowNode
-        
+        from elf.core.spec import Workflow, WorkflowNode
+
         # Create a spec with a Python function
         spec = Spec(
             llms={},
@@ -148,20 +149,20 @@ class TestMCPToolNodeFactory:
                 edges=[]
             )
         )
-        
+
         node = WorkflowNode(id="tool_node", kind="tool", ref="python_tool")
-        
+
         node_fn = make_tool_node(spec, node)
         assert callable(node_fn)
 
     def test_make_tool_node_missing_function(self):
         """Test make_tool_node with missing function reference."""
-        from elf.core.spec import Spec, Workflow, WorkflowNode
-        
+        from elf.core.spec import Workflow, WorkflowNode
+
         # Create a spec with a dummy workflow that passes validation
         spec = Spec(
             llms={"dummy_llm": {
-                "type": "openai", 
+                "type": "openai",
                 "model_name": "gpt-4o-mini"
             }},
             functions={},
@@ -173,21 +174,21 @@ class TestMCPToolNodeFactory:
                 edges=[]
             )
         )
-        
+
         # Now try to call make_tool_node with a missing function reference
         node = WorkflowNode(id="tool_node", kind="tool", ref="missing_tool")
-        
+
         with pytest.raises(ValueError, match="Function reference 'missing_tool' not found"):
             make_tool_node(spec, node)
 
     def test_make_tool_node_unsupported_type(self):
         """Test make_tool_node with unsupported function type."""
-        from elf.core.spec import Spec, Workflow, WorkflowNode
-        
+        from elf.core.spec import Workflow, WorkflowNode
+
         # Create a valid spec first
         spec = Spec(
             llms={"dummy_llm": {
-                "type": "openai", 
+                "type": "openai",
                 "model_name": "gpt-4o-mini"
             }},
             functions={"valid_tool": Function(
@@ -203,11 +204,11 @@ class TestMCPToolNodeFactory:
                 edges=[]
             )
         )
-        
+
         # Now modify the function's type directly to simulate an unsupported type
         spec.functions["valid_tool"].type = "unsupported_type"
-        
+
         node = WorkflowNode(id="tool_node", kind="tool", ref="valid_tool")
-        
+
         with pytest.raises(ValueError, match="Unsupported function type 'unsupported_type'"):
             make_tool_node(spec, node)

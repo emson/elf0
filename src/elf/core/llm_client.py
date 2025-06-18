@@ -1,17 +1,21 @@
 # src/elf/core/llm_client.py
-from typing import Any, Dict, List, Protocol, Optional
+from typing import TYPE_CHECKING, Any, Protocol
+
 import openai
-from openai.types.chat import ChatCompletionMessageParam
+
 from .spec import LLM as LLMSpecModel
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionMessageParam
+
 
 # Protocol for LLM Providers
 class BaseLLMProvider(Protocol):
     """Protocol for LLM provider implementations."""
-    
-    def __init__(self, model_name: str, api_key: Optional[str], temperature: float, params: Dict[str, Any]):
-        """
-        Initialize the provider.
-        
+
+    def __init__(self, model_name: str, api_key: str | None, temperature: float, params: dict[str, Any]):
+        """Initialize the provider.
+
         Args:
             model_name: The specific model name for this provider.
             api_key: The API key for the provider.
@@ -20,14 +24,13 @@ class BaseLLMProvider(Protocol):
         """
         ...
 
-    def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """
-        Generate a response from the LLM.
-        
+    def generate(self, prompt: str, system_prompt: str | None = None) -> str:
+        """Generate a response from the LLM.
+
         Args:
             prompt: The user input prompt.
             system_prompt: An optional system prompt.
-            
+
         Returns:
             The generated response text.
         """
@@ -36,24 +39,25 @@ class BaseLLMProvider(Protocol):
 # OpenAI Provider Implementation
 class OpenAIProvider(BaseLLMProvider):
     """LLM Provider for OpenAI models."""
-    
-    def __init__(self, model_name: str, api_key: Optional[str], temperature: float, params: Dict[str, Any]):
+
+    def __init__(self, model_name: str, api_key: str | None, temperature: float, params: dict[str, Any]):
         self.model_name = model_name
         self.api_key = api_key
         self.temperature = temperature
         self.params = params
-        
+
         if not self.api_key:
-            raise ValueError("OpenAI API key is required.")
+            msg = "OpenAI API key is required."
+            raise ValueError(msg)
         openai.api_key = self.api_key
 
-    def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def generate(self, prompt: str, system_prompt: str | None = None) -> str:
         """Generate response using OpenAI."""
-        max_tokens = self.params.get('max_tokens')
+        max_tokens = self.params.get("max_tokens")
         # Allow system_prompt from params to override the direct argument for backward compatibility or spec-driven system_prompt
-        final_system_prompt = self.params.get('system_prompt', system_prompt)
+        final_system_prompt = self.params.get("system_prompt", system_prompt)
 
-        messages: List[ChatCompletionMessageParam] = []
+        messages: list[ChatCompletionMessageParam] = []
         if final_system_prompt:
             messages.append({
                 "role": "system",
@@ -63,9 +67,9 @@ class OpenAIProvider(BaseLLMProvider):
             "role": "user",
             "content": prompt
         })
-        
+
         # Build kwargs dynamically, omitting temperature if it is None or default (1)
-        create_kwargs: Dict[str, Any] = {
+        create_kwargs: dict[str, Any] = {
             "model": self.model_name,
             "messages": messages,
             **({"max_tokens": max_tokens} if max_tokens is not None else {})
@@ -84,42 +88,46 @@ class OpenAIProvider(BaseLLMProvider):
                 response = openai.chat.completions.create(**create_kwargs)
             else:
                 raise
-        
+
         content = response.choices[0].message.content
         return content if content is not None else ""
 
 # Placeholder for Anthropic Provider
 class AnthropicProvider(BaseLLMProvider):
     """LLM Provider for Anthropic models."""
-    
-    def __init__(self, model_name: str, api_key: Optional[str], temperature: float, params: Dict[str, Any]):
+
+    def __init__(self, model_name: str, api_key: str | None, temperature: float, params: dict[str, Any]):
         self.model_name = model_name
         self.api_key = api_key
         self.temperature = temperature
         self.params = params
-        
+
         if not self.api_key:
-            raise ValueError("Anthropic API key is required.")
-        
+            msg = "Anthropic API key is required."
+            raise ValueError(msg)
+
         try:
             import anthropic
             self.client = anthropic.Anthropic(api_key=self.api_key)
         except ImportError:
-            raise ImportError(
+            msg = (
                 "The 'anthropic' package is required to use AnthropicProvider. "
                 "Please install it with: pip install anthropic"
             )
+            raise ImportError(
+                msg
+            )
 
-    def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def generate(self, prompt: str, system_prompt: str | None = None) -> str:
         """Generate response using Anthropic."""
         try:
             # Get parameters with sensible defaults
-            max_tokens = self.params.get('max_tokens', 4096)  # Anthropic's default max
-            final_system_prompt = self.params.get('system_prompt', system_prompt)
-            
+            max_tokens = self.params.get("max_tokens", 4096)  # Anthropic's default max
+            final_system_prompt = self.params.get("system_prompt", system_prompt)
+
             # Prepare messages
             messages = [{"role": "user", "content": prompt}]
-            
+
             # Build kwargs for the API call
             kwargs = {
                 "model": self.model_name,
@@ -127,42 +135,43 @@ class AnthropicProvider(BaseLLMProvider):
                 "temperature": self.temperature,
                 "messages": messages
             }
-            
+
             # Only add system if it has a value
             if final_system_prompt:
                 kwargs["system"] = final_system_prompt
-            
+
             # Create the completion
             response = self.client.messages.create(**kwargs)
-            
+
             # Extract and return the response text
             return response.content[0].text
-            
+
         except Exception as e:
+            msg = f"Error generating response from Anthropic (model {self.model_name}): {e!s}"
             raise RuntimeError(
-                f"Error generating response from Anthropic (model {self.model_name}): {str(e)}"
+                msg
             )
 
 # Ollama Provider Implementation (Local, no API key)
 class OllamaProvider(BaseLLMProvider):
     """LLM Provider for Ollama models."""
 
-    def __init__(self, model_name: str, api_key: Optional[str], temperature: float, params: Dict[str, Any]):
+    def __init__(self, model_name: str, api_key: str | None, temperature: float, params: dict[str, Any]):
         self.model_name = model_name
         self.temperature = temperature
         self.params = params
-        self.base_url = self.params.get('base_url', 'http://localhost:11434') # Default Ollama URL
-        
+        self.base_url = self.params.get("base_url", "http://localhost:11434") # Default Ollama URL
+
         # For Ollama, we use the openai client but point it to the Ollama server
         # API key is not typically used unless Ollama server is configured to require it.
         self.client = openai.OpenAI(base_url=f"{self.base_url}/v1", api_key="ollama") # api_key can be dummy for local
 
-    def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    def generate(self, prompt: str, system_prompt: str | None = None) -> str:
         """Generate response using Ollama with OpenAI client compatibility."""
-        max_tokens = self.params.get('max_tokens')
-        final_system_prompt = self.params.get('system_prompt', system_prompt)
+        max_tokens = self.params.get("max_tokens")
+        final_system_prompt = self.params.get("system_prompt", system_prompt)
 
-        messages: List[ChatCompletionMessageParam] = []
+        messages: list[ChatCompletionMessageParam] = []
         if final_system_prompt:
             messages.append({
                 "role": "system",
@@ -172,24 +181,23 @@ class OllamaProvider(BaseLLMProvider):
             "role": "user",
             "content": prompt
         })
-        
+
         response = self.client.chat.completions.create(
             model=self.model_name,
             messages=messages,
             temperature=self.temperature,
             **({"max_tokens": max_tokens} if max_tokens is not None else {})
         )
-        
+
         content = response.choices[0].message.content
         return content if content is not None else ""
 
 class LLMClient:
-    """
-    Client for interacting with LLMs through various providers.
+    """Client for interacting with LLMs through various providers.
     Dynamically selects the provider and model based on the provided LLM specification.
     """
-    
-    _provider_map: Dict[str, type[BaseLLMProvider]] = {
+
+    _provider_map: dict[str, type[BaseLLMProvider]] = {
         "openai": OpenAIProvider,
         "anthropic": AnthropicProvider,
         "ollama": OllamaProvider,
@@ -197,27 +205,27 @@ class LLMClient:
     }
 
     def __init__(self, llm_spec: LLMSpecModel):
-        """
-        Initialize the LLM client with a specific LLM configuration from the spec.
-        
+        """Initialize the LLM client with a specific LLM configuration from the spec.
+
         Args:
             llm_spec: An LLMSpecModel object containing the LLM configuration
                       (type, model_name, temperature, params, api_key).
                       The `create_llm_config` function from `config.py` should
                       be used to populate the `api_key` field in `llm_spec`
                       before passing it to this constructor.
-                      
+
         Raises:
             ValueError: If the provider type in llm_spec is unknown or if API key is missing when required.
         """
         self.spec = llm_spec
-        
+
         provider_type = self.spec.type
         if provider_type not in self._provider_map:
-            raise ValueError(f"Unknown LLM provider type: {provider_type}")
-            
+            msg = f"Unknown LLM provider type: {provider_type}"
+            raise ValueError(msg)
+
         ProviderClass = self._provider_map[provider_type]
-        
+
         # The api_key should already be populated in llm_spec by create_llm_config
         self.provider: BaseLLMProvider = ProviderClass(
             model_name=self.spec.model_name,
@@ -225,29 +233,29 @@ class LLMClient:
             temperature=self.spec.temperature,
             params=self.spec.params
         )
-    
+
     def generate(self, prompt: str) -> str:
-        """
-        Generate a response from the configured LLM for the given prompt.
-        
+        """Generate a response from the configured LLM for the given prompt.
+
         Args:
             prompt: The input prompt to send to the LLM.
-            
+
         Returns:
             The generated response text.
-            
+
         Raises:
             RuntimeError: If there's an error generating a response.
         """
         try:
             # System prompt can be part of params in the spec
-            system_prompt_from_spec = self.spec.params.get('system_prompt')
+            system_prompt_from_spec = self.spec.params.get("system_prompt")
             return self.provider.generate(prompt, system_prompt=system_prompt_from_spec) # type: ignore
         except Exception as e:
             # Catch potential NotImplementedError from Anthropic placeholder
             if isinstance(e, NotImplementedError):
-                raise e
-            raise RuntimeError(f"Error generating response from LLM provider {self.spec.type} (model {self.spec.model_name}): {str(e)}")
+                raise
+            msg = f"Error generating response from LLM provider {self.spec.type} (model {self.spec.model_name}): {e!s}"
+            raise RuntimeError(msg)
 
 # Example of how create_llm_config from config.py would be used with LLMSpecModel
 # This is conceptual, as the actual instantiation will happen in the compiler.

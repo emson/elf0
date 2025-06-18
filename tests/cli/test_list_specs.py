@@ -1,7 +1,6 @@
-import pytest
-from typer.testing import CliRunner
 from pathlib import Path
-import os
+
+from typer.testing import CliRunner
 
 # Assuming your Typer app is instantiated in elf.cli as 'app'
 # If your project structure is different, you might need to adjust this import path
@@ -120,7 +119,7 @@ def test_list_specs_description_not_string(tmp_path, monkeypatch):
     result = runner.invoke(app, ["list-specs"])
     assert result.exit_code == 0
     stdout = result.stdout
-    
+
     # Check for the spec (plain text filename and description)
     assert "non_string_desc.yaml" in stdout
-    assert "  No description available." in stdout 
+    assert "  No description available." in stdout

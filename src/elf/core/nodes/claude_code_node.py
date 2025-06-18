@@ -1,33 +1,30 @@
 # src/elf/core/nodes/claude_code_node.py
-import logging
+from collections.abc import Callable
 import json
-from typing import Dict, Any, Optional, Callable
+import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Type annotations for conditionally imported SDK components
-claude_code_sdk: Optional[Callable] = None
-ClaudeCodeOptions: Optional[type] = None
+claude_code_sdk: Callable | None = None
+ClaudeCodeOptions: type | None = None
 
 class ClaudeCodeError(Exception):
-    """Base exception for Claude Code related errors"""
-    pass
+    """Base exception for Claude Code related errors."""
 
 class ClaudeCodeConnectionError(ClaudeCodeError):
-    """Raised when Claude Code SDK connection fails"""
-    pass
+    """Raised when Claude Code SDK connection fails."""
 
 class ClaudeCodeExecutionError(ClaudeCodeError):
-    """Raised when Claude Code execution fails"""
-    pass
+    """Raised when Claude Code execution fails."""
 
 class ClaudeCodeNode:
-    """Claude Code node for integrating Claude Code SDK into ELF workflows"""
-    
-    def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize Claude Code node with configuration.
-        
+    """Claude Code node for integrating Claude Code SDK into ELF workflows."""
+
+    def __init__(self, config: dict[str, Any]):
+        """Initialize Claude Code node with configuration.
+
         Expected config structure:
         {
             "task": "generate_code" | "analyze_code" | "modify_code" | "chat",
@@ -52,15 +49,17 @@ class ClaudeCodeNode:
         self.max_tokens = config.get("max_tokens", 4096)
         self.tools = config.get("tools", [])
         self.working_directory = config.get("working_directory")
-        
+
         # Validate required fields
         if not self.prompt:
-            raise ClaudeCodeError("Claude Code node requires a 'prompt' in config")
-        
+            msg = "Claude Code node requires a 'prompt' in config"
+            raise ClaudeCodeError(msg)
+
         # Import Claude Code SDK (will be handled gracefully if not installed or buggy)
         try:
             global claude_code_sdk, ClaudeCodeOptions
-            from claude_code_sdk import query as claude_code_query, ClaudeCodeOptions as SDKClaudeCodeOptions
+            from claude_code_sdk import ClaudeCodeOptions as SDKClaudeCodeOptions
+            from claude_code_sdk import query as claude_code_query
             claude_code_sdk = claude_code_query
             ClaudeCodeOptions = SDKClaudeCodeOptions
             self.sdk_available = True
@@ -70,9 +69,9 @@ class ClaudeCodeNode:
         except ImportError:
             logger.warning("Claude Code SDK not available. Install with: pip install claude-code-sdk")
             self.sdk_available = False
-    
-    async def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute Claude Code task and update state"""
+
+    async def execute(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Execute Claude Code task and update state."""
         if not self.sdk_available:
             # Provide mock responses when SDK is unavailable or buggy
             logger.info(f"Using mock Claude Code response for task: {self.task}")
@@ -80,15 +79,15 @@ class ClaudeCodeNode:
             state["output"] = mock_result["content"]
             state["claude_code_result"] = mock_result
             return state
-        
+
         try:
             # Bind parameters from state
             bound_prompt = self._bind_prompt_parameters(state)
             bound_files = self._bind_file_parameters(state)
-            
+
             # Prepare Claude Code options
             options = self._prepare_claude_code_options(state)
-            
+
             # Execute based on task type with comprehensive error handling
             try:
                 if self.task == "generate_code":
@@ -100,44 +99,45 @@ class ClaudeCodeNode:
                 elif self.task == "chat":
                     result = await self._chat(bound_prompt, bound_files, options)
                 else:
-                    raise ClaudeCodeError(f"Unknown task type: {self.task}")
-                
+                    msg = f"Unknown task type: {self.task}"
+                    raise ClaudeCodeError(msg)
+
                 # Process result based on output format
                 processed_result = self._process_result(result)
-                
+
                 # Update state with result
                 state["output"] = processed_result
                 state["claude_code_result"] = result
-                
+
                 return state
-                
+
             except Exception as sdk_error:
                 # Handle any SDK errors at the top level
-                logger.warning(f"Claude Code SDK error (providing fallback response): {str(sdk_error)}")
+                logger.warning(f"Claude Code SDK error (providing fallback response): {sdk_error!s}")
                 fallback_result = f"Claude Code task '{self.task}' encountered SDK compatibility issues but completed successfully."
                 state["output"] = fallback_result
                 state["claude_code_result"] = {"content": fallback_result, "error": str(sdk_error)}
                 return state
-            
+
         except Exception as e:
-            logger.error(f"Claude Code execution error: {str(e)}")
+            logger.exception(f"Claude Code execution error: {e!s}")
             if isinstance(e, ClaudeCodeError):
                 raise
-            else:
-                raise ClaudeCodeExecutionError(f"Unexpected error: {str(e)}")
-    
-    def _bind_prompt_parameters(self, state: Dict[str, Any]) -> str:
-        """Bind template parameters in prompt from state"""
+            msg = f"Unexpected error: {e!s}"
+            raise ClaudeCodeExecutionError(msg)
+
+    def _bind_prompt_parameters(self, state: dict[str, Any]) -> str:
+        """Bind template parameters in prompt from state."""
         bound_prompt = self.prompt
-        
+
         # Simple template substitution for ${state.field} patterns
         import re
-        pattern = r'\$\{state\.([^}]+)\}'
-        
+        pattern = r"\$\{state\.([^}]+)\}"
+
         def replace_match(match):
             field_path = match.group(1)
             # Support nested field access like "output" or "structured_data.field"
-            field_parts = field_path.split('.')
+            field_parts = field_path.split(".")
             value = state
             for part in field_parts:
                 if isinstance(value, dict) and part in value:
@@ -145,17 +145,17 @@ class ClaudeCodeNode:
                 else:
                     return match.group(0)  # Return original if field not found
             return str(value)
-        
+
         bound_prompt = re.sub(pattern, replace_match, bound_prompt)
-        
+
         # Also support simple {input} substitution for compatibility
         if "{input}" in bound_prompt:
             bound_prompt = bound_prompt.format(input=state.get("input", ""))
-        
+
         return bound_prompt
-    
-    def _bind_file_parameters(self, state: Dict[str, Any]) -> list:
-        """Bind file paths from state if needed"""
+
+    def _bind_file_parameters(self, state: dict[str, Any]) -> list:
+        """Bind file paths from state if needed."""
         bound_files = []
         for file_path in self.files:
             if isinstance(file_path, str) and file_path.startswith("${"):
@@ -169,51 +169,51 @@ class ClaudeCodeNode:
             else:
                 bound_files.append(file_path)
         return bound_files
-    
-    def _prepare_claude_code_options(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Prepare options for Claude Code SDK"""
+
+    def _prepare_claude_code_options(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Prepare options for Claude Code SDK."""
         options = {
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
         }
-        
+
         # Add working directory if specified
         if self.working_directory:
             options["working_directory"] = self.working_directory
-        
+
         # Add session management for multi-turn conversations
         if self.session_id:
             options["session_id"] = self.session_id
-        
+
         # Add tool configuration
         if self.tools:
             options["tools"] = self.tools
-        
+
         return options
-    
-    async def _generate_code(self, prompt: str, files: list, options: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate code using Claude Code SDK"""
+
+    async def _generate_code(self, prompt: str, files: list, options: dict[str, Any]) -> dict[str, Any]:
+        """Generate code using Claude Code SDK."""
         logger.info("Generating code with Claude Code")
-        
+
         # Prepare the prompt for code generation
         full_prompt = f"Generate code based on the following requirements:\n\n{prompt}"
-        
+
         # Add file context if provided
         if files:
             full_prompt += f"\n\nContext files to consider: {', '.join(files)}"
-        
+
         # Call Claude Code SDK with correct API
         try:
             # Create options object
             claude_options = ClaudeCodeOptions(
-                max_turns=options.get('max_turns', 3),
-                system_prompt=options.get('system_prompt'),
-                cwd=options.get('working_directory', self.working_directory),
-                allowed_tools=options.get('tools', self.tools),
-                permission_mode=options.get('permission_mode', 'acceptEdits')
+                max_turns=options.get("max_turns", 3),
+                system_prompt=options.get("system_prompt"),
+                cwd=options.get("working_directory", self.working_directory),
+                allowed_tools=options.get("tools", self.tools),
+                permission_mode=options.get("permission_mode", "acceptEdits")
             )
-            
+
             # Collect all messages from the async iterator with error handling for SDK bugs
             messages = []
             try:
@@ -225,39 +225,38 @@ class ClaudeCodeNode:
                 # Return a basic success response even if SDK had parsing issues
                 if not messages:
                     messages = [{"type": "text", "content": "Task completed (SDK encountered issues but continued)"}]
-            
+
             # Return the last message or combine all messages
             if messages:
                 return {"content": str(messages[-1]), "messages": messages}
-            else:
-                return {"content": "", "messages": []}
-                
+            return {"content": "", "messages": []}
+
         except Exception as e:
             # Handle all SDK errors gracefully, including parsing and cleanup issues
-            logger.warning(f"Claude Code SDK encountered an error (continuing): {str(e)}")
+            logger.warning(f"Claude Code SDK encountered an error (continuing): {e!s}")
             return {"content": "Code generation completed (SDK encountered compatibility issues)", "messages": []}
-    
-    async def _analyze_code(self, prompt: str, files: list, options: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze code using Claude Code SDK"""
+
+    async def _analyze_code(self, prompt: str, files: list, options: dict[str, Any]) -> dict[str, Any]:
+        """Analyze code using Claude Code SDK."""
         logger.info("Analyzing code with Claude Code")
-        
+
         # Prepare the prompt for code analysis
         full_prompt = f"Analyze the following code and provide insights:\n\n{prompt}"
-        
+
         # Add file context if provided
         if files:
             full_prompt += f"\n\nFiles to analyze: {', '.join(files)}"
-        
+
         try:
             # Create options object
             claude_options = ClaudeCodeOptions(
-                max_turns=options.get('max_turns', 3),
-                system_prompt=options.get('system_prompt'),
-                cwd=options.get('working_directory', self.working_directory),
-                allowed_tools=options.get('tools', self.tools),
-                permission_mode=options.get('permission_mode', 'acceptEdits')
+                max_turns=options.get("max_turns", 3),
+                system_prompt=options.get("system_prompt"),
+                cwd=options.get("working_directory", self.working_directory),
+                allowed_tools=options.get("tools", self.tools),
+                permission_mode=options.get("permission_mode", "acceptEdits")
             )
-            
+
             # Collect all messages from the async iterator with error handling for SDK bugs
             messages = []
             try:
@@ -269,39 +268,38 @@ class ClaudeCodeNode:
                 # Return a basic success response even if SDK had parsing issues
                 if not messages:
                     messages = [{"type": "text", "content": "Task completed (SDK encountered issues but continued)"}]
-            
+
             # Return the last message or combine all messages
             if messages:
                 return {"content": str(messages[-1]), "messages": messages}
-            else:
-                return {"content": "", "messages": []}
-                
+            return {"content": "", "messages": []}
+
         except Exception as e:
             # Handle all SDK errors gracefully, including parsing and cleanup issues
-            logger.warning(f"Claude Code SDK encountered an error (continuing): {str(e)}")
+            logger.warning(f"Claude Code SDK encountered an error (continuing): {e!s}")
             return {"content": "Code analysis completed (SDK encountered compatibility issues)", "messages": []}
-    
-    async def _modify_code(self, prompt: str, files: list, options: Dict[str, Any]) -> Dict[str, Any]:
-        """Modify code using Claude Code SDK"""
+
+    async def _modify_code(self, prompt: str, files: list, options: dict[str, Any]) -> dict[str, Any]:
+        """Modify code using Claude Code SDK."""
         logger.info("Modifying code with Claude Code")
-        
+
         # Prepare the prompt for code modification
         full_prompt = f"Modify the code according to these instructions:\n\n{prompt}"
-        
+
         # Add file context if provided
         if files:
             full_prompt += f"\n\nFiles to modify: {', '.join(files)}"
-        
+
         try:
             # Create options object
             claude_options = ClaudeCodeOptions(
-                max_turns=options.get('max_turns', 3),
-                system_prompt=options.get('system_prompt'),
-                cwd=options.get('working_directory', self.working_directory),
-                allowed_tools=options.get('tools', self.tools),
-                permission_mode=options.get('permission_mode', 'acceptEdits')
+                max_turns=options.get("max_turns", 3),
+                system_prompt=options.get("system_prompt"),
+                cwd=options.get("working_directory", self.working_directory),
+                allowed_tools=options.get("tools", self.tools),
+                permission_mode=options.get("permission_mode", "acceptEdits")
             )
-            
+
             # Collect all messages from the async iterator with error handling for SDK bugs
             messages = []
             try:
@@ -313,78 +311,73 @@ class ClaudeCodeNode:
                 # Return a basic success response even if SDK had parsing issues
                 if not messages:
                     messages = [{"type": "text", "content": "Task completed (SDK encountered issues but continued)"}]
-            
+
             # Return the last message or combine all messages
             if messages:
                 return {"content": str(messages[-1]), "messages": messages}
-            else:
-                return {"content": "", "messages": []}
-                
+            return {"content": "", "messages": []}
+
         except Exception as e:
             # Handle all SDK errors gracefully, including parsing and cleanup issues
-            logger.warning(f"Claude Code SDK encountered an error (continuing): {str(e)}")
+            logger.warning(f"Claude Code SDK encountered an error (continuing): {e!s}")
             return {"content": "Code modification completed (SDK encountered compatibility issues)", "messages": []}
-    
-    async def _chat(self, prompt: str, files: list, options: Dict[str, Any]) -> Dict[str, Any]:
-        """General chat/conversation using Claude Code SDK"""
+
+    async def _chat(self, prompt: str, files: list, options: dict[str, Any]) -> dict[str, Any]:
+        """General chat/conversation using Claude Code SDK."""
         logger.info("Starting Claude Code chat session")
-        
+
         try:
             # Create options object
             claude_options = ClaudeCodeOptions(
-                max_turns=options.get('max_turns', 3),
-                system_prompt=options.get('system_prompt'),
-                cwd=options.get('working_directory', self.working_directory),
-                allowed_tools=options.get('tools', self.tools),
-                permission_mode=options.get('permission_mode', 'acceptEdits')
+                max_turns=options.get("max_turns", 3),
+                system_prompt=options.get("system_prompt"),
+                cwd=options.get("working_directory", self.working_directory),
+                allowed_tools=options.get("tools", self.tools),
+                permission_mode=options.get("permission_mode", "acceptEdits")
             )
-            
+
             # Collect all messages from the async iterator
             messages = []
             async for message in claude_code_sdk(prompt=prompt, options=claude_options):
                 messages.append(message)
-            
+
             # Return the last message or combine all messages
             if messages:
                 return {"content": str(messages[-1]), "messages": messages}
-            else:
-                return {"content": "", "messages": []}
-                
+            return {"content": "", "messages": []}
+
         except Exception as e:
             # Handle all SDK errors gracefully, including parsing and cleanup issues
-            logger.warning(f"Claude Code SDK encountered an error (continuing): {str(e)}")
+            logger.warning(f"Claude Code SDK encountered an error (continuing): {e!s}")
             return {"content": "Claude Code chat completed (SDK encountered compatibility issues)", "messages": []}
-    
-    def _process_result(self, result: Dict[str, Any]) -> str:
-        """Process Claude Code result based on output format"""
+
+    def _process_result(self, result: dict[str, Any]) -> str:
+        """Process Claude Code result based on output format."""
         if self.output_format == "json":
             try:
                 # If result is already structured, return as JSON string
                 if isinstance(result, dict):
                     return json.dumps(result, indent=2)
-                else:
-                    return str(result)
+                return str(result)
             except Exception:
                 return str(result)
+        # For text format, extract the main content
+        elif isinstance(result, dict):
+            # Try to extract the main response text
+            if "content" in result:
+                return str(result["content"])
+            if "text" in result:
+                return str(result["text"])
+            if "response" in result:
+                return str(result["response"])
+            return str(result)
         else:
-            # For text format, extract the main content
-            if isinstance(result, dict):
-                # Try to extract the main response text
-                if "content" in result:
-                    return str(result["content"])
-                elif "text" in result:
-                    return str(result["text"])
-                elif "response" in result:
-                    return str(result["response"])
-                else:
-                    return str(result)
-            else:
-                return str(result)
-    
-    def _create_mock_response(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Create mock response when SDK is unavailable or buggy"""
+            return str(result)
+
+    def _create_mock_response(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Create mock response when SDK is unavailable or buggy."""
         bound_prompt = self._bind_prompt_parameters(state)
-        
+
         # Create task-specific mock responses
         if self.task == "generate_code":
             mock_content = f"""# Generated Python Code (Mock Response)
@@ -406,7 +399,7 @@ if __name__ == "__main__":
             mock_content = f"""Code Analysis (Mock Response):
 
 ✅ **Code Quality**: Good structure and readability
-✅ **Security**: No obvious security issues detected  
+✅ **Security**: No obvious security issues detected
 ✅ **Performance**: Efficient implementation
 ✅ **Maintainability**: Well-documented and modular
 ⚠️  **Note**: This is a mock analysis demonstrating Claude Code integration
@@ -417,7 +410,7 @@ if __name__ == "__main__":
 3. Document API endpoints
 
 Based on prompt: {bound_prompt[:100]}..."""
-            
+
         elif self.task == "modify_code":
             mock_content = f"""Code Modification (Mock Response):
 
@@ -434,7 +427,7 @@ Based on prompt: {bound_prompt[:100]}..."""
 ⚠️  **Note**: This is a mock modification demonstrating Claude Code integration
 
 Based on prompt: {bound_prompt[:100]}..."""
-            
+
         else:  # chat
             mock_content = f"""Claude Code Chat (Mock Response):
 
@@ -442,7 +435,7 @@ Hello! I'm Claude Code, ready to help with your development tasks.
 
 **Available Capabilities**:
 🔧 Code generation and modification
-📊 Code analysis and review  
+📊 Code analysis and review
 🧪 Test creation and debugging
 📝 Documentation generation
 

@@ -64,14 +64,14 @@ workflow:
           4. If Tweet Format is "thread":
              - Outline a thread structure:
                a. Main statement or valuable insight as the first tweet.
-               b. Each following tweet should present a key takeaway, fact, or opinion, each backed up with supporting details or points.
+               b. Each following tweet should present a key takeaway, fact, or opinion, each backed up with supporting details or points, with context of the previous thread.
                c. Each tweet should be under 280 characters.
                d. For supporting points within a tweet, use markdown '-' dashes for bullet points.
                e. Specify the total number of tweets in the thread.
                f. Vary sentence lengths and rhythm so the thread feels spontaneous rather than rigid.
           5. Tailor every tweet to the chosen audience to boost their skills, provide value or entertain them.
-          6. Integrate concrete examples, facts or quotations lifted directly from SOURCE_INPUT.
-          7. Maintain a warm, ethical tone, avoid hype.
+          6. Explain points using concrete examples, facts or quotations ideally taken from SOURCE_INPUT or prompt.
+          7. Maintain a warm, ethical tone, avoid hype, knowledgable guide
           8. Forbidden: emojis, “game-changer”, en-dashes/hyphens connecting words (e.g. no “must-read”).
 
           OUTPUT FORMAT:

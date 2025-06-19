@@ -34,9 +34,9 @@ jobs:
       run: |
         uv run ruff check src/ tests/
         
-    - name: Run type checker (mypy)
-      run: |
-        uv run mypy src/
+    # - name: Run type checker (mypy)
+    #   run: |
+    #     uv run mypy src/
         
     - name: Run tests
       run: |

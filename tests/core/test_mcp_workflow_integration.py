@@ -3,8 +3,8 @@ from unittest.mock import patch
 
 import pytest
 
-from elf.core.compiler import NodeFactoryRegistry, make_mcp_node
-from elf.core.spec import Spec, Workflow, WorkflowNode
+from elf0.core.compiler import NodeFactoryRegistry, make_mcp_node
+from elf0.core.spec import Spec, Workflow, WorkflowNode
 
 
 class TestMCPWorkflowIntegration:

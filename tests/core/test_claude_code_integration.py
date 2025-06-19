@@ -3,9 +3,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from elf.core.compiler import NodeFactoryRegistry, make_claude_code_node
-from elf.core.nodes.claude_code_node import ClaudeCodeError, ClaudeCodeNode
-from elf.core.spec import Spec, WorkflowNode
+from elf0.core.compiler import NodeFactoryRegistry, make_claude_code_node
+from elf0.core.nodes.claude_code_node import ClaudeCodeError, ClaudeCodeNode
+from elf0.core.spec import Spec, WorkflowNode
 
 
 class TestClaudeCodeNodeBasics:

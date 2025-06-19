@@ -168,7 +168,7 @@ line-ending = "auto"
 "docs/**/*.py" = ["ALL"]
 
 [lint.isort]
-known-first-party = ["elf"]
+known-first-party = ["elf0"]
 force-sort-within-sections = true
 
 [lint.pydocstyle]

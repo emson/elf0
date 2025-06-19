@@ -11,7 +11,7 @@ from prompt_toolkit.output.defaults import create_output
 from pygments.lexers.special import TextLexer
 from rich.console import Console
 
-from elf.core.compiler import WorkflowState
+from elf0.core.compiler import WorkflowState
 
 # Exit command constants
 EXIT_COMMANDS = {"/exit", "/quit", "/bye"}

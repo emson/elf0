@@ -4,8 +4,8 @@ import tempfile
 
 import yaml
 
-from elf.core.compiler import compile_to_langgraph
-from elf.core.spec import Spec
+from elf0.core.compiler import compile_to_langgraph
+from elf0.core.spec import Spec
 
 
 class TestReferencingIntegration:

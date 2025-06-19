@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from elf.core.mcp_client import MCPConnectionError, MCPToolError, SimpleMCPClient
+from elf0.core.mcp_client import MCPConnectionError, MCPToolError, SimpleMCPClient
 
 
 class TestSimpleMCPClient:

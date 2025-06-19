@@ -223,7 +223,7 @@ wheels = [
 ]
 
 [[package]]
-name = "elf"
+name = "elf0"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

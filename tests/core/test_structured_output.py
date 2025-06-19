@@ -2,7 +2,7 @@
 
 import pytest
 
-from elf.core.spec import Spec
+from elf0.core.spec import Spec
 
 
 class TestStructuredOutput:

@@ -1,8 +1,8 @@
-# 🧝 ELF - sElf Improving AI Workflows
+# 🧝 Elf0 - sElf Improving Agentic YAML Workflows
 
-**Build powerful AI agent workflows using simple YAML files. No complex coding required.**
+**Build powerful AI agent workflows using simple YAML files. Zero complex coding required.**
 
-ELF (sElf-improving Llm-powered workFlows) lets you create multi-step AI workflows by describing what you want in YAML. Chain together different AI models, integrate with external tools, and even use AI to improve your workflows automatically.
+Elf0 lets you create multi-step AI workflows by describing what you want in YAML. Chain (graph) together different AI models, integrate with external tools, and even use AI to improve your workflows automatically.
 
 ```bash
 # Simple AI workflow in one command

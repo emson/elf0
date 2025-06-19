@@ -3,9 +3,9 @@
 
 import pytest
 
-from elf.core.compiler import WorkflowState, compile_to_langgraph
-from elf.core.function_loader import function_loader
-from elf.core.spec import Spec
+from elf0.core.compiler import WorkflowState, compile_to_langgraph
+from elf0.core.function_loader import function_loader
+from elf0.core.spec import Spec
 
 
 class TestPythonFunctionLoading:
@@ -86,7 +86,7 @@ class TestUtilityFunctions:
     def test_user_input_function(self):
         """Test user input function interface."""
         # Arrange
-        from elf.functions.utils import get_user_input
+        from elf0.functions.utils import get_user_input
         state = WorkflowState(input="test", output=None)
 
         # Act: Mock input to avoid actual user interaction in tests
@@ -106,7 +106,7 @@ class TestUtilityFunctions:
     def test_text_processor_word_count(self):
         """Test text processor word counting."""
         # Arrange
-        from elf.functions.utils import text_processor
+        from elf0.functions.utils import text_processor
         state = WorkflowState(input="", output="hello world test")
 
         # Act
@@ -119,7 +119,7 @@ class TestUtilityFunctions:
     def test_text_processor_uppercase(self):
         """Test text processor uppercase transformation."""
         # Arrange
-        from elf.functions.utils import text_processor
+        from elf0.functions.utils import text_processor
         state = WorkflowState(input="", output="hello world")
 
         # Act

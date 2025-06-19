@@ -1,7 +1,7 @@
 
 import pytest
 
-from elf.utils.yaml_loader import (
+from elf0.utils.yaml_loader import (
     load_yaml_file,
     load_yaml_files,
     merge_yaml_data,

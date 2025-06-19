@@ -7,10 +7,16 @@ runtime: "langgraph"
 llms:
   chat_llm:
     type: "anthropic"
-    model_name: "claude-3-5-haiku-latest"
+    model_name: "claude-sonnet-4-20250514"
+    # model_name: "claude-3-5-haiku-20241022"
     temperature: 0.7
     params:
       max_tokens: 1000
+      # Retry configuration for handling API overload
+      max_retries: 3
+      retry_delay: 1.0
+      max_retry_delay: 30.0
+      retry_backoff_factor: 2.0
       system_prompt: |
         You are a friendly assistant who always ends a conversation with an emoji.
 

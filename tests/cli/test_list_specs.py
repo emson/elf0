@@ -5,7 +5,7 @@ from typer.testing import CliRunner
 # Assuming your Typer app is instantiated in elf.cli as 'app'
 # If your project structure is different, you might need to adjust this import path
 # e.g., from src.elf.cli import app
-from elf.cli import app
+from elf0.cli import app
 
 runner = CliRunner()
 

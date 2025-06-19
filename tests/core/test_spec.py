@@ -1,6 +1,7 @@
+
 import pytest
-from pathlib import Path
-from elf.core.spec import Spec, LLM, WorkflowNode, Edge, Workflow
+
+from elf.core.spec import LLM, Edge, Spec, Workflow, WorkflowNode
 
 # Test data
 VALID_LLM_CONFIG = {
@@ -102,7 +103,7 @@ workflow:
 """
     spec_file = tmp_path / "spec.yaml"
     spec_file.write_text(spec_yaml)
-    
+
     spec = Spec.from_file(str(spec_file))
     assert spec.version == "0.1"
     assert "llm1" in spec.llms
@@ -143,24 +144,24 @@ workflow:
 """
     spec_file = tmp_path / "spec_with_config.yaml"
     spec_file.write_text(spec_yaml_with_config)
-    
+
     spec = Spec.from_file(str(spec_file))
-    
+
     assert spec.workflow is not None
     assert len(spec.workflow.nodes) == 2
-    
+
     classifier_node = next((n for n in spec.workflow.nodes if n.id == "classifier_node"), None)
     assert classifier_node is not None
-    
+
     # Key assertions:
     assert isinstance(classifier_node.config, dict)
     assert "prompt" in classifier_node.config
     assert classifier_node.config["prompt"] == "This is the system prompt for the classifier."
     assert "some_other_config" in classifier_node.config
     assert classifier_node.config["some_other_config"] == 123
-    
+
     end_node = next((n for n in spec.workflow.nodes if n.id == "end_node"), None)
     assert end_node is not None
     # A node without a config block should have an empty dict by default_factory
     assert isinstance(end_node.config, dict)
-    assert not end_node.config 
+    assert not end_node.config

@@ -1,0 +1,142 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.13"
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+        
+    - name: Install dependencies
+      run: |
+        uv venv
+        uv pip install -e . --group dev
+        
+    - name: Run linter (ruff)
+      run: |
+        uv run ruff check src/ tests/
+        
+    # - name: Run type checker (mypy)
+    #   run: |
+    #     uv run mypy src/
+        
+    - name: Run tests
+      run: |
+        uv run pytest tests/ -v --tb=short -m "not requires_external"
+      env:
+        # Mock API keys for testing
+        OPENAI_API_KEY: test-key-not-real
+        ANTHROPIC_API_KEY: test-key-not-real
+        DEEPSEEK_API_KEY: test-key-not-real
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.13"
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      
+    - name: Install dependencies
+      run: |
+        uv venv
+        uv pip install -e .
+        uv pip install bandit
+        
+    - name: Try installing safety (may fail due to pydantic conflict)
+      run: |
+        uv pip install "safety>=3.5.0,<4.0.0" || echo "Safety installation failed due to dependency conflicts"
+        
+    - name: Run safety check
+      run: |
+        if uv run python -c "import safety" 2>/dev/null; then
+          uv run safety check --ignore 70612 || echo "Safety vulnerabilities found but continuing"
+        else
+          echo "Safety not available due to dependency conflicts - skipping check"
+        fi
+        
+    - name: Run bandit security scan
+      run: |
+        uv run bandit -r src/ -f json -o bandit-report.json
+        uv run bandit -r src/ -f txt
+        
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-scan-results
+        path: bandit-report.json
+
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.13"
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      
+    - name: Install dependencies
+      run: |
+        uv venv
+        uv pip install -e . --group test
+        
+    - name: Run tests with coverage
+      timeout-minutes: 8
+      run: |
+        uv run pytest tests/ --cov=src/elf --cov-report=term --timeout=300 -v --tb=short -m "not requires_external"
+      env:
+        OPENAI_API_KEY: test-key-not-real
+        ANTHROPIC_API_KEY: test-key-not-real
+        DEEPSEEK_API_KEY: test-key-not-real
+        
+    - name: Generate coverage reports
+      timeout-minutes: 2
+      run: |
+        uv run coverage xml
+        uv run coverage html
+      continue-on-error: true
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        
+    - name: Upload coverage HTML
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-html
+        path: htmlcov/

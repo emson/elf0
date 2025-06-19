@@ -4,8 +4,36 @@
 - Install: `uv venv && uv pip install -e .`
 - Run: `uv run elf`
 - Run specific workflow: `uv run elf agent workflows/basic_chat.yaml --prompt "Your prompt"`
+- Test: `uv run pytest tests/ --timeout=300`
+- Test with coverage: `uv run pytest tests/ --cov=src/elf --timeout=300`
+- Test (skip external deps): `uv run pytest tests/ -m "not requires_external"`
+- Test integration only: `uv run pytest tests/ -m "integration"`
+- Test with external resources: `ELF_RUN_INTEGRATION_TESTS=1 uv run pytest tests/`
 - Lint: `ruff check src/`
 - Type check: `mypy src/`
+- Security scan (bandit): `uv run bandit -r src/`
+- Security scan (safety): `uv pip install safety && uv run safety check` (optional - may conflict with pydantic versions)
+- Build docs: `uv pip install -e . --group docs && uv run mkdocs build`
+
+## Git Commands
+- Check status: `git status`
+- View changes: `git diff`
+- Add files: `git add <file>` or `git add .` for all changes
+- Commit: `git commit -m "message"`
+- Push: `git push origin <branch-name>`
+- Pull latest: `git pull origin <branch-name>`
+- Create branch: `git checkout -b <branch-name>`
+- Switch branch: `git checkout <branch-name>`
+
+## Git Guidelines
+- Always check `git status` and `git diff` before committing
+- Write clear, descriptive commit messages
+- Use imperative mood in commit messages (e.g., "Fix bug" not "Fixed bug")
+- Commit related changes together in logical units
+- Never commit secrets, API keys, or sensitive information
+- Use meaningful branch names (e.g., feature/add-logging, fix/memory-leak)
+- Always review changes before pushing to remote
+- For commits with Claude Code assistance, include attribution in commit message
 
 ## Code Style
 - Use PEP 8 conventions with 4-space indentation

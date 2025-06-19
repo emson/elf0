@@ -1,0 +1,49 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+
+jobs:
+  docs:
+    name: Basic Documentation Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check README exists
+      run: |
+        if [ -f README.md ]; then
+          echo "✓ README.md exists"
+          echo "📄 README.md size: $(wc -c < README.md) bytes"
+        else
+          echo "✗ README.md not found"
+          exit 1
+        fi
+        
+    - name: Basic README validation
+      run: |
+        # Simple check that README has basic structure
+        if grep -q "# " README.md; then
+          echo "✓ README.md has headings"
+        else
+          echo "⚠ README.md might be missing headings"
+        fi
+        
+        if grep -q "install" README.md; then
+          echo "✓ README.md mentions installation"
+        else
+          echo "⚠ README.md might be missing installation instructions"
+        fi
+        
+        echo "✓ Basic README validation completed"

@@ -1,36 +1,38 @@
 # src/elf/core/nodes/mcp_node.py
 import logging
-from typing import Dict, Any
-from ..mcp_client import SimpleMCPClient, MCPConnectionError
+from typing import Any
+
+from elf.core.mcp_client import MCPConnectionError, SimpleMCPClient
 
 logger = logging.getLogger(__name__)
 
 class MCPNode:
-    """MVP MCP node - basic tool execution"""
-    
-    def __init__(self, config: Dict[str, Any]):
+    """MVP MCP node - basic tool execution."""
+
+    def __init__(self, config: dict[str, Any]):
         self.server_command = config["server"]["command"]
         self.server_cwd = config["server"].get("cwd")
         self.tool_name = config["tool"]
         self.parameters = config.get("parameters", {})
         self.client = None
-    
-    async def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute MCP tool and update state"""
+
+    async def execute(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Execute MCP tool and update state."""
         # Connect to server
         self.client = SimpleMCPClient(self.server_command, cwd=self.server_cwd)
         connected = await self.client.connect()
-        
+
         if not connected:
-            raise MCPConnectionError("Failed to connect to MCP server")
-        
+            msg = "Failed to connect to MCP server"
+            raise MCPConnectionError(msg)
+
         try:
             # Bind parameters from state
             bound_params = self._bind_parameters(state)
-            
+
             # Execute tool
             result = await self.client.call_tool(self.tool_name, bound_params)
-            
+
             # Extract text content from MCP result format
             if "content" in result and isinstance(result["content"], list):
                 # Find first text content
@@ -42,23 +44,23 @@ class MCPNode:
                     state["output"] = str(result)
             else:
                 state["output"] = str(result)
-            
+
             # Also store raw MCP result
             state["mcp_result"] = result
             return state
-            
+
         finally:
             await self.client.disconnect()
-    
-    def _bind_parameters(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Enhanced parameter binding from state with JSON parsing support"""
+
+    def _bind_parameters(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Enhanced parameter binding from state with JSON parsing support."""
         import json
         bound = {}
         for key, value in self.parameters.items():
             if isinstance(value, str) and value.startswith("${"):
                 # Template substitution
                 var_name = value[2:-1].replace("state.", "")
-                
+
                 # Special handling for JSON extraction from previous output
                 if var_name.startswith("json."):
                     # Extract from JSON in output field

@@ -1,10 +1,11 @@
+
 import pytest
-from pathlib import Path
+
 from elf.utils.yaml_loader import (
     load_yaml_file,
     load_yaml_files,
-    save_yaml_file,
     merge_yaml_data,
+    save_yaml_file,
 )
 
 # Test data
@@ -30,10 +31,10 @@ def test_load_yaml_file(tmp_path):
     # Arrange
     yaml_file = tmp_path / "test.yaml"
     yaml_file.write_text(VALID_YAML_CONTENT)
-    
+
     # Act
     data = load_yaml_file(str(yaml_file))
-    
+
     # Assert
     assert data["version"] == "0.1"
     assert data["description"] == "Test spec"
@@ -51,7 +52,7 @@ def test_load_yaml_file_invalid_yaml(tmp_path):
     # Arrange
     yaml_file = tmp_path / "invalid.yaml"
     yaml_file.write_text("invalid: yaml: content: [")
-    
+
     # Act & Assert
     with pytest.raises(Exception) as exc_info:
         load_yaml_file(str(yaml_file))
@@ -62,10 +63,10 @@ def test_load_yaml_files(tmp_path):
     # Arrange
     (tmp_path / "file1.yaml").write_text("key1: value1")
     (tmp_path / "file2.yaml").write_text("key2: value2")
-    
+
     # Act
     data = load_yaml_files(str(tmp_path))
-    
+
     # Assert
     assert len(data) == 2
     assert "file1" in data
@@ -78,10 +79,10 @@ def test_save_yaml_file(tmp_path):
     # Arrange
     data = {"key": "value", "nested": {"key": "value"}}
     yaml_file = tmp_path / "output.yaml"
-    
+
     # Act
     save_yaml_file(str(yaml_file), data)
-    
+
     # Assert
     assert yaml_file.exists()
     loaded_data = load_yaml_file(str(yaml_file))
@@ -100,12 +101,12 @@ def test_merge_yaml_data():
         "nested": {"key": "new_value"},
         "list": [4, 5, 6]
     }
-    
+
     # Act
     result = merge_yaml_data(base, override)
-    
+
     # Assert
     assert result["key1"] == "value1"  # Preserved from base
     assert result["key2"] == "value2"  # Added from override
     assert result["nested"]["key"] == "new_value"  # Overridden
-    assert result["list"] == [1, 2, 3, 4, 5, 6]  # Concatenated 
+    assert result["list"] == [1, 2, 3, 4, 5, 6]  # Concatenated

@@ -4,6 +4,21 @@ version = "0.1.0"
 description = "sElf improving single file agent structures"
 readme = "README.md"
 requires-python = ">=3.13"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Ben Emson", email = "ben@emson.dev"},
+]
+keywords = ["ai", "agents", "workflows", "llm", "automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "langgraph>=0.4.3",
     "openai>=1.78.1",
@@ -16,7 +31,15 @@ dependencies = [
     "mcp[cli]>=1.9.1",
     "prompt-toolkit>=3.0.51",
     "claude-code-sdk>=0.0.10",
+    "markdown>=3.8.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/emson/elf"
+Documentation = "https://github.com/emson/elf#readme"
+Repository = "https://github.com/emson/elf.git"
+Issues = "https://github.com/emson/elf/issues"
+Changelog = "https://github.com/emson/elf/releases"
 
 [project.scripts]
 elf = "elf.cli:app"
@@ -25,13 +48,102 @@ elf = "elf.cli:app"
 dev = [
     "pytest-asyncio>=1.0.0",
     "pytest>=8.3.5",
+    "pytest-cov>=6.0.0",
+    "pytest-timeout>=2.4.0",
+    "coverage>=7.6.0",
     "mypy>=1.16.0",
+    "ruff>=0.6.9",
+    "pre-commit>=4.0.0",
+    "bandit>=1.7.0",
+    # safety removed due to pydantic version conflict
 ]
 test = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=6.0.0",
+    "pytest-timeout>=2.4.0",
+    "coverage>=7.6.0",
+]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.26.0",
+    "markdown>=3.7.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests requiring external resources",
+    "unit: marks tests as unit tests",
+    "requires_external: marks tests requiring external services (Node.js, npm, etc.)",
+]
 
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "tests/*",
+    "src/elf/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "langgraph.*",
+    "mcp.*",
+    "claude_code_sdk.*",
+]
+ignore_missing_imports = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/elf/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/elf"]

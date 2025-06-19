@@ -1,9 +1,14 @@
-# src/elf/core/llm_client.py
+# src/elf0/core/llm_client.py
+import logging
 from typing import TYPE_CHECKING, Any, Protocol
 
 import openai
 
 from .spec import LLM as LLMSpecModel
+
+# HTTP Status Code Constants
+HTTP_TOO_MANY_REQUESTS = 429
+HTTP_SERVER_ERROR_THRESHOLD = 500
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
@@ -120,17 +125,20 @@ class AnthropicProvider(BaseLLMProvider):
 
     def generate(self, prompt: str, system_prompt: str | None = None) -> str:
         """Generate response using Anthropic with retry logic for transient errors."""
+        from secrets import SystemRandom
         import time
-        import random
-        
+
+        logger = logging.getLogger(__name__)
+        secure_random = SystemRandom()
+
         # Get retry configuration from params
         max_retries = self.params.get("max_retries", 3)
         initial_delay = self.params.get("retry_delay", 1.0)
         max_delay = self.params.get("max_retry_delay", 60.0)
         backoff_factor = self.params.get("retry_backoff_factor", 2.0)
-        
+
         last_exception = None
-        
+
         for attempt in range(max_retries + 1):
             try:
                 # Get parameters with sensible defaults
@@ -160,28 +168,28 @@ class AnthropicProvider(BaseLLMProvider):
 
             except Exception as e:
                 last_exception = e
-                
+
                 # Check if this is a retryable error
                 is_retryable = False
-                if hasattr(e, 'status_code'):
+                if hasattr(e, "status_code"):
                     # Retry on server errors (5xx) and rate limiting (429)
-                    is_retryable = e.status_code >= 500 or e.status_code == 429
+                    is_retryable = e.status_code >= HTTP_SERVER_ERROR_THRESHOLD or e.status_code == HTTP_TOO_MANY_REQUESTS
                 elif "overloaded" in str(e).lower() or "rate limit" in str(e).lower():
                     is_retryable = True
-                
+
                 # If this is the last attempt or not retryable, raise the error
                 if attempt >= max_retries or not is_retryable:
                     break
-                
+
                 # Calculate delay with exponential backoff and jitter
                 delay = min(initial_delay * (backoff_factor ** attempt), max_delay)
-                jitter = random.uniform(0.1, 0.3) * delay  # Add 10-30% jitter
+                jitter = secure_random.uniform(0.1, 0.3) * delay  # Add 10-30% jitter
                 final_delay = delay + jitter
-                
-                print(f"Anthropic API error (attempt {attempt + 1}/{max_retries + 1}): {e}")
-                print(f"Retrying in {final_delay:.2f} seconds...")
+
+                logger.warning(f"Anthropic API error (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                logger.info(f"Retrying in {final_delay:.2f} seconds...")
                 time.sleep(final_delay)
-        
+
         # If we get here, all retries failed
         msg = f"Error generating response from Anthropic (model {self.model_name}) after {max_retries + 1} attempts: {last_exception!s}"
         raise RuntimeError(msg)

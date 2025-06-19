@@ -9,7 +9,7 @@ Elf0 lets you create multi-step AI workflows by describing what you want in YAML
 uv run elf agent specs/basic_chat.yaml --prompt "Explain quantum computing in simple terms"
 
 # Reference files automatically with @filename.ext syntax  
-uv run elf agent specs/basic_chat.yaml --prompt "Review this code @src/elf/cli.py and suggest improvements"
+uv run elf agent specs/basic_chat.yaml --prompt "Review this code @src/elf0/cli.py and suggest improvements"
 
 # Let AI improve your workflows
 uv run elf improve yaml specs/my_workflow.yaml --prompt "Make this workflow more efficient"
@@ -238,7 +238,7 @@ ELF's killer feature is automatic file inclusion using `@my/path/filename.ext` s
 
 ```bash
 # Automatically include file contents in your prompt
-uv run elf agent specs/basic_chat.yaml --prompt "Explain this code @src/elf/cli.py"
+uv run elf agent specs/basic_chat.yaml --prompt "Explain this code @src/elf0/cli.py"
 
 # Reference multiple files
 uv run elf agent specs/basic_chat.yaml --prompt "Compare @file1.py and @file2.py"
@@ -365,11 +365,11 @@ Shows all `.yaml` and `.yml` files in the `./specs` directory with their descrip
 ### Advanced Usage Patterns
 
 #### File References with @ Syntax
-Use `@filename.ext` anywhere in prompts to automatically include file contents:
+Use `@path/filename.ext` anywhere in prompts to automatically include file contents:
 
 ```bash
 # Single file reference
-uv run elf agent specs/basic_chat.yaml --prompt "Review this code @src/main.py"
+uv run elf agent specs/basic_chat.yaml --prompt "Review this code @src/elf0/cli.py"
 
 # Multiple file references  
 uv run elf agent specs/basic_chat.yaml --prompt "Compare @file1.py and @file2.py"

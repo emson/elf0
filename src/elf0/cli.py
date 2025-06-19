@@ -42,7 +42,7 @@ stdout_workflow_console = RichConsole(file=sys.stdout)
 # --- BEGIN Centralized basicConfig (Module Level) ---
 # Setup root logger with RichHandler. Specific log levels are tuned by main_callback.
 logging.basicConfig(
-    level=logging.WARNING,  # Default root level. Loggers like 'elf.core' will be adjusted.
+    level=logging.WARNING,  # Default root level. Loggers like 'elf0.core' will be adjusted.
     format="%(message)s",   # RichHandler handles its own formatting.
     datefmt="[%X]",         # RichHandler might use its own or this as a hint.
     handlers=[
@@ -65,7 +65,7 @@ app_state = AppState()
 
 app = typer.Typer(
     name="elf",
-    help="AI Workflow Architect - Execute and optimize LLM-powered agent workflows",
+    help="Elf0 - sElf Improving Agentic YAML Workflows",
     add_completion=False,
     rich_markup_mode="rich"
 )
@@ -81,12 +81,12 @@ def main_callback(
         False,
         "--verbose",
         "-v",
-        help="Enable verbose logging output. Shows INFO level logs from ELF and HTTP libraries."
+        help="Enable verbose logging output. Shows INFO level logs from Elf0 and HTTP libraries."
     )
 ) -> None:
-    """ELF: AI Workflow Architect.
+    """Elf0: sElf Improving Agentic YAML Workflows, zero complex coding required.
 
-    Execute and optimize LLM-powered agent workflows.
+    Execute and optimize LLM-powered agentic YAML workflows.
     By default, only critical errors are sent to stderr. Use --verbose for more detailed logs.
 
     Examples for output/log redirection:

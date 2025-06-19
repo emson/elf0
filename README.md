@@ -24,7 +24,7 @@ Get up and running with your first AI workflow in 5 minutes:
 - **uv package manager** by Astral ([Install guide](https://docs.astral.sh/uv/getting-started/installation/)) - A blazingly fast Python package manager that replaces pip/conda
 - **An API key** from [OpenAI](https://platform.openai.com/api-keys), [Anthropic](https://console.anthropic.com/), or use [Ollama](https://ollama.ai/) locally
 
-### 2. Install ELF
+### 2. Install Elf0
 ```bash
 git clone https://github.com/emson/elf.git
 cd elf
@@ -81,7 +81,7 @@ uv run elf agent specs/basic_chat.yaml --prompt "Write a haiku about programming
 - **Network**: Internet connection for cloud LLM providers
 
 ### Step 1: Install Python
-ELF requires Python 3.13 or higher. Check your version:
+Elf0 requires Python 3.13 or higher. Check your version:
 
 ```bash
 python --version
@@ -93,7 +93,7 @@ If you don't have Python 3.13+, download it from [python.org](https://python.org
 
 ### Step 2: Install uv Package Manager
 
-ELF uses `uv` by Astral for fast Python package management. `uv` is a modern, blazingly fast Python package installer and resolver that's 10-100x faster than pip. It's written in Rust and provides excellent dependency resolution.
+Elf0 uses `uv` by Astral for fast Python package management. `uv` is a modern, blazingly fast Python package installer and resolver that's 10-100x faster than pip. It's written in Rust and provides excellent dependency resolution.
 
 **Why we use uv:**
 - ⚡ **10-100x faster** than pip for installing packages
@@ -132,9 +132,9 @@ uv --version
 - `uv venv` ≡ `python -m venv`
 - `uv run command` ≡ `python command` (but with auto-dependency management)
 
-### Step 3: Clone and Install ELF
+### Step 3: Clone and Install Elf0
 ```bash
-git clone https://github.com/emson/elf.git
+git clone https://github.com/emson/elf0.git
 cd elf
 uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
@@ -143,7 +143,7 @@ uv pip install -e .
 
 ### Step 4: Configure API Keys
 
-ELF supports multiple LLM providers. Choose one:
+Elf0 supports multiple LLM providers. Choose one:
 
 #### Option A: OpenAI (Recommended for beginners)
 1. Get an API key from [OpenAI Platform](https://platform.openai.com/api-keys)
@@ -172,10 +172,10 @@ ELF supports multiple LLM providers. Choose one:
 ### Step 5: Verify Installation
 ```bash
 # Test with OpenAI/Anthropic
-uv run elf agent specs/basic_chat.yaml --prompt "Hello, ELF!"
+uv run elf agent specs/basic_chat.yaml --prompt "Hello, Elf0!"
 
 # Test with Ollama (use ollama spec)
-uv run elf agent specs/examples/ollama_chat.yaml --prompt "Hello, ELF!"
+uv run elf agent specs/examples/ollama_chat.yaml --prompt "Hello, Elf0!"
 ```
 
 ---
@@ -234,7 +234,7 @@ uv run elf prompt specs/basic_chat.yaml
 
 ### The Magic of File References
 
-ELF's killer feature is automatic file inclusion using `@my/path/filename.ext` syntax:
+Elf0's killer feature is automatic file inclusion using `@my/path/filename.ext` syntax:
 
 ```bash
 # Automatically include file contents in your prompt
@@ -254,7 +254,7 @@ The files are automatically read and included as context - no manual copy/paste 
 
 ## 🖥️ CLI Reference
 
-ELF provides a comprehensive command-line interface for executing and managing AI workflows.
+Elf0 provides a comprehensive command-line interface for executing and managing AI workflows.
 
 ### Basic Usage
 ```bash
@@ -264,7 +264,7 @@ uv run elf [OPTIONS] COMMAND [ARGS]...
 ### Global Options
 | Option | Description |
 |--------|-------------|
-| `--verbose`, `-v` | Enable verbose logging output (shows detailed logs from ELF core and HTTP libraries) |
+| `--verbose`, `-v` | Enable verbose logging output (shows detailed logs from Elf0 core and HTTP libraries) |
 | `--help` | Show help message and exit |
 
 ### Commands Overview
@@ -569,8 +569,8 @@ Use Claude Code SDK for AI-powered code generation, analysis, and modification:
 # Generate code from requirements
 uv run elf agent specs/examples/claude_code_example.yaml --prompt "Create a Python calculator function"
 
-# Self-improvement workflow for ELF platform
-uv run elf agent specs/examples/claude_code_self_improvement.yaml --prompt "Add better error handling to ELF workflows"
+# Self-improvement workflow for Elf0 platform
+uv run elf agent specs/examples/claude_code_self_improvement.yaml --prompt "Add better error handling to Elf0 workflows"
 ```
 
 **Claude Code Node Types:**
@@ -637,7 +637,7 @@ workflow:
 
 ## 🔗 File Reference System
 
-ELF's `@filename.ext` syntax automatically includes file contents in prompts:
+Elf0's `@filename.ext` syntax automatically includes file contents in prompts:
 
 ### Basic Usage
 ```bash
@@ -794,7 +794,7 @@ elf/
 │       ├── ollama_chat.yaml
 │       ├── mcp_workflow.yaml
 │       └── python_*.yaml
-├── src/elf/                 # ELF source code
+├── src/elf/                 # Elf0 source code
 ├── mcp/                     # MCP server configurations
 └── your_workflows/          # Put your custom workflows here
 ```
@@ -878,7 +878,7 @@ uv run elf agent specs/examples/mcp_workflow.yaml --prompt "Calculate compound i
 uv run elf agent specs/examples/claude_code_example.yaml --prompt "Create a REST API with authentication"
 
 # Self-evolving AI platform capabilities  
-uv run elf agent specs/examples/claude_code_self_improvement.yaml --prompt "Add logging capabilities to ELF workflows"
+uv run elf agent specs/examples/claude_code_self_improvement.yaml --prompt "Add logging capabilities to Elf0 workflows"
 ```
 
 #### Complex Workflows
@@ -904,7 +904,7 @@ git clone https://github.com/emson/elf.git
 cd elf
 uv venv                    # Create virtual environment (much faster than python -m venv)
 source .venv/bin/activate  # Activate environment
-uv pip install -e .       # Install ELF in development mode (faster than pip)
+uv pip install -e .       # Install Elf0 in development mode (faster than pip)
 
 # Install development dependencies
 uv pip install pytest ruff mypy
@@ -936,7 +936,7 @@ mypy src/
 
 ## 📄 License
 
-ELF is licensed under the [Apache License 2.0](LICENSE). This means you can freely use, modify, and distribute this software, even for commercial purposes, as long as you include the original license and copyright notice.
+Elf0 is licensed under the [Apache License 2.0](LICENSE). This means you can freely use, modify, and distribute this software, even for commercial purposes, as long as you include the original license and copyright notice.
 
 ## 🙏 Acknowledgments
 

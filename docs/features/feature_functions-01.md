@@ -390,17 +390,17 @@ functions:
   greet_user:
     type: python
     name: "Greeting Function"
-    entrypoint: "elf.examples.sample_functions.simple_greeting"
+    entrypoint: "elf0.examples.sample_functions.simple_greeting"
     
   get_input:
     type: python
     name: "User Input"
-    entrypoint: "elf.examples.sample_functions.get_user_input"
+    entrypoint: "elf0.examples.sample_functions.get_user_input"
     
   process_pdf:
     type: python
     name: "PDF Processor"
-    entrypoint: "elf.examples.sample_functions.process_pdf_mock"
+    entrypoint: "elf0.examples.sample_functions.process_pdf_mock"
 
 workflow:
   type: sequential

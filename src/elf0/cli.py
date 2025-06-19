@@ -106,7 +106,7 @@ def main_callback(
     app_state.verbose_mode = verbose
     if app_state.verbose_mode:
         # Enable INFO logging for elf.core and HTTP libraries
-        logging.getLogger("elf.core").setLevel(logging.INFO)
+        logging.getLogger("elf0.core").setLevel(logging.INFO)
         # Removed NullHandler logic for elf.core
 
         for lib_name in ["httpx", "httpcore"]:
@@ -115,7 +115,7 @@ def main_callback(
             lib_logger.setLevel(logging.INFO)
     else:
         # Default: Minimal logging (errors for elf.core, warnings for HTTP)
-        logging.getLogger("elf.core").setLevel(logging.ERROR)
+        logging.getLogger("elf0.core").setLevel(logging.ERROR)
         # Removed NullHandler logic for elf.core
 
         for lib_name in ["httpx", "httpcore"]:

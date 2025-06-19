@@ -151,7 +151,7 @@ class TestWorkflowIntegration:
                 "test_func": {
                     "type": "python",
                     "name": "Text Processor",
-                    "entrypoint": "elf.functions.utils.text_processor"
+                    "entrypoint": "elf0.functions.utils.text_processor"
                 }
             },
             "workflow": {

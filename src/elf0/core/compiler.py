@@ -3,6 +3,7 @@ import asyncio
 from collections.abc import Callable
 import json
 import logging
+import types
 from typing import Any, Protocol, TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -143,7 +144,9 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     "input": user_provided_input,
                     "output": state.get("output", ""),
                     "iteration_count": state.get("iteration_count", 0),
-                    "evaluation_score": state.get("evaluation_score", 0.0)
+                    "evaluation_score": state.get("evaluation_score", 0.0),
+                    # Allow attribute-style access such as {state.output}
+                    "state": types.SimpleNamespace(**{k: v for k, v in state.items() if isinstance(k, str)}),
                 }
 
                 try:

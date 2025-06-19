@@ -394,7 +394,7 @@ functions:
   run_subworkflow:
     type: python
     name: "Workflow Runner"
-    entrypoint: "elf.runners.execute_workflow"
+    entrypoint: "elf0.runners.execute_workflow"
 
 workflow:
   type: sequential

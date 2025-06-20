@@ -2,6 +2,19 @@
 
 **Build powerful AI agent workflows using simple YAML files. Zero complex coding required.**
 
+> ⚠️ **IMPORTANT: NOT PRODUCTION READY - USE AT YOUR OWN RISK**
+>
+> This software is experimental and in active development. Elf0 workflows can execute custom Python functions, interact with external tools, and perform system operations that may cause data loss, security vulnerabilities, or damage to your system. 
+>
+> **Before using Elf0:**
+> - Review all workflow files before execution
+> - Test in isolated environments first
+> - Never run untrusted workflows
+> - Backup important data
+> - Use appropriate security measures
+>
+> **The author(s) provide this software "AS IS" without any warranties and assume no liability for any damages, data loss, security breaches, or other issues that may result from its use. Users are solely responsible for ensuring safe and appropriate usage.**
+
 Elf0 lets you create multi-step AI workflows by describing what you want in YAML. Chain (graph) together different AI models, integrate with external tools, and even use AI to improve your workflows automatically.
 
 ```bash
@@ -16,6 +29,8 @@ uv run elf0 improve yaml specs/my_workflow.yaml --prompt "Make this workflow mor
 ```
 
 ## ⚡ Quick Start (5 minutes)
+
+> ⚠️ **Read the [Security & Safety Considerations](#-security--safety-considerations) section before proceeding**
 
 Get up and running with your first AI workflow in 5 minutes:
 
@@ -681,6 +696,83 @@ uv run elf0 agent specs/basic_chat.yaml \
 
 ---
 
+## 🔒 Security & Safety Considerations
+
+### ⚠️ Important Security Warnings
+
+**Elf0 is experimental software that can execute arbitrary code and interact with your system. Use with extreme caution.**
+
+#### Potential Risks:
+- **File System Access**: Workflows can read, write, and delete files
+- **Network Requests**: External API calls and web requests  
+- **Code Execution**: Custom Python functions and MCP servers
+- **System Commands**: Potential shell command execution
+- **Data Exposure**: Sensitive data may be sent to LLM providers
+
+#### Best Practices:
+```bash
+# 1. Always review workflows before running
+cat specs/workflow.yaml  # Inspect the workflow
+
+# 2. Test in isolated environments  
+docker run --rm -it python:3.13  # Use containers
+python -m venv test_env           # Separate virtual environments
+
+# 3. Use restricted permissions
+chmod 644 sensitive_files/        # Read-only important files
+chattr +i important_config        # Immutable critical configs (Linux)
+
+# 4. Monitor workflow execution
+uv run elf0 --verbose agent workflow.yaml  # Watch what happens
+
+# 5. Backup before experimentation
+cp -r project/ project_backup/    # Backup your work
+```
+
+#### What Workflows Can Do:
+- **Read any accessible file** on your system
+- **Write/modify files** with your user permissions  
+- **Make network requests** to external services
+- **Execute Python code** defined in workflows
+- **Start external processes** via MCP servers
+- **Access environment variables** including API keys
+
+#### Red Flags - Never Run Workflows That:
+- Come from untrusted sources
+- Use `os.system()` or `subprocess` calls
+- Access sensitive directories (`/etc`, `~/.ssh`, etc.)
+- Make unexpected network requests
+- Request elevated permissions
+- Modify system configurations
+
+#### Data Privacy:
+- **LLM Providers**: Your prompts/data are sent to OpenAI, Anthropic, etc.
+- **Local Processing**: Ollama keeps data local but uses system resources
+- **File Contents**: `@file.txt` syntax uploads file contents to LLMs
+- **Logging**: Workflow data may be logged locally
+
+### Safe Usage Guidelines
+
+```bash
+# Create a dedicated Elf0 workspace
+mkdir ~/elf0_workspace
+cd ~/elf0_workspace
+git clone https://github.com/emson/elf0.git
+cd elf0
+
+# Use a dedicated Python environment
+uv venv elf0_env
+source elf0_env/bin/activate
+
+# Set up minimal API keys (avoid using production keys)
+export OPENAI_API_KEY="sk-test-key-here"  # Use test/development keys
+
+# Test with safe, simple workflows first
+uv run elf0 agent specs/basic_chat.yaml --prompt "Hello world"
+```
+
+---
+
 ## 🛠 Troubleshooting
 
 ### Common Issues
@@ -934,9 +1026,26 @@ mypy src/
 
 ---
 
-## 📄 License
+## 📄 License & Legal Disclaimers
 
 Elf0 is licensed under the [Apache License 2.0](LICENSE). This means you can freely use, modify, and distribute this software, even for commercial purposes, as long as you include the original license and copyright notice.
+
+### Legal Disclaimers
+
+**DISCLAIMER OF WARRANTIES**: This software is provided "AS IS" without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement.
+
+**LIMITATION OF LIABILITY**: In no event shall the authors, copyright holders, or contributors be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
+
+**USER RESPONSIBILITY**: You are solely responsible for:
+- Reviewing workflow files before execution
+- Ensuring appropriate security measures  
+- Protecting sensitive data and systems
+- Complying with applicable laws and regulations
+- Any consequences of using this experimental software
+
+**EXPERIMENTAL SOFTWARE**: This is beta/experimental software under active development. Features may change, break, or be removed without notice. Use in production environments is strongly discouraged.
+
+**NO SUPPORT GUARANTEE**: While we appreciate community contributions, there is no guarantee of support, maintenance, or updates to this software.
 
 ## 🙏 Acknowledgments
 

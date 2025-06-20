@@ -557,7 +557,7 @@ After each step:
 
 4. **End-to-end workflow test**:
    ```bash
-   uv run elf agent specs/examples/python_function_test.yaml --prompt "TestUser"
+   uv run elf0 agent specs/examples/python_function_test.yaml --prompt "TestUser"
    ```
 
 ### Success Criteria 🎯

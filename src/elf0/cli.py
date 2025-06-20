@@ -64,7 +64,7 @@ class AppState:
 app_state = AppState()
 
 app = typer.Typer(
-    name="elf",
+    name="elf0",
     help="Elf0 - sElf Improving Agentic YAML Workflows",
     add_completion=False,
     rich_markup_mode="rich"
@@ -91,17 +91,17 @@ def main_callback(
 
     Examples for output/log redirection:
 
-      elf agent workflow.yaml --prompt "Summarize" > result.txt                    # Output to file, minimal logs (errors only) to stderr
+      elf0 agent workflow.yaml --prompt "Summarize" > result.txt                    # Output to file, minimal logs (errors only) to stderr
 
-      elf agent workflow.yaml --prompt "Summarize" 2> elf.log                      # Minimal logs to file, output to stdout
+      elf0 agent workflow.yaml --prompt "Summarize" 2> elf0.log                      # Minimal logs to file, output to stdout
 
-      elf --verbose agent workflow.yaml --prompt "Summarize" 2> elf_verbose.log  # Verbose logs to file, output to stdout
+      elf0 --verbose agent workflow.yaml --prompt "Summarize" 2> elf0_verbose.log  # Verbose logs to file, output to stdout
 
-      elf agent workflow.yaml --prompt "Summarize" | grep "keyword"                # Pipe output, minimal logs to stderr
+      elf0 agent workflow.yaml --prompt "Summarize" | grep "keyword"                # Pipe output, minimal logs to stderr
 
-      elf --verbose agent workflow.yaml --prompt "Summarize" | grep "keyword"      # Pipe output, verbose logs to stderr (if not redirected)
+      elf0 --verbose agent workflow.yaml --prompt "Summarize" | grep "keyword"      # Pipe output, verbose logs to stderr (if not redirected)
 
-      elf agent workflow.yaml --prompt "Summarize" > result.txt 2> errors.log      # Output to result.txt, minimal logs to errors.log
+      elf0 agent workflow.yaml --prompt "Summarize" > result.txt 2> errors.log      # Output to result.txt, minimal logs to errors.log
     """
     app_state.verbose_mode = verbose
     if app_state.verbose_mode:
@@ -260,10 +260,10 @@ def agent_command(
         Use @filename.ext within prompts to automatically include file contents as context.
 
     Examples:
-        elf agent workflow.yaml --prompt "What is the weather in London?"
-        elf agent workflow.yaml --prompt_file prompt.md
-        elf agent workflow.yaml --prompt "Explain this code @main.py and @utils.py"
-        elf agent workflow.yaml --prompt "Analyze this" --context file1.txt --output result.md
+        elf0 agent workflow.yaml --prompt "What is the weather in London?"
+        elf0 agent workflow.yaml --prompt_file prompt.md
+        elf0 agent workflow.yaml --prompt "Explain this code @main.py and @utils.py"
+        elf0 agent workflow.yaml --prompt "Analyze this" --context file1.txt --output result.md
     """
     # Validate that at least one prompt source is provided
     if not prompt and not prompt_file:
@@ -326,10 +326,10 @@ def improve_yaml_command(
         Use @filename.ext within --prompt to automatically include file contents as context.
 
     Examples:
-        elf improve yaml workflow.yaml
-        elf improve yaml workflow.yaml --output improved_workflow.yaml
-        elf improve yaml workflow.yaml --prompt "Focus on making prompts more specific"
-        elf improve yaml workflow.yaml --prompt "Follow patterns from @examples/best_workflow.yaml"
+        elf0 improve yaml workflow.yaml
+        elf0 improve yaml workflow.yaml --output improved_workflow.yaml
+        elf0 improve yaml workflow.yaml --prompt "Focus on making prompts more specific"
+        elf0 improve yaml workflow.yaml --prompt "Follow patterns from @examples/best_workflow.yaml"
     """
     # Use the built-in agent-optimizer.yaml spec
     optimizer_spec_path = Path(__file__).parent.parent.parent / "specs" / "agent-optimizer.yaml"
@@ -484,7 +484,7 @@ def prompt_yaml_command(
         Use @filename.ext within prompts to automatically include file contents as context.
 
     Examples:
-        elf prompt workflow.yaml
+        elf0 prompt workflow.yaml
         Then type your prompt and press Enter twice to send
         Or type "/send" on a new line to send
     """

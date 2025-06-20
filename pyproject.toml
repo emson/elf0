@@ -42,7 +42,7 @@ Issues = "https://github.com/emson/elf/issues"
 Changelog = "https://github.com/emson/elf/releases"
 
 [project.scripts]
-elf = "elf0.cli:app"
+elf0 = "elf0.cli:app"
 
 [dependency-groups]
 dev = [

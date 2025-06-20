@@ -202,10 +202,10 @@ You can now use Claude Code nodes in your ELF workflows:
 
 ```bash
 # Run a workflow with Claude Code integration
-uv run elf agent specs/examples/claude_code_example.yaml --prompt "Create a Python web scraper"
+uv run elf0 agent specs/examples/claude_code_example.yaml --prompt "Create a Python web scraper"
 
 # Run the self-improvement workflow
-uv run elf agent specs/examples/claude_code_self_improvement.yaml --prompt "Add caching to ELF's LLM client"
+uv run elf0 agent specs/examples/claude_code_self_improvement.yaml --prompt "Add caching to ELF's LLM client"
 ```
 
 ## Error Handling

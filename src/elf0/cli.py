@@ -23,9 +23,9 @@ from rich.rule import Rule  # Added import
 from rich.spinner import Spinner
 import typer
 
-from elf.core.exceptions import UserExitRequested
-from elf.core.runner import run_workflow
-from elf.utils.file_utils import (  # Added import
+from elf0.core.exceptions import UserExitRequested
+from elf0.core.runner import run_workflow
+from elf0.utils.file_utils import (  # Added import
     extract_spec_description,
     list_spec_files,
     parse_at_references,
@@ -42,7 +42,7 @@ stdout_workflow_console = RichConsole(file=sys.stdout)
 # --- BEGIN Centralized basicConfig (Module Level) ---
 # Setup root logger with RichHandler. Specific log levels are tuned by main_callback.
 logging.basicConfig(
-    level=logging.WARNING,  # Default root level. Loggers like 'elf.core' will be adjusted.
+    level=logging.WARNING,  # Default root level. Loggers like 'elf0.core' will be adjusted.
     format="%(message)s",   # RichHandler handles its own formatting.
     datefmt="[%X]",         # RichHandler might use its own or this as a hint.
     handlers=[
@@ -64,8 +64,8 @@ class AppState:
 app_state = AppState()
 
 app = typer.Typer(
-    name="elf",
-    help="AI Workflow Architect - Execute and optimize LLM-powered agent workflows",
+    name="elf0",
+    help="Elf0 - sElf Improving Agentic YAML Workflows",
     add_completion=False,
     rich_markup_mode="rich"
 )
@@ -81,32 +81,32 @@ def main_callback(
         False,
         "--verbose",
         "-v",
-        help="Enable verbose logging output. Shows INFO level logs from ELF and HTTP libraries."
+        help="Enable verbose logging output. Shows INFO level logs from Elf0 and HTTP libraries."
     )
 ) -> None:
-    """ELF: AI Workflow Architect.
+    """Elf0: sElf Improving Agentic YAML Workflows, zero complex coding required.
 
-    Execute and optimize LLM-powered agent workflows.
+    Execute and optimize LLM-powered agentic YAML workflows.
     By default, only critical errors are sent to stderr. Use --verbose for more detailed logs.
 
     Examples for output/log redirection:
 
-      elf agent workflow.yaml --prompt "Summarize" > result.txt                    # Output to file, minimal logs (errors only) to stderr
+      elf0 agent workflow.yaml --prompt "Summarize" > result.txt                    # Output to file, minimal logs (errors only) to stderr
 
-      elf agent workflow.yaml --prompt "Summarize" 2> elf.log                      # Minimal logs to file, output to stdout
+      elf0 agent workflow.yaml --prompt "Summarize" 2> elf0.log                      # Minimal logs to file, output to stdout
 
-      elf --verbose agent workflow.yaml --prompt "Summarize" 2> elf_verbose.log  # Verbose logs to file, output to stdout
+      elf0 --verbose agent workflow.yaml --prompt "Summarize" 2> elf0_verbose.log  # Verbose logs to file, output to stdout
 
-      elf agent workflow.yaml --prompt "Summarize" | grep "keyword"                # Pipe output, minimal logs to stderr
+      elf0 agent workflow.yaml --prompt "Summarize" | grep "keyword"                # Pipe output, minimal logs to stderr
 
-      elf --verbose agent workflow.yaml --prompt "Summarize" | grep "keyword"      # Pipe output, verbose logs to stderr (if not redirected)
+      elf0 --verbose agent workflow.yaml --prompt "Summarize" | grep "keyword"      # Pipe output, verbose logs to stderr (if not redirected)
 
-      elf agent workflow.yaml --prompt "Summarize" > result.txt 2> errors.log      # Output to result.txt, minimal logs to errors.log
+      elf0 agent workflow.yaml --prompt "Summarize" > result.txt 2> errors.log      # Output to result.txt, minimal logs to errors.log
     """
     app_state.verbose_mode = verbose
     if app_state.verbose_mode:
         # Enable INFO logging for elf.core and HTTP libraries
-        logging.getLogger("elf.core").setLevel(logging.INFO)
+        logging.getLogger("elf0.core").setLevel(logging.INFO)
         # Removed NullHandler logic for elf.core
 
         for lib_name in ["httpx", "httpcore"]:
@@ -115,7 +115,7 @@ def main_callback(
             lib_logger.setLevel(logging.INFO)
     else:
         # Default: Minimal logging (errors for elf.core, warnings for HTTP)
-        logging.getLogger("elf.core").setLevel(logging.ERROR)
+        logging.getLogger("elf0.core").setLevel(logging.ERROR)
         # Removed NullHandler logic for elf.core
 
         for lib_name in ["httpx", "httpcore"]:
@@ -260,10 +260,10 @@ def agent_command(
         Use @filename.ext within prompts to automatically include file contents as context.
 
     Examples:
-        elf agent workflow.yaml --prompt "What is the weather in London?"
-        elf agent workflow.yaml --prompt_file prompt.md
-        elf agent workflow.yaml --prompt "Explain this code @main.py and @utils.py"
-        elf agent workflow.yaml --prompt "Analyze this" --context file1.txt --output result.md
+        elf0 agent workflow.yaml --prompt "What is the weather in London?"
+        elf0 agent workflow.yaml --prompt_file prompt.md
+        elf0 agent workflow.yaml --prompt "Explain this code @main.py and @utils.py"
+        elf0 agent workflow.yaml --prompt "Analyze this" --context file1.txt --output result.md
     """
     # Validate that at least one prompt source is provided
     if not prompt and not prompt_file:
@@ -326,10 +326,10 @@ def improve_yaml_command(
         Use @filename.ext within --prompt to automatically include file contents as context.
 
     Examples:
-        elf improve yaml workflow.yaml
-        elf improve yaml workflow.yaml --output improved_workflow.yaml
-        elf improve yaml workflow.yaml --prompt "Focus on making prompts more specific"
-        elf improve yaml workflow.yaml --prompt "Follow patterns from @examples/best_workflow.yaml"
+        elf0 improve yaml workflow.yaml
+        elf0 improve yaml workflow.yaml --output improved_workflow.yaml
+        elf0 improve yaml workflow.yaml --prompt "Focus on making prompts more specific"
+        elf0 improve yaml workflow.yaml --prompt "Follow patterns from @examples/best_workflow.yaml"
     """
     # Use the built-in agent-optimizer.yaml spec
     optimizer_spec_path = Path(__file__).parent.parent.parent / "specs" / "agent-optimizer.yaml"
@@ -484,7 +484,7 @@ def prompt_yaml_command(
         Use @filename.ext within prompts to automatically include file contents as context.
 
     Examples:
-        elf prompt workflow.yaml
+        elf0 prompt workflow.yaml
         Then type your prompt and press Enter twice to send
         Or type "/send" on a new line to send
     """

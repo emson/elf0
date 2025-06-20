@@ -5,8 +5,8 @@ import tempfile
 
 import pytest
 
-from elf.core.mcp_client import SimpleMCPClient
-from elf.core.nodes.mcp_node import MCPNode
+from elf0.core.mcp_client import SimpleMCPClient
+from elf0.core.nodes.mcp_node import MCPNode
 
 # Skip integration tests in CI environments unless explicitly enabled
 CI_SKIP = os.getenv("CI") and not os.getenv("ELF_RUN_INTEGRATION_TESTS")

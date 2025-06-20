@@ -1,12 +1,12 @@
 import pytest
 
-from elf.core.compiler import (
+from elf0.core.compiler import (
     NodeFactoryRegistry,
     compile_to_langgraph,
     create_condition_function,
 )
-from elf.core.config import load_env_file
-from elf.core.spec import LLM, Edge, Spec, Workflow, WorkflowNode
+from elf0.core.config import load_env_file
+from elf0.core.spec import LLM, Edge, Spec, Workflow, WorkflowNode
 
 
 @pytest.fixture(autouse=True)

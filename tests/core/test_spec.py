@@ -1,7 +1,7 @@
 
 import pytest
 
-from elf.core.spec import LLM, Edge, Spec, Workflow, WorkflowNode
+from elf0.core.spec import LLM, Edge, Spec, Workflow, WorkflowNode
 
 # Test data
 VALID_LLM_CONFIG = {

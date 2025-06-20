@@ -4,7 +4,7 @@ import tempfile
 
 import pytest
 
-from elf.core.spec import (
+from elf0.core.spec import (
     CircularReferenceError,
     Spec,
     _deep_merge_dicts,

@@ -2,10 +2,10 @@
 
 ## Commands
 - Install: `uv venv && uv pip install -e .`
-- Run: `uv run elf`
-- Run specific workflow: `uv run elf agent workflows/basic_chat.yaml --prompt "Your prompt"`
+- Run: `uv run elf0`
+- Run specific workflow: `uv run elf0 agent workflows/basic_chat.yaml --prompt "Your prompt"`
 - Test: `uv run pytest tests/ --timeout=300`
-- Test with coverage: `uv run pytest tests/ --cov=src/elf --timeout=300`
+- Test with coverage: `uv run pytest tests/ --cov=src/elf0 --timeout=300`
 - Test (skip external deps): `uv run pytest tests/ -m "not requires_external"`
 - Test integration only: `uv run pytest tests/ -m "integration"`
 - Test with external resources: `ELF_RUN_INTEGRATION_TESTS=1 uv run pytest tests/`

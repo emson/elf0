@@ -12,12 +12,12 @@ functions:
   get_input:
     type: python
     name: "User Input"
-    entrypoint: "elf.functions.utils.get_user_input"
+    entrypoint: "elf0.functions.utils.get_user_input"
     
   process_text:
     type: python
     name: "Text Processor"
-    entrypoint: "elf.functions.utils.text_processor"
+    entrypoint: "elf0.functions.utils.text_processor"
 
 workflow:
   type: sequential

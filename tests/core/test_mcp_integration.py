@@ -1,8 +1,8 @@
 # tests/core/test_mcp_integration.py
 import pytest
 
-from elf.core.compiler import make_tool_node
-from elf.core.spec import Function, Spec
+from elf0.core.compiler import make_tool_node
+from elf0.core.spec import Function, Spec
 
 
 class TestMCPFunctionValidation:
@@ -96,7 +96,7 @@ class TestMCPToolNodeFactory:
 
     def test_make_tool_node_mcp_function(self):
         """Test make_tool_node with MCP function returns placeholder explaining new architecture."""
-        from elf.core.spec import Workflow, WorkflowNode
+        from elf0.core.spec import Workflow, WorkflowNode
 
         # Create a spec with an MCP function
         spec = Spec(
@@ -129,7 +129,7 @@ class TestMCPToolNodeFactory:
 
     def test_make_tool_node_python_function(self):
         """Test make_tool_node with Python function."""
-        from elf.core.spec import Workflow, WorkflowNode
+        from elf0.core.spec import Workflow, WorkflowNode
 
         # Create a spec with a Python function
         spec = Spec(
@@ -157,7 +157,7 @@ class TestMCPToolNodeFactory:
 
     def test_make_tool_node_missing_function(self):
         """Test make_tool_node with missing function reference."""
-        from elf.core.spec import Workflow, WorkflowNode
+        from elf0.core.spec import Workflow, WorkflowNode
 
         # Create a spec with a dummy workflow that passes validation
         spec = Spec(
@@ -183,7 +183,7 @@ class TestMCPToolNodeFactory:
 
     def test_make_tool_node_unsupported_type(self):
         """Test make_tool_node with unsupported function type."""
-        from elf.core.spec import Workflow, WorkflowNode
+        from elf0.core.spec import Workflow, WorkflowNode
 
         # Create a valid spec first
         spec = Spec(

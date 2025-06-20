@@ -12,7 +12,7 @@ functions:
   process_text:
     type: python
     name: "Text Processor"
-    entrypoint: "elf.functions.utils.text_processor"
+    entrypoint: "elf0.functions.utils.text_processor"
 
 workflow:
   type: sequential

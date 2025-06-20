@@ -1,7 +1,7 @@
 import pytest
 
-from elf.core.config import LLMConfig, create_llm_config, get_api_key
-from elf.core.spec import LLM
+from elf0.core.config import LLMConfig, create_llm_config, get_api_key
+from elf0.core.spec import LLM
 
 
 def test_get_api_key_validation(monkeypatch):

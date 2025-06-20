@@ -12,7 +12,7 @@ from typing import (
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 import yaml
 
-from elf.utils.yaml_loader import load_yaml_file
+from elf0.utils.yaml_loader import load_yaml_file
 
 
 class CircularReferenceError(Exception):

@@ -1,4 +1,4 @@
-# src/elf/core/compiler.py
+# src/elf0/core/compiler.py
 import asyncio
 from collections.abc import Callable
 import json
@@ -17,6 +17,25 @@ from .spec import Edge, Spec, WorkflowNode
 # Configure logging (This section will be removed)
 # Default max iterations if not specified in the spec's workflow
 DEFAULT_MAX_ITERATIONS = 7
+
+
+class SafeNamespace:
+    """A namespace that returns empty string for missing attributes instead of raising AttributeError."""
+
+    def __init__(self, data: dict[str, Any]):
+        self._data = {k: v for k, v in data.items() if isinstance(k, str)}
+
+    def __getattr__(self, name: str) -> Any:
+        return self._data.get(name, "")
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._data
+
+    def __getitem__(self, key: str) -> Any:
+        return self._data.get(key, "")
+
+    def get(self, key: str, default: Any = "") -> Any:
+        return self._data.get(key, default)
 
 # Get a logger specific to elf.core.compiler. The CLI's --quiet flag will target 'elf.core'.
 logger = logging.getLogger(__name__) # This will be 'elf.core.compiler'
@@ -143,7 +162,9 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     "input": user_provided_input,
                     "output": state.get("output", ""),
                     "iteration_count": state.get("iteration_count", 0),
-                    "evaluation_score": state.get("evaluation_score", 0.0)
+                    "evaluation_score": state.get("evaluation_score", 0.0),
+                    # Allow attribute-style access such as {state.output} with safe fallback
+                    "state": SafeNamespace(state),
                 }
 
                 try:

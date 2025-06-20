@@ -89,21 +89,21 @@ async def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
 
 1. **Test Sequential Workflow**:
    ```bash
-   uv run elf agent test_math_sequential.yaml --prompt "Calculate 15 + 20"
+   uv run elf0 agent test_math_sequential.yaml --prompt "Calculate 15 + 20"
    ```
    Expected: Should output `35` after running both math_extractor and math_tool
 
 2. **Test Original MCP Workflow**:
    ```bash
-   uv run elf agent specs/examples/mcp_workflow.yaml --prompt "Calculate 15 + 20"
+   uv run elf0 agent specs/examples/mcp_workflow.yaml --prompt "Calculate 15 + 20"
    ```
    Expected: Should complete full workflow including final summarizer
 
 3. **Test Multiple Operations**:
    ```bash
-   uv run elf agent specs/examples/mcp_workflow.yaml --prompt "50 - 20"
-   uv run elf agent specs/examples/mcp_workflow.yaml --prompt "8 * 6" 
-   uv run elf agent specs/examples/mcp_workflow.yaml --prompt "100 / 4"
+   uv run elf0 agent specs/examples/mcp_workflow.yaml --prompt "50 - 20"
+   uv run elf0 agent specs/examples/mcp_workflow.yaml --prompt "8 * 6" 
+   uv run elf0 agent specs/examples/mcp_workflow.yaml --prompt "100 / 4"
    ```
    Expected: Should return 30, 48, 25 respectively
 

@@ -15,11 +15,11 @@ export ANTHROPIC_API_KEY="your-key-here"
 ### Basic Usage
 ```bash
 # Generate code
-uv run elf agent specs/examples/claude_code_example.yaml \
+uv run elf0 agent specs/examples/claude_code_example.yaml \
   --prompt "Create a Python function to validate email addresses"
 
 # Analyse existing code
-uv run elf agent specs/examples/claude_code_example.yaml \
+uv run elf0 agent specs/examples/claude_code_example.yaml \
   --prompt "Review this code for bugs @my_script.py"
 ```
 
@@ -60,7 +60,7 @@ Generate complete applications or components from specifications.
 
 **Example: API Generation**
 ```bash
-uv run elf agent specs/examples/claude_code_example.yaml \
+uv run elf0 agent specs/examples/claude_code_example.yaml \
   --prompt "Create a FastAPI REST API with user authentication and CRUD operations"
 ```
 
@@ -85,7 +85,7 @@ Analyse code for bugs, security issues, performance problems, and maintainabilit
 
 **Example: Security Review**
 ```bash
-uv run elf agent specs/examples/claude_code_example.yaml \
+uv run elf0 agent specs/examples/claude_code_example.yaml \
   --prompt "Analyse @auth.py for security vulnerabilities"
 ```
 
@@ -118,7 +118,7 @@ Automatically improve existing code based on analysis or requirements.
 
 **Example: Add Error Handling**
 ```bash
-uv run elf agent specs/examples/claude_code_example.yaml \
+uv run elf0 agent specs/examples/claude_code_example.yaml \
   --prompt "Add comprehensive error handling to @api.py"
 ```
 
@@ -144,7 +144,7 @@ Generate and maintain code documentation automatically.
 
 **Example: API Documentation**
 ```bash
-uv run elf agent specs/examples/claude_code_example.yaml \
+uv run elf0 agent specs/examples/claude_code_example.yaml \
   --prompt "Generate OpenAPI documentation for @src/api/"
 ```
 
@@ -190,7 +190,7 @@ Enable ELF to analyse and improve its own codebase.
 
 **Example: Platform Enhancement**
 ```bash
-uv run elf agent specs/examples/claude_code_self_improvement.yaml \
+uv run elf0 agent specs/examples/claude_code_self_improvement.yaml \
   --prompt "Add better error handling to MCP node implementation"
 ```
 
@@ -344,25 +344,25 @@ config:
 
 ### Simple Code Generation
 ```bash
-uv run elf agent specs/examples/claude_code_example.yaml \
+uv run elf0 agent specs/examples/claude_code_example.yaml \
   --prompt "Create a Python class for managing user sessions"
 ```
 
 ### Code Review with Context
 ```bash
-uv run elf agent specs/examples/claude_code_example.yaml \
+uv run elf0 agent specs/examples/claude_code_example.yaml \
   --prompt "Review @auth.py considering security best practices from @security_guidelines.md"
 ```
 
 ### Multi-step Improvement
 ```bash
-uv run elf agent specs/examples/claude_code_example.yaml \
+uv run elf0 agent specs/examples/claude_code_example.yaml \
   --prompt "Analyse @legacy_code.py, identify issues, and generate improved version"
 ```
 
 ### Platform Self-Improvement
 ```bash
-uv run elf agent specs/examples/claude_code_self_improvement.yaml \
+uv run elf0 agent specs/examples/claude_code_self_improvement.yaml \
   --prompt "Add input validation to ELF's workflow compiler"
 ```
 

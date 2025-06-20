@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from elf.core.mcp_client import MCPConnectionError, MCPToolError
-from elf.core.nodes.mcp_node import MCPNode
+from elf0.core.mcp_client import MCPConnectionError, MCPToolError
+from elf0.core.nodes.mcp_node import MCPNode
 
 
 class TestMCPNode:
@@ -91,7 +91,7 @@ class TestMCPNode:
         node = MCPNode(config)
         state = {"input": "test data"}
 
-        with patch("elf.core.nodes.mcp_node.SimpleMCPClient") as mock_client_class:
+        with patch("elf0.core.nodes.mcp_node.SimpleMCPClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.connect.return_value = True
             mock_client.call_tool.return_value = {"output": "tool result"}
@@ -121,7 +121,7 @@ class TestMCPNode:
         node = MCPNode(config)
         state = {"input": "test data"}
 
-        with patch("elf.core.nodes.mcp_node.SimpleMCPClient") as mock_client_class:
+        with patch("elf0.core.nodes.mcp_node.SimpleMCPClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.connect.return_value = False  # Connection failed
             mock_client_class.return_value = mock_client
@@ -145,7 +145,7 @@ class TestMCPNode:
         node = MCPNode(config)
         state = {"input": "test data"}
 
-        with patch("elf.core.nodes.mcp_node.SimpleMCPClient") as mock_client_class:
+        with patch("elf0.core.nodes.mcp_node.SimpleMCPClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.connect.return_value = True
             mock_client.call_tool.side_effect = MCPToolError("Tool execution failed")
@@ -171,7 +171,7 @@ class TestMCPNode:
         node = MCPNode(config)
         state = {"input": "test data"}
 
-        with patch("elf.core.nodes.mcp_node.SimpleMCPClient") as mock_client_class:
+        with patch("elf0.core.nodes.mcp_node.SimpleMCPClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.connect.return_value = True
             mock_client.call_tool.side_effect = Exception("Unexpected error")

@@ -2,7 +2,7 @@
 import logging
 from typing import Any
 
-from elf.core.mcp_client import MCPConnectionError, SimpleMCPClient
+from elf0.core.mcp_client import MCPConnectionError, SimpleMCPClient
 
 logger = logging.getLogger(__name__)
 

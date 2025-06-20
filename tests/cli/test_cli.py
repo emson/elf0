@@ -9,7 +9,7 @@ from rich.console import Console as RichConsole  # To create new consoles for pa
 from typer import Exit
 from typer.testing import CliRunner
 
-from elf.cli import (
+from elf0.cli import (
     app,
     app_state,
     display_workflow_result,
@@ -165,7 +165,7 @@ def test_display_workflow_result_string(capsys):
     """Test displaying string result."""
     mock_stdout_buffer = io.StringIO()
     # Patch the module-level stdout_workflow_console used by display_workflow_result
-    with patch("elf.cli.stdout_workflow_console", RichConsole(file=mock_stdout_buffer, force_terminal=False)):
+    with patch("elf0.cli.stdout_workflow_console", RichConsole(file=mock_stdout_buffer, force_terminal=False)):
         display_workflow_result("test output")
 
     captured_out_direct = mock_stdout_buffer.getvalue()
@@ -177,7 +177,7 @@ def test_display_workflow_result_string(capsys):
 def test_display_workflow_result_dict_with_output(capsys):
     """Test displaying dict result with output key."""
     mock_stdout_buffer = io.StringIO()
-    with patch("elf.cli.stdout_workflow_console", RichConsole(file=mock_stdout_buffer, force_terminal=False)):
+    with patch("elf0.cli.stdout_workflow_console", RichConsole(file=mock_stdout_buffer, force_terminal=False)):
         display_workflow_result({"output": "test output"})
 
     captured_out_direct = mock_stdout_buffer.getvalue()
@@ -193,7 +193,7 @@ def test_display_workflow_result_dict_without_output(capsys):
     app_state.verbose_mode = True
     mock_stdout_buffer = io.StringIO()
     try:
-        with patch("elf.cli.stdout_workflow_console", RichConsole(file=mock_stdout_buffer, force_terminal=False)):
+        with patch("elf0.cli.stdout_workflow_console", RichConsole(file=mock_stdout_buffer, force_terminal=False)):
             display_workflow_result({"key": "value"})
 
         captured_out_direct = mock_stdout_buffer.getvalue()
@@ -212,7 +212,7 @@ def test_display_workflow_result_unexpected_type(capsys):
     app_state.verbose_mode = True
     mock_stdout_buffer = io.StringIO()
     try:
-        with patch("elf.cli.stdout_workflow_console", RichConsole(file=mock_stdout_buffer, force_terminal=False)):
+        with patch("elf0.cli.stdout_workflow_console", RichConsole(file=mock_stdout_buffer, force_terminal=False)):
             display_workflow_result(123)
 
         captured_out_direct = mock_stdout_buffer.getvalue()
@@ -265,7 +265,7 @@ workflow:
       stop: true
 """)
 
-    with patch("elf.cli.run_workflow") as mock_run:
+    with patch("elf0.cli.run_workflow") as mock_run:
         mock_run.return_value = {"output": "test result"}
         result = runner.invoke(app, ["agent", str(spec_path), "--prompt_file", str(temp_prompt_file)])
         assert result.exit_code == 0, result.stdout
@@ -293,7 +293,7 @@ workflow:
       stop: true
 """)
 
-    with patch("elf.cli.run_workflow") as mock_run:
+    with patch("elf0.cli.run_workflow") as mock_run:
         mock_run.return_value = {"output": "test result"}
         result = runner.invoke(app, [
             "agent",
@@ -355,14 +355,14 @@ workflow:
       stop: true
 """) # Ensure valid spec
 
-    with patch("elf.cli.run_workflow") as mock_run:
+    with patch("elf0.cli.run_workflow") as mock_run:
         mock_run.return_value = {"output": "test result"}
         result = runner.invoke(app, ["agent", str(spec_path), "--prompt_file", str(file_path)])
         assert result.exit_code == 0, result.stdout
         mock_run.assert_called_once()
         assert mock_run.call_args[0][1] == "" # Empty prompt string
 
-@patch("elf.cli.PromptSession.prompt")
+@patch("elf0.cli.PromptSession.prompt")
 def test_get_multiline_input_with_send_command(mock_prompt_session_prompt, capsys):
     """Test multiline input with /send command."""
     mock_prompt_session_prompt.side_effect = [
@@ -376,7 +376,7 @@ def test_get_multiline_input_with_send_command(mock_prompt_session_prompt, capsy
     assert mock_prompt_session_prompt.call_count == 3
     _ = capsys.readouterr() # Consume any stderr like "💬 Enter your prompt:"
 
-@patch("elf.cli.PromptSession.prompt")
+@patch("elf0.cli.PromptSession.prompt")
 def test_get_multiline_input_with_double_enter(mock_prompt_session_prompt, capsys):
     """Test multiline input with double enter."""
     mock_prompt_session_prompt.side_effect = [
@@ -391,7 +391,7 @@ def test_get_multiline_input_with_double_enter(mock_prompt_session_prompt, capsy
     assert mock_prompt_session_prompt.call_count == 4
     _ = capsys.readouterr() # Consume any stderr
 
-@patch("elf.cli.PromptSession.prompt")
+@patch("elf0.cli.PromptSession.prompt")
 def test_get_multiline_input_with_exit_command(mock_prompt_session_prompt, capsys):
     """Test multiline input with exit command."""
     mock_prompt_session_prompt.return_value = "/exit"

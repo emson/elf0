@@ -1,5 +1,5 @@
 [project]
-name = "elf"
+name = "elf0"
 version = "0.1.0"
 description = "sElf improving single file agent structures"
 readme = "README.md"
@@ -42,7 +42,7 @@ Issues = "https://github.com/emson/elf/issues"
 Changelog = "https://github.com/emson/elf/releases"
 
 [project.scripts]
-elf = "elf.cli:app"
+elf0 = "elf0.cli:app"
 
 [dependency-groups]
 dev = [
@@ -92,7 +92,7 @@ source = ["src"]
 branch = true
 omit = [
     "tests/*",
-    "src/elf/__init__.py",
+    "src/elf0/__init__.py",
 ]
 
 [tool.coverage.report]
@@ -143,7 +143,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/elf/__init__.py"
+path = "src/elf0/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/elf"]
+packages = ["src/elf0"]

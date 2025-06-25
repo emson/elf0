@@ -1,0 +1,96 @@
+version: "0.1"
+description: "YouTube transcript analysis with key points and summary"
+runtime: "langgraph"
+
+llms:
+  gpt_model:
+    type: openai_chat
+    model_name: gpt-4.1-mini
+    temperature: 0.2
+
+workflow:
+  type: custom_graph
+  nodes:
+    - id: extract_url
+      kind: agent
+      ref: gpt_model
+      config:
+        prompt: |
+          Extract the YouTube URL from the following user input. Return ONLY a JSON object with the extracted URL.
+          
+          User input: {input}
+          
+          Instructions:
+          - Look for YouTube URLs in these formats: youtube.com/watch?v=, youtu.be/, or youtube.com/embed/
+          - If multiple URLs are found, use the first valid one
+          - If no YouTube URL is found, return {"error": "No YouTube URL found in input"}
+          - Return only valid JSON, no additional text
+          
+          Expected output format:
+          {"youtube_url": "https://www.youtube.com/watch?v=VIDEO_ID"}
+          
+          Or if no URL found:
+          {"error": "No YouTube URL found in input"}
+    
+    - id: get_transcript
+      kind: mcp
+      config:
+        server:
+          command: ["python", "mcp/youtube-transcript/server.py"]
+        tool: "extract_transcript"
+        parameters:
+          url: "{state.json.youtube_url}"
+          language: "en"
+    
+    - id: analyze_and_summarize
+      kind: agent
+      ref: gpt_model
+      config:
+        prompt: |
+          Analyze this YouTube transcript and create a comprehensive markdown summary.
+          
+          Video URL: {state.json.youtube_url}
+          Transcript Data: {output}
+          
+          Create a well-structured markdown document that includes:
+          
+          ## Video Summary
+          
+          **URL:** [Include the video URL here]
+          
+          **Main Topic:** [Brief description of what the video is about]
+          
+          ## Key Concepts & Insights
+          
+          Identify and list the 5-7 most interesting and important concepts from the transcript:
+          
+          1. **[Concept Name]** - [Brief explanation of the concept and why it's important]
+          2. **[Concept Name]** - [Brief explanation]
+          [Continue for all key concepts...]
+          
+          ## Actionable Takeaways
+          
+          List 3-5 practical actions or insights viewers can apply:
+          
+          - [Actionable item 1]
+          - [Actionable item 2]
+          [Continue as appropriate...]
+          
+          ## Summary
+          
+          [2-3 paragraph comprehensive summary of the video's content, connecting the key concepts and explaining the overall message or purpose]
+          
+          ---
+          
+          Focus on:
+          - Extracting genuine insights and surprising facts
+          - Making complex ideas accessible
+          - Highlighting practical value for the reader
+          - Using clear, engaging markdown formatting
+      stop: true
+
+  edges:
+    - source: extract_url
+      target: get_transcript
+    - source: get_transcript
+      target: analyze_and_summarize

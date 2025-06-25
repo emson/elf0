@@ -26,16 +26,26 @@ class SafeNamespace:
         self._data = {k: v for k, v in data.items() if isinstance(k, str)}
 
     def __getattr__(self, name: str) -> Any:
-        return self._data.get(name, "")
+        # First check regular state fields
+        if name in self._data:
+            return self._data[name]
+        # Then check dynamic_state for output_key fields
+        dynamic_state = self._data.get("dynamic_state", {})
+        if dynamic_state and isinstance(dynamic_state, dict) and name in dynamic_state:
+            return dynamic_state[name]
+        return ""
 
     def __contains__(self, key: str) -> bool:
-        return key in self._data
+        if key in self._data:
+            return True
+        dynamic_state = self._data.get("dynamic_state", {})
+        return dynamic_state and isinstance(dynamic_state, dict) and key in dynamic_state
 
     def __getitem__(self, key: str) -> Any:
-        return self._data.get(key, "")
+        return self.__getattr__(key)
 
     def get(self, key: str, default: Any = "") -> Any:
-        return self._data.get(key, default)
+        return self.__getattr__(key) if self.__contains__(key) else default
 
 # Get a logger specific to elf.core.compiler. The CLI's --quiet flag will target 'elf.core'.
 logger = logging.getLogger(__name__) # This will be 'elf.core.compiler'
@@ -63,6 +73,8 @@ class WorkflowState(TypedDict):
     format_error: str | None
     # Claude Code integration fields
     claude_code_result: dict[str, Any] | None
+    # Dynamic fields for output_key support - stores custom node outputs
+    dynamic_state: dict[str, Any] | None
 
 class NodeFunction(Protocol):
     """Protocol defining the interface for node functions."""
@@ -262,12 +274,22 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     "error_context": None
                 })
 
-            return WorkflowState({
+            # Handle output_key for custom state field assignment
+            result_state = {
                 **state,  # Preserve all existing state
                 "output": response,
                 "current_node": node.id,
                 "error_context": None
-            })
+            }
+            
+            # If node has output_key, store response in dynamic_state
+            output_key = node.config.get("output_key")
+            if output_key and isinstance(output_key, str):
+                if "dynamic_state" not in result_state or result_state["dynamic_state"] is None:
+                    result_state["dynamic_state"] = {}
+                result_state["dynamic_state"][output_key] = response
+            
+            return WorkflowState(result_state)
         except Exception as e:
             logger.exception(f"[red]✗ [Node: {node.id}] LLM error: {e!s}[/red]")
             # Preserve original state from before this node's execution on error
@@ -646,22 +668,23 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
 def make_branch_node(node: Any) -> NodeFunction:
     """Creates a node function for implementing branching logic within the workflow.
 
-    Note: This function currently returns a placeholder implementation.
-    A proper implementation would involve evaluating conditions based on `WorkflowState`
-    and returning a string that dictates the next node or path in the graph.
+    Branch nodes are pass-through nodes that preserve the previous node's output
+    while allowing conditional routing based on their configuration. The actual
+    routing logic is handled by the graph edges, not the node function itself.
 
     Args:
         node: The node configuration object. Specific attributes relevant to branching
               (e.g., conditions, target nodes) would be defined here in a full implementation.
 
     Returns:
-        A node function that, when implemented, performs branching based on `WorkflowState`.
+        A node function that passes through the previous node's output unchanged.
     """
     def node_fn(state: WorkflowState) -> WorkflowState:
-        # TODO: Implement actual branching logic
+        # Branch nodes are pass-through - preserve previous output for routing
         return {
             **state,
-            "output": f"Branch result for: {state['input']}"
+            "current_node": getattr(node, 'id', 'branch_node'),
+            "error_context": None
         }
     return node_fn
 
@@ -1161,6 +1184,8 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
         raw_json: str | None = None
         format_status: str | None = None  # 'converted', 'error', or None
         format_error: str | None = None
+        # Dynamic fields for output_key support
+        dynamic_state: dict[str, Any] | None = None
 
     # Create a new graph with explicit state schema
     graph = StateGraph(

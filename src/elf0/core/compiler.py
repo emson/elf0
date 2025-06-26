@@ -33,13 +33,57 @@ class SafeNamespace:
         dynamic_state = self._data.get("dynamic_state", {})
         if dynamic_state and isinstance(dynamic_state, dict) and name in dynamic_state:
             return dynamic_state[name]
+        # Special handling for 'json' - parse JSON from output_key fields
+        if name == "json":
+            return self._create_json_namespace()
         return ""
+
+    def _create_json_namespace(self) -> "SafeNamespace":
+        """Create a namespace that parses JSON from dynamic_state fields."""
+        import json
+        json_data = {}
+        dynamic_state = self._data.get("dynamic_state", {})
+        if dynamic_state and isinstance(dynamic_state, dict):
+            for key, value in dynamic_state.items():
+                if isinstance(value, str):
+                    try:
+                        # Clean the string first - remove markdown fences and quotes
+                        cleaned_value = value.strip()
+                        if cleaned_value.startswith('```json'):
+                            cleaned_value = cleaned_value[7:]
+                        if cleaned_value.startswith('```'):
+                            cleaned_value = cleaned_value[3:]
+                        if cleaned_value.endswith('```'):
+                            cleaned_value = cleaned_value[:-3]
+                        cleaned_value = cleaned_value.strip()
+                        
+                        # Handle case where LLM returns just "error" instead of JSON
+                        if cleaned_value == '"error"' or cleaned_value == 'error':
+                            json_data["error"] = "JSON parsing failed"
+                            continue
+                            
+                        # Try to parse as JSON
+                        parsed = json.loads(cleaned_value)
+                        if isinstance(parsed, dict):
+                            json_data.update(parsed)
+                        elif isinstance(parsed, str):
+                            # If it's a string, treat it as an error
+                            json_data["error"] = parsed
+                    except (json.JSONDecodeError, ValueError):
+                        # Not valid JSON, treat as error message
+                        json_data["error"] = f"Invalid JSON: {value[:50]}..."
+        return SafeNamespace(json_data)
 
     def __contains__(self, key: str) -> bool:
         if key in self._data:
             return True
         dynamic_state = self._data.get("dynamic_state", {})
-        return dynamic_state and isinstance(dynamic_state, dict) and key in dynamic_state
+        if dynamic_state and isinstance(dynamic_state, dict) and key in dynamic_state:
+            return True
+        # Special handling for 'json'
+        if key == "json":
+            return True  # Always return True for json namespace
+        return False
 
     def __getitem__(self, key: str) -> Any:
         return self.__getattr__(key)
@@ -183,13 +227,33 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     final_prompt_to_llm = prompt_template_str.format(**template_kwargs)
                 except KeyError as e:
                     logger.warning(f"[yellow]⚠ [Node: {node.id}] Template variable {e} not found in state, using partial formatting[/yellow]")
-                    # Fall back to just input formatting for compatibility
-                    if "{input}" in prompt_template_str:
-                        final_prompt_to_llm = prompt_template_str.format(input=user_provided_input)
+                    # Handle malformed template variables (e.g., quoted strings from LLM output)
+                    error_key = str(e).strip("'\"")  # Remove quotes from error message
+                    
+                    # If the error key looks like a malformed JSON key, try to clean the prompt
+                    if error_key.startswith('"') and error_key.endswith('"'):
+                        # This is likely a malformed LLM output - remove the problematic template
+                        cleaned_prompt = prompt_template_str
+                        # Remove the malformed template variable
+                        import re
+                        malformed_pattern = r'\{["\'][^"\']*["\']\}'
+                        cleaned_prompt = re.sub(malformed_pattern, '[MALFORMED_OUTPUT]', cleaned_prompt)
+                        logger.warning(f"[yellow]⚠ [Node: {node.id}] Detected malformed template variable, cleaned prompt[/yellow]")
+                        final_prompt_to_llm = cleaned_prompt
                     else:
-                        final_prompt_to_llm = prompt_template_str
-                        if user_provided_input:
-                            final_prompt_to_llm += "\n\nUser Input: " + user_provided_input
+                        # Fall back to just input formatting for compatibility
+                        if "{input}" in prompt_template_str:
+                            try:
+                                final_prompt_to_llm = prompt_template_str.format(input=user_provided_input)
+                            except KeyError:
+                                # Even input formatting failed, use raw prompt
+                                final_prompt_to_llm = prompt_template_str
+                                if user_provided_input:
+                                    final_prompt_to_llm += "\n\nUser Input: " + user_provided_input
+                        else:
+                            final_prompt_to_llm = prompt_template_str
+                            if user_provided_input:
+                                final_prompt_to_llm += "\n\nUser Input: " + user_provided_input
             elif user_provided_input:
                 final_prompt_to_llm = user_provided_input
             else:
@@ -205,6 +269,28 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             logger.info(f"[blue][Node: {node.id}] LLM call ({iteration_str}) {llm_client.spec.type}:{llm_client.spec.model_name}[/blue]")
             response = llm_client.generate(final_prompt_to_llm)
             logger.info(f"[dim][Node: {node.id}] Response: {response[:50]}...[/dim]")
+            
+            # Clean and validate response for nodes that expect JSON
+            output_key = node.config.get("output_key")
+            if output_key and "json" in str(node.config.get("prompt", "")).lower():
+                # Clean malformed JSON responses from LLMs
+                cleaned = response.strip()
+                
+                # If response is just a quoted string (common LLM error), try to fix it
+                if cleaned.startswith('"') and cleaned.endswith('"') and cleaned.count('"') == 2:
+                    # This looks like: "youtube_url" instead of {"youtube_url": "value"}
+                    logger.warning(f"[yellow]⚠ [Node: {node.id}] Detected malformed JSON response, attempting to fix[/yellow]")
+                    response = '{"error": "Malformed LLM output - expected JSON object"}'
+                elif not cleaned.startswith('{'):
+                    # Try to extract JSON from response if it's wrapped in text
+                    import re
+                    json_match = re.search(r'\{[^{}]*\}', cleaned)
+                    if json_match:
+                        response = json_match.group(0)
+                    # If no JSON found and response looks like it should be JSON, return error
+                    elif any(keyword in cleaned.lower() for keyword in ['youtube', 'url', 'error']):
+                        logger.warning(f"[yellow]⚠ [Node: {node.id}] No valid JSON found in response, returning error[/yellow]")
+                        response = '{"error": "Invalid response format - expected JSON"}'
 
             # Check if this node has a structured output format
             output_format = node.config.get("format")

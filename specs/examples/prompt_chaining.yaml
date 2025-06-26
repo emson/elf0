@@ -6,7 +6,7 @@ llms:
   # Define the LLM client configuration to be used by agent nodes
   # The 'ref' in the nodes will point to 'default_chat_llm'
   default_chat_llm:
-    type: "openai_chat"  # Placeholder: actual type depends on LLMClient implementation
+    type: "openai"  # Corrected type name for schema validation
     model_name: "gpt-4.1-mini" # Corrected field name, was 'model'
     temperature: 0.7
     # A system message could be part of the LLM config if always applicable

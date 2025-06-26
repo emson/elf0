@@ -4,7 +4,7 @@ runtime: "langgraph"
 
 llms:
   gpt_model:
-    type: openai_chat
+    type: openai
     model_name: gpt-4.1-mini
     temperature: 0.2
 
@@ -16,21 +16,15 @@ workflow:
       ref: gpt_model
       config:
         prompt: |
-          Extract the YouTube URL from the following user input. Return ONLY a JSON object with the extracted URL.
+          Extract YouTube URL from user input and return as JSON.
           
-          User input: {input}
+          Input: {input}
           
-          Instructions:
-          - Look for YouTube URLs in these formats: youtube.com/watch?v=, youtu.be/, or youtube.com/embed/
-          - If multiple URLs are found, use the first valid one
-          - If no YouTube URL is found, return {"error": "No YouTube URL found in input"}
-          - Return only valid JSON, no additional text
+          If YouTube URL found: {"youtube_url": "FULL_URL_HERE"}
+          If no URL found: {"error": "No YouTube URL found"}
           
-          Expected output format:
-          {"youtube_url": "https://www.youtube.com/watch?v=VIDEO_ID"}
-          
-          Or if no URL found:
-          {"error": "No YouTube URL found in input"}
+          Return only the JSON object.
+        output_key: url_extraction
     
     - id: get_transcript
       kind: mcp
@@ -39,7 +33,7 @@ workflow:
           command: ["python", "mcp/youtube-transcript/server.py"]
         tool: "extract_transcript"
         parameters:
-          url: "{state.json.youtube_url}"
+          url: "${state.json.youtube_url}"
           language: "en"
     
     - id: analyze_and_summarize

@@ -69,26 +69,26 @@ class MCPNode:
                         # First try to find JSON in dynamic_state (new system)
                         dynamic_state = state.get("dynamic_state", {})
                         json_found = False
-                        
+
                         if dynamic_state and isinstance(dynamic_state, dict):
                             for dyn_key, dyn_value in dynamic_state.items():
                                 if isinstance(dyn_value, str):
                                     try:
                                         # Try to parse as JSON
                                         cleaned_value = dyn_value.strip()
-                                        if cleaned_value.startswith('```json'):
+                                        if cleaned_value.startswith("```json"):
                                             cleaned_value = cleaned_value[7:]
-                                        if cleaned_value.startswith('```'):
+                                        if cleaned_value.startswith("```"):
                                             cleaned_value = cleaned_value[3:]
-                                        if cleaned_value.endswith('```'):
+                                        if cleaned_value.endswith("```"):
                                             cleaned_value = cleaned_value[:-3]
                                         cleaned_value = cleaned_value.strip()
-                                        
+
                                         # Handle malformed responses
                                         if cleaned_value.startswith('"') and cleaned_value.endswith('"') and cleaned_value.count('"') == 2:
                                             # Likely malformed: "youtube_url" instead of {"youtube_url": "value"}
                                             continue
-                                        
+
                                         parsed = json.loads(cleaned_value)
                                         if isinstance(parsed, dict) and json_key in parsed:
                                             bound[key] = parsed[json_key]
@@ -96,7 +96,7 @@ class MCPNode:
                                             break
                                     except (json.JSONDecodeError, ValueError):
                                         continue
-                        
+
                         # Fallback to old output-based parsing if not found in dynamic_state
                         if not json_found:
                             output = state.get("output", "{}")
@@ -112,12 +112,12 @@ class MCPNode:
                                         json_found = True
                                     except (json.JSONDecodeError, ValueError):
                                         pass
-                            
+
                             # Final fallback - if still no JSON found, use placeholder or skip
                             if not json_found:
                                 logger.warning(f"[yellow]⚠ MCP parameter {key}: Could not extract {json_key} from JSON, using placeholder[/yellow]")
                                 bound[key] = f"MISSING_{json_key.upper()}"
-                                
+
                     except (json.JSONDecodeError, AttributeError) as e:
                         logger.warning(f"[yellow]⚠ MCP parameter {key}: JSON extraction failed ({e}), using placeholder[/yellow]")
                         bound[key] = f"MISSING_{json_key.upper()}"

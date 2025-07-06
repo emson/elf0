@@ -136,26 +136,40 @@ def parse_at_references(prompt: str) -> tuple[str, list[Path]]:
     return cleaned_prompt, referenced_files
 
 # Helper function to list spec files
-def list_spec_files(specs_dir: Path) -> list[Path]:
-    """Lists all YAML spec files (.yaml or .yml) directly in the given directory.
-
-    Ignores subdirectories.
-
+def list_spec_files(specs_dir: Path, directory_filter: str | None = None) -> list[Path]:
+    """Lists YAML spec files with optional directory filtering.
+    
     Args:
-        specs_dir: The Path object representing the directory to scan.
-
+        specs_dir: The Path to the specs directory
+        directory_filter: None for all directories, or specific subdirectory name
+        
     Returns:
-        A list of Path objects for spec files, sorted alphabetically.
-        Returns an empty list if the directory doesn't exist or is not a directory.
+        List of Path objects for matching spec files
     """
     if not specs_dir.exists() or not specs_dir.is_dir():
         logger.debug(f"Specs directory '{specs_dir}' does not exist or is not a directory.")
         return []
 
-    spec_files = [
-        item for item in specs_dir.iterdir()
-        if item.is_file() and item.suffix.lower() in (".yaml", ".yml")
-    ]
+    spec_files = []
+
+    if directory_filter is None:
+        # Recursive scan - get files from all subdirectories and root
+        for item in specs_dir.rglob("*.yaml"):
+            if item.is_file():
+                spec_files.append(item)
+        for item in specs_dir.rglob("*.yml"):
+            if item.is_file():
+                spec_files.append(item)
+    else:
+        # Single directory scan
+        target_dir = specs_dir / directory_filter
+        if target_dir.exists() and target_dir.is_dir():
+            for item in target_dir.iterdir():
+                if item.is_file() and item.suffix.lower() in (".yaml", ".yml"):
+                    spec_files.append(item)
+        else:
+            logger.warning(f"Directory filter '{directory_filter}' not found in '{specs_dir}'")
+            return []
 
     return sorted(spec_files, key=lambda p: p.name)
 

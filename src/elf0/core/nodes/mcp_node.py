@@ -52,9 +52,82 @@ class MCPNode:
         finally:
             await self.client.disconnect()
 
+    def _extract_json_from_dynamic_state(self, dynamic_state: dict, json_key: str) -> tuple[Any, bool]:
+        """Extract JSON value from dynamic_state."""
+        import json
+        if not dynamic_state or not isinstance(dynamic_state, dict):
+            return None, False
+
+        for dyn_value in dynamic_state.values():
+            if isinstance(dyn_value, str):
+                try:
+                    # Try to parse as JSON
+                    cleaned_value = dyn_value.strip()
+                    if cleaned_value.startswith("```json"):
+                        cleaned_value = cleaned_value[7:]
+                    if cleaned_value.startswith("```"):
+                        cleaned_value = cleaned_value[3:]
+                    if cleaned_value.endswith("```"):
+                        cleaned_value = cleaned_value[:-3]
+                    cleaned_value = cleaned_value.strip()
+
+                    # Handle malformed responses
+                    QUOTED_STRING_COUNT = 2
+                    if cleaned_value.startswith('"') and cleaned_value.endswith('"') and cleaned_value.count('"') == QUOTED_STRING_COUNT:
+                        # Likely malformed: "youtube_url" instead of {"youtube_url": "value"}
+                        continue
+
+                    parsed = json.loads(cleaned_value)
+                    if isinstance(parsed, dict) and json_key in parsed:
+                        return parsed[json_key], True
+                except (json.JSONDecodeError, ValueError):
+                    continue
+        return None, False
+
+    def _extract_json_from_output(self, output: str, json_key: str) -> tuple[Any, bool]:
+        """Extract JSON value from output string."""
+        import json
+        if not isinstance(output, str):
+            return None, False
+
+        # Try to find JSON in the output
+        start = output.find("{")
+        end = output.rfind("}") + 1
+        if start != -1 and end != 0:
+            try:
+                json_str = output[start:end]
+                parsed = json.loads(json_str)
+                return parsed.get(json_key), True
+            except (json.JSONDecodeError, ValueError):
+                pass
+        return None, False
+
+    def _handle_json_parameter(self, key: str, json_key: str, state: dict[str, Any]) -> Any:
+        """Handle JSON parameter extraction with fallbacks."""
+        import json
+        try:
+            # First try to find JSON in dynamic_state (new system)
+            dynamic_state = state.get("dynamic_state", {})
+            value, found = self._extract_json_from_dynamic_state(dynamic_state, json_key)
+            if found:
+                return value
+
+            # Fallback to old output-based parsing if not found in dynamic_state
+            output = state.get("output", "{}")
+            value, found = self._extract_json_from_output(output, json_key)
+            if found:
+                return value
+
+            # Final fallback - if still no JSON found, use placeholder
+            logger.warning(f"[yellow]⚠ MCP parameter {key}: Could not extract {json_key} from JSON, using placeholder[/yellow]")
+            return f"MISSING_{json_key.upper()}"
+
+        except (json.JSONDecodeError, AttributeError) as e:
+            logger.warning(f"[yellow]⚠ MCP parameter {key}: JSON extraction failed ({e}), using placeholder[/yellow]")
+            return f"MISSING_{json_key.upper()}"
+
     def _bind_parameters(self, state: dict[str, Any]) -> dict[str, Any]:
         """Enhanced parameter binding from state with JSON parsing support."""
-        import json
         bound = {}
         for key, value in self.parameters.items():
             if isinstance(value, str) and value.startswith("${"):
@@ -65,62 +138,7 @@ class MCPNode:
                 if var_name.startswith("json."):
                     # Extract from JSON in output field or dynamic_state
                     json_key = var_name[5:]  # Remove "json." prefix
-                    try:
-                        # First try to find JSON in dynamic_state (new system)
-                        dynamic_state = state.get("dynamic_state", {})
-                        json_found = False
-
-                        if dynamic_state and isinstance(dynamic_state, dict):
-                            for dyn_key, dyn_value in dynamic_state.items():
-                                if isinstance(dyn_value, str):
-                                    try:
-                                        # Try to parse as JSON
-                                        cleaned_value = dyn_value.strip()
-                                        if cleaned_value.startswith("```json"):
-                                            cleaned_value = cleaned_value[7:]
-                                        if cleaned_value.startswith("```"):
-                                            cleaned_value = cleaned_value[3:]
-                                        if cleaned_value.endswith("```"):
-                                            cleaned_value = cleaned_value[:-3]
-                                        cleaned_value = cleaned_value.strip()
-
-                                        # Handle malformed responses
-                                        if cleaned_value.startswith('"') and cleaned_value.endswith('"') and cleaned_value.count('"') == 2:
-                                            # Likely malformed: "youtube_url" instead of {"youtube_url": "value"}
-                                            continue
-
-                                        parsed = json.loads(cleaned_value)
-                                        if isinstance(parsed, dict) and json_key in parsed:
-                                            bound[key] = parsed[json_key]
-                                            json_found = True
-                                            break
-                                    except (json.JSONDecodeError, ValueError):
-                                        continue
-
-                        # Fallback to old output-based parsing if not found in dynamic_state
-                        if not json_found:
-                            output = state.get("output", "{}")
-                            if isinstance(output, str):
-                                # Try to find JSON in the output
-                                start = output.find("{")
-                                end = output.rfind("}") + 1
-                                if start != -1 and end != 0:
-                                    try:
-                                        json_str = output[start:end]
-                                        parsed = json.loads(json_str)
-                                        bound[key] = parsed.get(json_key, value)
-                                        json_found = True
-                                    except (json.JSONDecodeError, ValueError):
-                                        pass
-
-                            # Final fallback - if still no JSON found, use placeholder or skip
-                            if not json_found:
-                                logger.warning(f"[yellow]⚠ MCP parameter {key}: Could not extract {json_key} from JSON, using placeholder[/yellow]")
-                                bound[key] = f"MISSING_{json_key.upper()}"
-
-                    except (json.JSONDecodeError, AttributeError) as e:
-                        logger.warning(f"[yellow]⚠ MCP parameter {key}: JSON extraction failed ({e}), using placeholder[/yellow]")
-                        bound[key] = f"MISSING_{json_key.upper()}"
+                    bound[key] = self._handle_json_parameter(key, json_key, state)
                 else:
                     bound[key] = state.get(var_name, value)
             else:

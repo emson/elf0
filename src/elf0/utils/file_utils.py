@@ -138,11 +138,11 @@ def parse_at_references(prompt: str) -> tuple[str, list[Path]]:
 # Helper function to list spec files
 def list_spec_files(specs_dir: Path, directory_filter: str | None = None) -> list[Path]:
     """Lists YAML spec files with optional directory filtering.
-    
+
     Args:
         specs_dir: The Path to the specs directory
-        directory_filter: None for all directories, or specific subdirectory name
-        
+        directory_filter: None for all directories (excluding archive), or specific subdirectory name
+
     Returns:
         List of Path objects for matching spec files
     """
@@ -153,13 +153,15 @@ def list_spec_files(specs_dir: Path, directory_filter: str | None = None) -> lis
     spec_files = []
 
     if directory_filter is None:
-        # Recursive scan - get files from all subdirectories and root
+        # Recursive scan - get files from all subdirectories and root, excluding archive
+        spec_files_set = set()
         for item in specs_dir.rglob("*.yaml"):
-            if item.is_file():
-                spec_files.append(item)
+            if item.is_file() and "archive" not in item.parts:
+                spec_files_set.add(item)
         for item in specs_dir.rglob("*.yml"):
-            if item.is_file():
-                spec_files.append(item)
+            if item.is_file() and "archive" not in item.parts:
+                spec_files_set.add(item)
+        spec_files = list(spec_files_set)
     else:
         # Single directory scan
         target_dir = specs_dir / directory_filter

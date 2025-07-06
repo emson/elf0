@@ -167,6 +167,65 @@ def format_workflow_result(result: object) -> tuple[str, bool]:
         typer.secho(f"Error: Could not serialize result to JSON: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from e
 
+def _display_spec_file(spec_file_path: Path, show_full_path: bool = False) -> None:
+    """Display a single spec file with its description."""
+    description = extract_spec_description(spec_file_path)
+
+    if show_full_path:
+        full_path = str(spec_file_path.relative_to(Path()))
+        rich.console.print(f"[bold bright_green]{full_path}[/bold bright_green]")
+    else:
+        rich.console.print(f"[bold bright_green]{spec_file_path.name}[/bold bright_green]")
+
+    if description == "No description available.":
+        rich.console.print(f"  [dim italic]{description}[/dim italic]")
+    elif "Error:" in description:
+        rich.console.print(f"  [red]{description}[/red]")
+    else:
+        rich.console.print(f"  {description}")
+
+def _display_grouped_specs(grouped_files: dict, directory_order: list[str]) -> None:
+    """Display specs grouped by directory."""
+    first_group = True
+    for dir_name in directory_order:
+        if dir_name in grouped_files:
+            files_in_dir = grouped_files[dir_name]
+
+            # Add spacing between groups (except before first group)
+            if not first_group:
+                rich.console.print()
+                rich.console.print()
+
+            # Directory header
+            rich.console.print(f"[bold blue]── {dir_name.title()} ──[/bold blue]")
+            rich.console.print()
+
+            # Files in this directory
+            for i, spec_file_path in enumerate(files_in_dir):
+                # Add subtle separator between files in same directory
+                if i > 0:
+                    rich.console.print()
+
+                _display_spec_file(spec_file_path, show_full_path=True)
+
+            first_group = False
+
+    # Final spacing
+    rich.console.print()
+
+def _display_single_directory_specs(spec_files: list[Path]) -> None:
+    """Display specs for a single directory."""
+    for i, spec_file_path in enumerate(spec_files):
+        # Add spacing between entries except the first one
+        if i > 0:
+            rich.console.print()
+
+        _display_spec_file(spec_file_path, show_full_path=False)
+
+        # Add a blank line after the last item for spacing before the next shell prompt
+        if i == len(spec_files) - 1:
+            rich.console.print()
+
 def validate_output_path(output_path: Path) -> None:
     """Validate output path and permissions."""
     if not output_path.parent.exists():
@@ -545,7 +604,7 @@ def prompt_yaml_command(
 def list_specs_command(
     directory: str = typer.Argument(
         None,
-        help="Optional directory filter (basic, content, code, examples, archive). Shows all if not specified."
+        help="Optional directory filter (basic, content, code, examples, utils, archive). Shows all except archive if not specified."
     )
 ) -> None:
     """Scans the ./specs directory for YAML workflow specification files (.yaml or .yml)
@@ -575,68 +634,12 @@ def list_specs_command(
             dir_name = spec_file_path.parent.name
             grouped_files[dir_name].append(spec_file_path)
 
-        # Define directory order (archive last)
-        directory_order = ["basic", "content", "code", "examples", "archive"]
+        # Define directory order (archive last, excluded from 'all')
+        directory_order = ["specs", "basic", "content", "code", "examples", "utils"]
 
-        # Display groups in order
-        first_group = True
-        for dir_name in directory_order:
-            if dir_name in grouped_files:
-                files_in_dir = grouped_files[dir_name]
-
-                # Add spacing between groups (except before first group)
-                if not first_group:
-                    rich.console.print()
-                    rich.console.print()
-
-                # Directory header
-                rich.console.print(f"[bold blue]── {dir_name.title()} ──[/bold blue]")
-                rich.console.print()
-
-                # Files in this directory
-                for i, spec_file_path in enumerate(files_in_dir):
-                    description = extract_spec_description(spec_file_path)
-
-                    # Add subtle separator between files in same directory
-                    if i > 0:
-                        rich.console.print()
-
-                    # Show full path for easy copy-pasting
-                    full_path = str(spec_file_path.relative_to(Path()))
-                    rich.console.print(f"[bold bright_green]{full_path}[/bold bright_green]")
-
-                    if description == "No description available.":
-                        rich.console.print(f"  [dim italic]{description}[/dim italic]")
-                    elif "Error:" in description:
-                        rich.console.print(f"  [red]{description}[/red]")
-                    else:
-                        rich.console.print(f"  {description}")
-
-                first_group = False
-
-        # Final spacing
-        rich.console.print()
+        _display_grouped_specs(grouped_files, directory_order)
     else:
-        # Single directory view - keep existing simple format
-        for i, spec_file_path in enumerate(spec_files):
-            description = extract_spec_description(spec_file_path)
-
-            # Add spacing between entries except the first one
-            if i > 0:
-                rich.console.print()
-
-            rich.console.print(f"[bold bright_green]{spec_file_path.name}[/bold bright_green]")
-
-            if description == "No description available.":
-                rich.console.print(f"  [dim italic]{description}[/dim italic]")
-            elif "Error:" in description:
-                rich.console.print(f"  [red]{description}[/red]")
-            else:
-                rich.console.print(f"  {description}")
-
-            # Add a blank line after the last item for spacing before the next shell prompt
-            if i == len(spec_files) - 1:
-                rich.console.print()
+        _display_single_directory_specs(spec_files)
 
 # Add subcommands to improve app
 improve_app.command("yaml", help="Improve a YAML workflow specification using AI optimization")(improve_yaml_command)

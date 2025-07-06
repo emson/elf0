@@ -1,0 +1,123 @@
+version: "0.1"
+description: "Example workflow demonstrating Claude Code SDK integration for code generation, analysis, and self-improvement"
+runtime: langgraph
+
+llms:
+  anthropic_sonnet:
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
+    temperature: 0.1
+    max_tokens: 4096
+
+workflow:
+  type: sequential
+  nodes:
+    # Step 1: Analyze user requirements using regular agent
+    - id: requirements_analyzer
+      kind: agent
+      ref: anthropic_sonnet
+      config:
+        prompt: |
+          Analyze the following software requirements and break them down into specific technical tasks:
+          
+          Requirements: {input}
+          
+          Please provide:
+          1. A clear understanding of what needs to be built
+          2. Key technical components needed
+          3. Programming language and framework recommendations
+          4. File structure suggestions
+          5. Implementation approach
+          
+          Format your response in a structured way that can guide code generation.
+
+    # Step 2: Generate code using Claude Code SDK
+    - id: code_generator
+      kind: claude_code
+      config:
+        task: "generate_code"
+        prompt: |
+          Based on the following analysis, generate the complete code implementation:
+          
+          ${state.output}
+          
+          Please create:
+          1. Complete, working code files
+          2. Proper error handling
+          3. Clear documentation and comments
+          4. Test cases if applicable
+          5. README with setup instructions
+          
+          Focus on creating production-ready, maintainable code.
+        output_format: "text"
+        tools: ["filesystem", "bash"]
+        temperature: 0.2
+
+    # Step 3: Analyze the generated code for improvements
+    - id: code_analyzer
+      kind: claude_code
+      config:
+        task: "analyze_code"
+        prompt: |
+          Analyze the code that was just generated and provide a comprehensive review:
+          
+          Generated Code:
+          ${state.output}
+          
+          Please analyze:
+          1. Code quality and best practices
+          2. Potential security issues
+          3. Performance considerations
+          4. Maintainability aspects
+          5. Test coverage
+          6. Documentation quality
+          
+          Provide specific recommendations for improvements.
+        output_format: "json"
+        temperature: 0.1
+
+    # Step 4: Improve the code based on analysis
+    - id: code_improver
+      kind: claude_code
+      config:
+        task: "modify_code"
+        prompt: |
+          Improve the previously generated code based on this analysis:
+          
+          Analysis: ${state.output}
+          
+          Please:
+          1. Apply the recommended improvements
+          2. Fix any identified issues
+          3. Enhance code quality and performance
+          4. Add missing tests or documentation
+          5. Ensure best practices are followed
+          
+          Provide the improved, production-ready code.
+        output_format: "text"
+        tools: ["filesystem", "bash"]
+        temperature: 0.15
+
+    # Step 5: Create final summary with regular agent
+    - id: summary_generator
+      kind: agent
+      ref: anthropic_sonnet
+      config:
+        prompt: |
+          Create a final summary of the code generation and improvement process:
+          
+          Original Requirements: {input}
+          
+          Final Code Output: {output}
+          
+          Please provide:
+          1. Summary of what was built
+          2. Key features implemented
+          3. Quality improvements made
+          4. Usage instructions
+          5. Next steps for deployment or further development
+          
+          Make this summary suitable for both technical and non-technical stakeholders.
+      stop: true
+
+  edges: []  # Sequential workflow - no custom edges needed

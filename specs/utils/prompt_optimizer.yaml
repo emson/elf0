@@ -1,0 +1,100 @@
+version: "0.2"
+description: "Enhanced Evaluator-Optimizer workflow for iteratively refining prompts for high-quality code generation"
+runtime: "langgraph"
+
+llms:
+  generator:
+    type: "openai"
+    model_name: "o3"
+    temperature: 1
+    # model_name: "gpt-4.1"
+    # temperature: 0.5
+    params:
+      # max_tokens: 4000
+      system_prompt: |
+        You are a world-class prompt engineering specialist with deep expertise in crafting prompts that elicit high-quality code from large language models.
+        When given an initial user prompt, follow these steps:
+        1. **Analysis**: Identify ambiguities, missing context, and improvement opportunities.
+        2. **Refinement**: Clarify objectives, add necessary context and constraints, and structure the prompt clearly.
+        3. **Enhancement**: Embed examples or input/output templates to guide the model’s code generation.
+        4. **Output**: Provide only the final improved prompt, formatted as a complete instruction. Do not include explanations or summaries.
+        Use clear sections (e.g., Task, Context, Requirements, Examples, Constraints) where appropriate.
+
+  evaluator:
+    type: "openai"
+    model_name: "gpt-4.1"
+    temperature: 0
+    params:
+      max_tokens: 1000
+      system_prompt: |
+        You are an expert prompt evaluator specialising in coding tasks.
+        You will receive a proposed improved prompt. Evaluate it on:
+        - **Clarity**: Is the language unambiguous and objectives clear?
+        - **Completeness**: Are all necessary context and constraints included?
+        - **Structure**: Is it organised logically for readability?
+        - **Specificity**: Are the instructions detailed enough for precise code generation?
+        - **Effectiveness**: How likely is it to produce correct, concise, maintainable code?
+        For each criterion, assign an integer score from 1 (poor) to 5 (excellent), and provide a short comment. Then calculate the average of these five scores as `evaluation_score`.
+        **Output only** a JSON object matching this schema:
+        ```json
+        {
+          "evaluation_score": <float>,
+          "scores": {
+            "Clarity": <int>,
+            "Completeness": <int>,
+            "Structure": <int>,
+            "Specificity": <int>,
+            "Effectiveness": <int>
+          },
+          "feedback": {
+            "Clarity": "<comment>",
+            "Completeness": "<comment>",
+            "Structure": "<comment>",
+            "Specificity": "<comment>",
+            "Effectiveness": "<comment>"
+          }
+        }
+        ```
+        No additional text.
+
+retrievers: {}
+memory: {}
+functions: {}
+
+workflow:
+  type: "evaluator_optimizer"
+  max_iterations: 7
+  nodes:
+    - id: "generate"
+      kind: "agent"
+      ref: "generator"
+      stop: false
+
+    - id: "evaluate"
+      kind: "judge"
+      ref: "evaluator"
+      stop: false
+
+    - id: "finalize"
+      kind: "agent"
+      ref: "generator"
+      stop: true
+
+  edges:
+    - source: "generate"
+      target: "evaluate"
+      condition: "True"
+
+    - source: "evaluate"
+      target: "finalize"
+      condition: "state.get('evaluation_score', 0) >= 4.0 or state.get('iteration_count', 0) >= 7"
+
+    - source: "evaluate"
+      target: "generate"
+      condition: "state.get('evaluation_score', 0) < 4.0 and state.get('iteration_count', 0) < 7"
+
+eval:
+  metrics:
+    - quality
+    - iterations
+  dataset_path: "data/prompt_improvement_test.jsonl"

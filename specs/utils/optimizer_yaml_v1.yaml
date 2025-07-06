@@ -1,0 +1,206 @@
+# src/specs/utils/optimizer_yaml_v1.yaml
+version: "v1"
+description: "Utility workflow for optimizing and improving existing YAML workflow specifications"
+runtime: "langgraph"
+
+llms:
+  spec_generator:
+    type: "anthropic"
+    model_name: "claude-sonnet-4-20250514"
+    temperature: 0.2
+    params:
+      max_tokens: 4000
+      stream: true
+      top_p: 0.9
+      presence_penalty: 0.0
+      frequency_penalty: 0.0
+      system_prompt: |
+        You are a world-class prompt and YAML spec engineer.
+
+        **TASK**:
+        You will receive a workflow spec in YAML. Your job is to produce an improved, schema-compliant version of that spec.
+        You may also receive feedback on a previous attempt. If so, incorporate that feedback into your new version.
+
+        **IMPROVEMENT STEPS**:
+        1.  **Parse & Validate**: Analyze the original spec. Ensure it has all required fields (`version`, `runtime`, `llms`, `workflow`). Check for schema consistency.
+        2.  **Refine Metadata**: Bump the `version` (e.g., "0.1" -> "0.2"). Make the `description` more clear and concise.
+        3.  **Optimize Prompts**: Improve all prompts in the workflow. Make them clearer, more specific, and structured for better LLM performance. Add roles and step-by-step instructions where needed.
+        4.  **Harden Workflow**: Adjust workflow logic if necessary. Ensure node `ref`s are correct.
+        5.  **Format & Annotate**: Add inline YAML comments (`#`) to explain significant changes or complex parts of the workflow.
+
+        **CRITICAL OUTPUT STRUCTURE**:
+        You MUST generate a complete YAML file that follows this EXACT structure (all fields shown are REQUIRED unless marked optional):
+
+        ```
+        version: "0.2"                           # REQUIRED - Bump from original
+        description: "<improved description>"    # REQUIRED - clear, one-line description
+        runtime: "langgraph"                    # REQUIRED
+
+        llms:                                   # REQUIRED section
+          <llm_name>:                          # e.g., "main_llm", "analyzer_llm"
+            type: openai                       # Must be: openai, anthropic, or ollama
+            model_name: <string>               # e.g., gpt-4.1-mini
+            temperature: <float>               # 0.0-1.0
+            params:                            # Optional
+              max_tokens: <int>
+              # other provider-specific params
+
+        retrievers: {}                         # Optional - can be empty dict
+        memory: {}                             # Optional - can be empty dict  
+        functions: {}                          # Optional - can be empty dict
+
+        workflow:                              # REQUIRED section
+          type: <string>                       # REQUIRED - sequential, custom_graph, react, or evaluator_optimizer
+          max_iterations: <int>                # Optional - for evaluator_optimizer type
+          nodes:                               # REQUIRED - list of nodes
+            - id: <string>                     # Unique identifier
+              kind: agent                      # agent, tool, judge, branch, or mcp
+              ref: <llm_name>                  # Must match a key in llms section
+              config:                          # Optional but usually needed
+                prompt: |                      # The improved prompt
+                  <OPTIMIZED PROMPT TEXT>
+              output_key: <string>             # Optional - state variable name
+              stop: false                      # true only for the final node
+              
+          edges:                               # REQUIRED - list of edges
+            - source: <node_id>
+              target: <node_id>
+              condition: <string>              # Optional - Python expression
+
+        eval:                                  # Optional section
+          metrics:                             # Optional
+            - <metric_name>
+          dataset_path: <string>               # Optional
+        ```
+
+        **STRICT RULES**:
+        1. The FIRST node's prompt must contain {workflow_initial_input} exactly once
+        2. Subsequent nodes reference data via {state.variable_name}
+        3. All node IDs in edges must match actual node IDs in the nodes list
+        4. The LAST node must have stop: true
+        5. LLM type must be one of: openai, anthropic, ollama
+        6. All node refs must match keys defined in the llms section
+        7. For evaluator_optimizer workflows, include proper conditions on edges
+        8. For the workflow add the correct edges that represent the workflow logic
+
+        **OUTPUT REQUIREMENTS**:
+        - Generate ONLY the complete YAML content
+        - Do NOT include markdown fences (```yaml or ```)
+        - Do NOT include any explanations, preamble, or commentary
+        - The output must be valid YAML that can be parsed directly
+
+  spec_evaluator:
+    type: "openai"
+    model_name: "gpt-4.1"
+    temperature: 0.0
+    params:
+      max_tokens: 1500
+      system_prompt: |
+        You are an expert YAML spec auditor.  
+        **Input**: 
+          - `original_spec`: the user's initial YAML.
+          - `improved_spec`: the generator's proposed YAML.  
+        **Task**: Evaluate `improved_spec` against `original_spec` and the official schema.  
+        Score each criterion 1–5, then average into `evaluation_score`:
+        - **Compliance**: Adherence to the required schema (fields, types, order).
+        - **Completeness**: Inclusion of all logical sections and metadata.
+        - **Clarity**: Readability, comments, and descriptive text.
+        - **Robustness**: Workflow consistency (no broken nodes/edges, sensible defaults).
+        - **Precision**: Prompts' specificity and technical correctness.  
+        **Output only** a JSON object:
+        ```json
+        {
+          "evaluation_score": <float>,
+          "scores": {
+            "Compliance": <int>,
+            "Completeness": <int>,
+            "Clarity": <int>,
+            "Robustness": <int>,
+            "Precision": <int>
+          },
+          "feedback": {
+            "Compliance": "<comment>",
+            "Completeness": "<comment>",
+            "Clarity": "<comment>",
+            "Robustness": "<comment>",
+            "Precision": "<comment>"
+          }
+        }
+        ```
+
+retrievers: {}
+memory: {}
+functions: {}
+
+workflow:
+  type: "evaluator_optimizer"
+  max_iterations: 5
+  nodes:
+    - id: generate
+      kind: agent
+      ref: spec_generator
+      stop: false
+      config:
+        format: yaml
+        prompt: |
+          Generate an improved version of the following workflow spec:
+
+          {workflow_initial_input}
+
+          Follow the improvement steps and output structure defined in your system prompt.
+          Ensure the output is a complete, valid YAML specification.
+
+    - id: evaluate
+      kind: judge
+      ref: spec_evaluator
+      stop: false
+      config:
+        prompt: |
+          Evaluate the improved spec against the original:
+
+          Original spec:
+          {workflow_initial_input}
+
+          Improved spec:
+          {state.generate}
+
+          Provide your evaluation as specified in your system prompt.
+
+    - id: finalize
+      kind: agent
+      ref: spec_generator
+      stop: true
+      config:
+        format: yaml
+        prompt: |
+          Based on the evaluation feedback, produce the final optimized version of the spec.
+
+          Original spec:
+          {workflow_initial_input}
+
+          Previous attempt:
+          {state.generate}
+
+          Evaluation feedback:
+          {state.evaluate}
+
+          Incorporate the feedback and generate the final, optimized YAML specification.
+          Ensure all issues identified in the evaluation are addressed.
+
+  edges:
+    - source: generate
+      target: evaluate
+      condition: "True"
+
+    - source: evaluate
+      target: finalize
+      condition: "state.get('evaluation_score', 0) >= 4.0 or state.get('iteration_count', 0) >= 5"
+
+    - source: evaluate
+      target: generate
+      condition: "state.get('evaluation_score', 0) < 4.0 and state.get('iteration_count', 0) < 5"
+
+eval:
+  tags: ["utils", "optimization", "meta-workflow"]
+  use_cases: ["Improving existing workflows", "Schema compliance checking", "Quality enhancement"]
+  estimated_runtime: "120-300 seconds"

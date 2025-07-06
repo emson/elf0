@@ -1,0 +1,165 @@
+version: "0.4"
+description: "Analyzes input text to identify audience and key question, then generates a well-structured, informative Twitter post or a numbered tweet thread in UK English with a curious, authoritative, and honest tone, avoiding emojis and dashes in text (except for markdown list formatting)."
+runtime: "langgraph"
+
+llms:
+  main_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.3  # Focused, consistent analysis and reasoning
+    params:
+      max_tokens: 512
+  writer_llm:
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
+    temperature: 0.7  # More creative, engaging writing
+    params:
+      max_tokens: 2048  # Increased for longer, well-structured threads
+
+retrievers: {}
+memory: {}
+functions: {}
+
+workflow:
+  type: custom_graph
+  nodes:
+    - id: analyze_input
+      kind: agent
+      ref: main_llm
+      config:
+        prompt: |
+          ROLE: Expert social media strategist.
+
+          INSTRUCTIONS:
+          1. Carefully read the following input text:
+             {input}
+          2. Identify and clearly describe the primary audience for this text.
+          3. Decide if the content is best expressed as a "single" tweet or a "thread":
+             - Choose "thread" if the input contains multiple key points, detailed explanations, or a narrative that benefits from multiple tweets.
+             - Otherwise, choose "single".
+          4. Output ONLY the following, clearly labeled:
+
+          Audience Analysis: <your analysis>
+          Tweet Format: <"single" or "thread">
+
+          Do NOT include any extra commentary or explanation.
+        output_key: analysis_and_format
+      stop: false
+
+    - id: reason_structure
+      kind: agent
+      ref: main_llm
+      config:
+        prompt: |
+          ROLE: Expert Twitter content strategist.
+
+          INPUT:
+          {state.analysis_and_format}
+
+          TASKS:
+          1. Identify the single most important question this Twitter content should answer to engage the specified audience.
+          2. Reason step-by-step about how to structure the content to answer this question honestly and openly.
+          3. If Tweet Format is "single":
+             - Write a draft tweet (max 280 characters) that answers the key question.
+          4. If Tweet Format is "thread":
+             - Outline a thread structure:
+               a. Main statement or valuable insight as the first tweet.
+               b. Each following tweet should present a key takeaway, fact, or opinion, each backed up with supporting details or points, with context of the previous thread.
+               c. Each tweet should be under 280 characters.
+               d. For supporting points within a tweet, use markdown '-' dashes for bullet points.
+               e. Specify the total number of tweets in the thread.
+               f. Vary sentence lengths and rhythm so the thread feels spontaneous rather than rigid.
+          5. Tailor every tweet to the chosen audience to boost their skills, provide value or entertain them.
+          6. Explain points using concrete examples, facts or quotations ideally taken from SOURCE_INPUT or prompt.
+          7. Maintain a warm, ethical tone, avoid hype, knowledgable guide
+          8. Forbidden: emojis, “game-changer”, en-dashes/hyphens connecting words (e.g. no “must-read”).
+
+          OUTPUT FORMAT:
+          Key Question or Insight: 1/n <your question or insight>
+          Reasoning: <step-by-step reasoning with real examples and facts>
+          Draft Tweet: <if single>
+          Thread Outline: <if thread, numbered list with main statement and supporting tweets, include total count>
+
+          Output ONLY as specified above, no extra text.
+        output_key: workflow_reasoning
+      stop: false
+
+    - id: decide_path
+      kind: branch
+      config:
+        condition: |
+          'tweet format: thread' in {state.analysis_and_format}.lower()
+      stop: false
+
+    - id: rewrite_single
+      kind: agent
+      ref: writer_llm
+      config:
+        prompt: |
+          ROLE: Twitter copywriter.
+
+          BASED ON:
+          {state.workflow_reasoning}
+
+          INSTRUCTIONS:
+          - Write a single tweet in UK English, max 280 characters.
+          - Use a curious, authoritative, and honest tone, like a knowledgeable friend.
+          - Use thoughtful word choices and express an opinion that evokes emotion (e.g., vulnerability, humour, excitement).
+          - Do NOT use emojis or dashes (except for web links).
+          - Replace web links like mysite.com with mysite[dot]com.
+          - Output ONLY the final tweet text, no explanations or extra text.
+        output_key: final_tweet
+      stop: true
+
+    - id: rewrite_thread
+      kind: agent
+      ref: writer_llm
+      config:
+        prompt: |
+          ROLE: Twitter thread specialist.
+
+          BASED ON:
+          {state.workflow_reasoning}
+
+          INSTRUCTIONS:
+          - Write a well-structured Twitter thread in UK English.
+          - The first tweet should be a main statement or valuable insight.
+          - Each subsequent tweet should present a key takeaway, fact, or opinion, backed up with supporting details or points.
+          - For supporting points within a tweet, use markdown '-' dashes for bullet points.
+          - Each tweet must be under 280 characters.
+          - Number each tweet in the format "n/N" (e.g., "3/10") at the start of each tweet, where N is the total number of tweets in the thread.
+          - Use a curious, authoritative, and honest tone, like a knowledgeable friend.
+          - Do NOT use emojis or dashes (except for markdown list formatting and web links).
+          - Replace web links like mysite.com with mysite[dot]com.
+          - Output ONLY the final thread as a numbered list of tweets, each on its own line, no extra text.
+
+          EXAMPLE OUTPUT:
+          1/5 Main statement...
+          2/5 - Key point one
+              - Supporting detail
+          3/5 Another insight...
+          ...
+        output_key: final_thread
+      stop: true
+
+  edges:
+    - source: analyze_input
+      target: reason_structure
+    - source: reason_structure
+      target: decide_path
+    - source: decide_path
+      target: rewrite_thread
+      condition: "'tweet format: thread' in {state.analysis_and_format}.lower()"
+    - source: decide_path
+      target: rewrite_single
+      condition: "'tweet format: single' in {state.analysis_and_format}.lower()"
+
+eval: {}
+
+# Comments:
+# - Prompts are role-based and step-by-step for clarity and optimal LLM output.
+# - Thread output is structured with markdown dashes for bullet points and tweet numbering as "n/N".
+# - All nodes and edges are schema-compliant and mutually exclusive.
+# - Output is strictly limited to required content for downstream reliability.
+# - LLM parameters are tuned for analysis (main_llm) and creative writing (writer_llm).
+# - Maintains maintainability and clarity with inline comments.

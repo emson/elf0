@@ -39,7 +39,7 @@ workflow:
       ref: rule_llm
       config:
         prompt: |
-          You have access to @docs_ai/spec_schema.md and @docs_ai/flow_rules.md.
+          You have access to @docs/spec_schema.md and @docs/flow_rules.md.
           Extract the non-negotiable requirements for a valid LangGraph YAML spec:
           • mandatory top-level keys  
           • one and only one use of the reserved input placeholder (curly braces around *input*) in the first node  
@@ -86,7 +86,7 @@ workflow:
       ref: strategist_llm
       config:
         prompt: |
-          Using @docs_ai/agent_patterns.md plus the element list below, design the optimal
+          Using @docs/agent_patterns.md plus the element list below, design the optimal
           graph structure for a simulation.
 
           {state.scenario_breakdown}

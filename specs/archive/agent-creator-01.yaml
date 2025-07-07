@@ -20,7 +20,7 @@ llms:
         
         **Key Resources:**
         - Schema rules: docs_specs/spec_schema.md (required fields, types, validation)
-        - Design patterns: docs_ai/agent_patterns.md (8 proven patterns with use cases)
+        - Design patterns: docs/agent_patterns.md (8 proven patterns with use cases)
         - Reference implementation: specs/yaml_optimizer.yaml (evaluator-optimizer example)
         
         **Analysis Framework:**

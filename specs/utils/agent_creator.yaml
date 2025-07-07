@@ -35,7 +35,7 @@ workflow:
       config:
         prompt: |
           Given the rewritten prompt below, reason about the best workflow pattern to process it.
-          Consider agent patterns in @docs_ai/agent_patterns.md
+          Consider agent patterns in @docs/agent_patterns.md
           Output your reasoning and specify the recommended workflow graph pattern (sequential, custom_graph, react, evaluator_optimizer)
           as a mermaid diagram so that the edges in the new YAML file can be correctly generated.
 

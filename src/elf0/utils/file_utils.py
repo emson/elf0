@@ -10,6 +10,88 @@ def is_valid_file(path: Path) -> bool:
     """Check if a path exists and is a file."""
     return path.exists() and path.is_file()
 
+def is_valid_directory(path: Path) -> bool:
+    """Check if a path exists and is a directory."""
+    return path.exists() and path.is_dir()
+
+def is_relevant_file(path: Path) -> bool:
+    """Check if a file should be included in directory scanning."""
+    # Skip hidden files
+    if path.name.startswith("."):
+        return False
+
+    # Define relevant extensions
+    relevant_exts = {
+        ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".cpp", ".c", ".h",
+        ".rs", ".go", ".rb", ".php", ".sh", ".sql", ".r", ".scala", ".kt",
+        ".json", ".yaml", ".yml", ".xml", ".toml", ".ini", ".env", ".cfg",
+        ".md", ".rst", ".txt", ".adoc"
+    }
+
+    # Skip known binary extensions
+    binary_exts = {
+        ".pyc", ".pyo", ".class", ".exe", ".dll", ".so", ".o", ".a",
+        ".zip", ".tar", ".gz", ".7z", ".rar", ".pdf", ".jpg", ".jpeg",
+        ".png", ".gif", ".svg", ".mp4", ".avi", ".mp3", ".wav"
+    }
+
+    suffix = path.suffix.lower()
+
+    if suffix in relevant_exts:
+        return True
+    if suffix in binary_exts:
+        return False
+
+    # Handle extensionless files
+    if not suffix and path.is_file():
+        try:
+            # Simple size check
+            if path.stat().st_size > 1024 * 1024:  # 1MB
+                return False
+            # Basic text detection
+            with path.open("rb") as f:
+                sample = f.read(min(1024, path.stat().st_size))
+                if not sample:
+                    return False
+                # Check if mostly printable ASCII characters
+                ascii_printable_start = 32  # Space character
+                ascii_printable_end = 126   # Tilde character
+                ascii_tab = 9
+                ascii_newline = 10
+                ascii_carriage_return = 13
+                text_threshold = 0.7
+
+                printable_chars = sum(1 for b in sample
+                                    if ascii_printable_start <= b <= ascii_printable_end
+                                    or b in (ascii_tab, ascii_newline, ascii_carriage_return))
+                return printable_chars / len(sample) > text_threshold
+        except (OSError, UnicodeDecodeError):
+            return False
+
+    return False
+
+def get_directory_files(directory: Path, max_files: int = 5) -> list[Path]:
+    """Get relevant files from a directory (non-recursive)."""
+    relevant_files = []
+
+    try:
+        for item in directory.iterdir():
+            if item.is_file() and is_relevant_file(item):
+                relevant_files.append(item)
+                if len(relevant_files) >= max_files:
+                    logger.warning(f"Directory '@{directory}' contains many files. "
+                                 f"Only including first {max_files} relevant files.")
+                    break
+
+        return sorted(relevant_files, key=lambda p: p.name.lower())
+
+    except PermissionError:
+        logger.warning(f"Permission denied accessing directory '@{directory}'")
+        return []
+    except OSError as e:
+        logger.warning(f"Could not read directory '@{directory}': {e}")
+        return []
+
 def read_files_content(files: list[Path]) -> str:
     """Read content from a list of files.
 
@@ -24,7 +106,12 @@ def read_files_content(files: list[Path]) -> str:
         try:
             current_path = Path(file_path) # Ensure it's a Path object
             with current_path.open(encoding="utf-8") as f:
-                content_parts.append(f"Content of {current_path.name}:\n{f.read()}\n---")
+                # Show directory context for files from directories
+                if len(str(current_path.parent)) > 1:  # Not just "."
+                    header = f"Content of {current_path.parent}/{current_path.name}"
+                else:
+                    header = f"Content of {current_path.name}"
+                content_parts.append(f"{header}:\n{f.read()}\n---")
         except OSError as e:
             logger.warning(f"Could not read context file '{file_path}': {e}. Skipping.")
     return "\n".join(content_parts)
@@ -122,8 +209,13 @@ def parse_at_references(prompt: str) -> tuple[str, list[Path]]:
         path = Path(match)
         if is_valid_file(path):
             referenced_files_set.add(path)
+        elif is_valid_directory(path):
+            directory_files = get_directory_files(path)
+            referenced_files_set.update(directory_files)
+            if directory_files:
+                logger.info(f"Directory '@{match}' expanded to {len(directory_files)} files")
         else:
-            logger.warning(f"Referenced file '@{match}' not found or is not a file. Skipping.")
+            logger.warning(f"Referenced path '@{match}' not found. Skipping.")
 
     # Convert set to list for consistent return type, sort for deterministic order if needed
     referenced_files = sorted(referenced_files_set, key=lambda p: str(p))

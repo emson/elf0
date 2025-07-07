@@ -7,7 +7,7 @@ Elf0 lets you create multi-step AI workflows by describing what you want in YAML
 ## ✨ What Makes Elf0 Special?
 
 🤖 **Zero Complex Coding** - Write workflows in simple YAML, no Python required  
-🔗 **File Reference Magic** - Use `@filename.ext` to auto-include any file in your prompts  
+🔗 **File Reference Magic** - Use `@filename.ext` or `@directory/` to auto-include files in your prompts  
 🔄 **Self-Improving** - AI can analyze and optimize your workflows automatically  
 🌐 **Multi-LLM Support** - OpenAI, Anthropic, DeepSeek, Ollama (local) - use them all  
 ⚡ **Lightning Fast** - Built with `uv` for blazingly fast package management  
@@ -19,6 +19,9 @@ uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Explain quantum comp
 
 # Reference files automatically with @filename.ext syntax  
 uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Review this code @src/elf0/cli.py and suggest improvements"
+
+# Reference entire directories with @directory/ syntax
+uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Analyze all code in @src/ for improvements"
 
 # Let AI improve your workflows
 uv run elf0 improve yaml specs/basic/chat_simple_v1.yaml --prompt "Make this workflow more efficient"
@@ -749,11 +752,14 @@ Elf0's `@filename.ext` syntax automatically includes file contents in prompts:
 # Single file
 uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Explain @main.py"
 
+# Directory (automatically includes relevant files)
+uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Analyze all code in @src/"
+
 # Multiple files  
 uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Compare @file1.py and @file2.py"
 
-# Mixed with regular text
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Review @code.py and suggest improvements based on @guidelines.md"
+# Mixed files and directories
+uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Review @main.py and all tests in @tests/ for compatibility"
 ```
 
 ### Supported File Types

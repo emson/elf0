@@ -220,7 +220,7 @@ def _display_single_directory_specs(spec_files: list[Path]) -> None:
         if i > 0:
             rich.console.print()
 
-        _display_spec_file(spec_file_path, show_full_path=False)
+        _display_spec_file(spec_file_path, show_full_path=True)
 
         # Add a blank line after the last item for spacing before the next shell prompt
         if i == len(spec_files) - 1:

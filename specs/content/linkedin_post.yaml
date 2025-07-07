@@ -22,7 +22,8 @@ workflow:
       ref: main_llm
       config:
         prompt: |
-          You are provided with the following input text:
+          You are professional content editor, who is an expert at reading and analysing content.
+          Provided with the following input text, read it deeply and imagine what resonates with this audience:
 
           {workflow_initial_input}
 
@@ -42,17 +43,21 @@ workflow:
       ref: main_llm
       config:
         prompt: |
-          Given the audience analysis below, determine the single most important question this LinkedIn post should answer to effectively engage the audience.
+          You are a professional content editor, who deeply understands how content affects an audience.
+          Given the audience analysis below, determine the single most important question this content should answer to effectively engage the audience. Also think about the smaller subquestions that will help answer this main question.
+          Output in eloquent and engaging narrative that is interesting and has value, to this audience.
 
           Audience Analysis:
           {state.audience_analysis}
 
           Task:
           1. Identify the key question that the post must address to resonate with the audience.
-          2. Provide detailed reasoning on how structuring the post around this question will improve engagement and clarity.
+          2. Identify sub-questions that help answer the key question (see Task 1).
+          3. Provide detailed reasoning on how structuring the content around these questions will improve engagement and clarity.
 
           Format your response as:
           Key Question: <the main question>
+          Sub Questions: <sub questions that help answer the main question>
           Reasoning: <detailed explanation>
       output_key: workflow_reasoning
       stop: false
@@ -62,15 +67,16 @@ workflow:
       ref: writer_llm
       config:
         prompt: |
-          Using the original text and the reasoning below, rewrite the LinkedIn post to answer the key question effectively.
+          You are a professional writer, who writes eloquently, taking initial concepts and an audience and writes engaging and valuable content that appeals to this audience.
+          Using the original text and the reasoning below, rewrite this content to answer the key question and sub-questions effectively.
           Specify the key question at the beginning in the style of a curious and authoritative friend.
-          At the end ask "I wonder if you could help me with this?", rewrite this final question to naturally fit the post.
+          At the end ask "I wonder if you could help me with this?", rewrite this final question to naturally fit the content.
 
           Requirements:
-          - Make minimal changes to preserve original meaning.
-          - Write in the style of a curious and authoritative friend.
+          - Eloquently enhance the content and preserve original meaning.
+          - Write in the style of an eloquent, curious and authoritative friend.
           - Avoid emojis and the dash character `—`.
-          - Use a natural, human tone suitable for LinkedIn.
+          - Use a natural, human tone suitable for content.
 
           Original Text:
           {workflow_initial_input}

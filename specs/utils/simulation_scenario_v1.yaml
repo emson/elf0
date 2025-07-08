@@ -1,5 +1,5 @@
 # src/specs/utils/simulation_scenario_v1.yaml
-version: "v1"
+version: "0.1"
 description: "Meta-utility for creating simulation workflows that role-play scenario elements and generate outcome reports"
 runtime: "langgraph"
 

@@ -1,4 +1,4 @@
-version: "0.2"
+version: "0.1"
 description: "Enhanced Evaluator-Optimizer workflow for iteratively refining prompts for high-quality code generation"
 runtime: "langgraph"
 

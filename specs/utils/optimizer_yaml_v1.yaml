@@ -1,6 +1,6 @@
 # src/specs/utils/optimizer_yaml_v1.yaml
-version: "v1"
-description: "Utility workflow for optimizing and improving existing YAML workflow specifications"
+version: "0.1"
+description: "Utility workflow for optimizing and improving existing YAML agent workflow specs"
 runtime: "langgraph"
 
 llms:

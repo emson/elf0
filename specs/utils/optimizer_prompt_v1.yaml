@@ -1,5 +1,5 @@
 # src/specs/utils/optimizer_prompt_v1.yaml
-version: "v1"
+version: "0.1"
 description: "Utility workflow for iteratively refining prompts to achieve high-quality outputs"
 runtime: "langgraph"
 

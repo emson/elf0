@@ -1,6 +1,6 @@
 # src/specs/utils/creator_workflow_v1.yaml
-version: "v1"
-description: "Utility workflow for analyzing requirements and generating complete YAML workflow specifications"
+version: "0.1"
+description: "Utility workflow for analyzing technical requirements and generating new YAML agent spec file."
 runtime: "langgraph"
 
 llms:

@@ -1,0 +1,39 @@
+version: "0.1"
+description: "Simple Python function workflow with user input and text processing"
+runtime: "langgraph"
+
+llms:
+  test_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.0
+
+functions:
+  get_input:
+    type: python
+    name: "User Input"
+    entrypoint: "elf0.functions.utils.get_user_input"
+    
+  process_text:
+    type: python
+    name: "Text Processor"
+    entrypoint: "elf0.functions.utils.text_processor"
+
+workflow:
+  type: sequential
+  nodes:
+    - id: ask_user
+      kind: tool
+      ref: get_input
+      config:
+        parameters:
+          prompt: "What would you like me to help you with today?"
+          
+    - id: process
+      kind: tool
+      ref: process_text
+      config:
+        parameters:
+          operation: "count_words"
+      stop: true
+  edges: []

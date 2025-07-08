@@ -1,0 +1,54 @@
+version: "0.1"
+description: "Interactive assistant that asks follow-up questions and processes user responses"
+runtime: "langgraph"
+
+llms:
+  assistant:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.3
+
+functions:
+  get_input:
+    type: python
+    name: "User Input"
+    entrypoint: "elf0.functions.utils.get_user_input"
+
+workflow:
+  type: sequential
+  nodes:
+    - id: generate_question
+      kind: agent
+      ref: assistant
+      config:
+        prompt: |
+          Based on the user's initial input: "{input}"
+          
+          Analyze what the user is asking for and determine what additional information you need to provide a complete and helpful response.
+          Generate ONE specific follow-up question that will help you better understand their needs or gather missing information.
+          
+          Output only the question text, nothing else.
+      output_key: question
+          
+    - id: ask_user
+      kind: tool
+      ref: get_input
+          
+    - id: final_response
+      kind: agent
+      ref: assistant
+      config:
+        prompt: |
+          Original request: "{input}"
+          Follow-up question you asked: {state.output}
+          User's response: {state.user_input}
+          
+          Now provide a comprehensive and helpful response that addresses the user's original request,
+          taking into account the additional information they provided. Be specific and actionable.
+      stop: true
+      
+  edges:
+    - source: generate_question
+      target: ask_user
+    - source: ask_user
+      target: final_response

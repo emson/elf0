@@ -1,0 +1,81 @@
+version: "1.0"
+description: "A workflow that uses a prompt classifier to route user queries to different handler prompts based on the input prompt."
+runtime: "langgraph" # Specifies the execution engine
+
+llms:
+  classifier_llm:
+    type: "openai" 
+    model_name: "gpt-4.1-mini"
+    temperature: 0.2
+    # System prompt for classifier: "You are an expert text classifier. Your task is to categorize the user query into 'general_chat' or 'deep_reasoning'. Respond with only the category name."
+  general_chat_llm:
+    type: "openai"
+    model_name: "gpt-4.1-mini"
+    temperature: 0.7
+  deep_reasoning_llm:
+    type: "openai"
+    model_name: "gpt-4.1-mini" # Or a more capable model like gpt-4.1-mini if preferred
+    temperature: 0.5
+
+workflow:
+  type: custom_graph # Using custom_graph for explicit edge definition
+  # entry_point: prompt_classifier # Optional: usually inferred if it's the first node
+  nodes:
+    - id: prompt_classifier
+      kind: agent
+      ref: classifier_llm # References the LLM configuration for classification
+      config:
+        prompt: |
+          Analyze the following user query and classify it into one of these categories: 'general_chat' or 'deep_reasoning'.
+          Your response must consist of ONLY the category name as a single string (e.g., "general_chat" or "deep_reasoning").
+          Do not add any other text, explanation, or formatting.
+
+          User Query:
+          {input}
+      stop: false # Output of this node is used for routing, so it's not a terminal node
+
+    - id: general_chat_handler
+      kind: agent
+      ref: general_chat_llm # References the LLM configuration for general conversation
+      config:
+        prompt: |
+          User Query: {input}
+
+          Engage in a friendly and helpful conversation based on the user query.
+      stop: true # This node concludes the 'general_chat' path
+
+    - id: deep_reasoning_handler
+      kind: agent
+      ref: deep_reasoning_llm # References the LLM configuration for complex tasks
+      config:
+        prompt: |
+          System: |
+              You are a highly trained Language Model to help users.
+              Your role as an assistant involves thoroughly exploring questions
+              through a systematic thinking process before providing the final
+              precise and accurate solutions. This requires engaging in a comprehensive
+              cycle of analysis, summarizing, exploration, reassessment, reflection,
+              backtracing, and iteration to develop well-considered thinking process.
+              Please structure your response into two main sections: Thought and Solution.
+              In the Thought section, detail your reasoning process in steps.
+              Each step should include detailed considerations such as analysing questions,
+              summarizing relevant findings, brainstorming new ideas, verifying the accuracy
+              of the current steps, refining any errors, and revisiting previous steps.
+              In the Solution section, based on various attempts, explorations, and reflections
+              from the Thought section, systematically present the final solution that you
+              deem correct. The Solution section should be logical, accurate, and concise.
+          User Query: {input}
+
+          Provide a comprehensive, insightful, and well-structured analytical response to the user query. Break down complex problems if necessary.
+      stop: true # This node concludes the 'deep_reasoning' path
+
+  edges:
+    - source: prompt_classifier
+      target: general_chat_handler
+      # This condition checks the direct string output of the classifier agent
+      condition: "state.get('output') == 'general_chat'"
+
+    - source: prompt_classifier
+      target: deep_reasoning_handler
+      # This condition checks the direct string output of the classifier agent
+      condition: "state.get('output') == 'deep_reasoning'"

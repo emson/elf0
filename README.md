@@ -68,8 +68,8 @@ uv run elf0 agent simulate_salary.yaml --prompt "Ben is negotiating a new job wi
 
 ### 2. Install Elf0
 ```bash
-git clone https://github.com/emson/elf.git
-cd elf
+git clone https://github.com/emson/elf0.git
+cd elf0
 uv venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 uv pip install -e .
 ```
@@ -480,14 +480,14 @@ cat workflow.yaml
 ## 🤝 Contributing & Support
 
 **Want to help?**
-- Report bugs or suggest features: [GitHub Issues](https://github.com/emson/elf/issues)
+- Report bugs or suggest features: [GitHub Issues](https://github.com/emson/elf0/issues)
 - Share your workflows: Submit a PR with your useful specs
 - Improve docs: Found something unclear? Please fix it!
 
 **Development setup:**
 ```bash
-git clone https://github.com/emson/elf.git
-cd elf
+git clone https://github.com/emson/elf0.git
+cd elf0
 uv venv && source .venv/bin/activate
 uv pip install -e .
 pytest  # Run tests

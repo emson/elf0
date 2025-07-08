@@ -34,6 +34,8 @@ uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Analyze all code in 
 ```
 
 ### YouTube Analysis (with MCP servers)
+You will first need to install and run the included MCP server (please see (mcp/youtube-transcript/README.md)[mcp/youtube-transcript/README.md]).
+
 ```bash
 # Download and summarize YouTube transcripts
 uv run elf0 agent specs/content/youtube_analyzer.yaml --prompt "Analyse this youtube video https://www.youtube.com/watch?v=9tOmppsiO2w"
@@ -48,7 +50,7 @@ uv run elf0 agent specs/examples/interactive_assistant.yaml --prompt "Ask me my 
 ### Simulations
 ```bash
 # Create complex multi-agent simulations
-uv run elf0 agent specs/utils/simulation_scenario_v1.yaml --prompt "Create a salary negotiation simulation between Ben (plucky engineer) and Clive (CEO of a London consultancy)" --output simulate_salary.yaml
+uv run elf0 -v agent specs/utils/simulation_scenario_v1.yaml --prompt "Create a salary negotiation simulation. There are 2 people, Ben a plucky young agent engineer and Clive the CEO of a hot up-and-coming software conslutancy based in London. Create a persona for Ben and Clive, and design this YAML spec around how they will interact under different scenarios. We will give the new YAML file you output the scenarios." --output simulate_salary.yaml
 
 # Then run scenarios with your new simulation
 uv run elf0 agent simulate_salary.yaml --prompt "Ben is negotiating a new job with Clive, Ben has to commute from Edinburgh 4 days a month. Work through the negotiation step by step."
@@ -154,7 +156,7 @@ workflow:
 3. Sets up the prompt with user input
 4. Runs when you execute: `uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Hello"`
 
-### The Magic of @file References
+### The Magic of `@file.md` and `@my/dir` References
 
 Instead of copy-pasting file contents, just use `@filename`:
 
@@ -189,10 +191,10 @@ uv run elf0 agent specs/utils/optimizer_yaml_v1.yaml --prompt "Improve this work
 
 ### Interactive Mode
 
-Have conversations with any workflow:
+Have conversations with any workflow (in verbose mode `-v`):
 
 ```bash
-uv run elf0 prompt specs/basic/chat_simple_v1.yaml
+uv run elf0 -v prompt specs/basic/chat_simple_v1.yaml
 💬 Prompt: Help me debug this code @app.py
 💬 Prompt: Now write unit tests for it
 💬 Prompt: /exit
@@ -330,6 +332,14 @@ workflow:
 ```
 
 ## 💡 Quick Examples by Use Case
+You can list the YAML workflows in the `specs` directory (and filter the subdirectories) with:
+```bash
+# list all specs (ignoring archive)
+uv run elf0 list-specs
+
+# List a specific directory
+uv run elf0 list-specs content
+```
 
 ### Content Creation
 ```bash

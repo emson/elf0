@@ -11,6 +11,19 @@ import re
 from urllib.parse import urlparse, parse_qs
 from youtube_transcript_api import YouTubeTranscriptApi
 
+try:
+    from rich.console import Console
+    console = Console(stderr=True)
+except ImportError:
+    console = None
+
+def log_message(message: str, style: str = None):
+    """Log message using rich if available, otherwise print to stderr"""
+    if console:
+        console.print(message, style=style)
+    else:
+        print(f"[YouTube MCP] {message}", file=sys.stderr)
+
 
 def extract_video_id(url: str) -> str:
     """Extract YouTube video ID from URL"""
@@ -45,6 +58,7 @@ def extract_transcript(url: str, language: str = "en") -> dict:
     """Extract transcript from YouTube video"""
     try:
         video_id = extract_video_id(url)
+        log_message(f"📺 Fetching transcript for video: {video_id}", "blue")
         
         # Try to get transcript in specified language
         try:
@@ -55,11 +69,14 @@ def extract_transcript(url: str, language: str = "en") -> dict:
         
         # Join all transcript segments
         transcript_text = ' '.join([item['text'] for item in transcript_list])
+        word_count = len(transcript_text.split())
+        
+        log_message(f"✅ Transcript extracted: {word_count} words, {len(transcript_list)} segments", "green")
         
         return {
             "transcript_text": transcript_text,
             "language": language,
-            "word_count": len(transcript_text.split()),
+            "word_count": word_count,
             "segment_count": len(transcript_list)
         }
     
@@ -71,6 +88,7 @@ def get_video_metadata(url: str) -> dict:
     """Get basic YouTube video metadata from URL"""
     try:
         video_id = extract_video_id(url)
+        log_message(f"📋 Getting metadata for video: {video_id}", "cyan")
         
         return {
             "video_id": video_id,
@@ -85,6 +103,9 @@ def get_video_metadata(url: str) -> dict:
 
 def main():
     """Handle MCP requests via stdin/stdout"""
+    log_message("🚀 YouTube Transcript MCP Server starting...", "bold green")
+    log_message("💡 Waiting for MCP requests via stdin", "dim")
+    
     tools = [
         {
             "name": "extract_transcript",
@@ -129,6 +150,7 @@ def main():
             params = request.get("params", {})
             
             if method == "initialize":
+                log_message("🔌 Client connected and initialized", "green")
                 response = {
                     "jsonrpc": "2.0",
                     "id": request.get("id"),

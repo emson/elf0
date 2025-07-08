@@ -372,6 +372,22 @@ uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Find securi
 uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Compare @old_version.py and @new_version.py"
 ```
 
+### Claude Code Integration
+Elf0 includes powerful integration with the Claude Code SDK, providing AI-assisted development through Claude's advanced code understanding and generation capabilities:
+
+```bash
+# Deep code analysis with Claude Code
+uv run elf0 agent specs/code/claude_code_review.yaml --prompt "Analyse the following file and tell me how to improve it @src/elf0/cli.py"
+
+# Generate code with Claude Code
+uv run elf0 agent specs/examples/claude_code_example.yaml --prompt "Create a FastAPI application with user authentication"
+
+# Get architectural guidance
+uv run elf0 agent specs/code/claude_code_review.yaml --prompt "Review @src/ and suggest architectural improvements"
+```
+
+**Why use Claude Code?** Claude Code provides AI-assisted development through a Python SDK, enabling streamlined interaction with Claude for code-related tasks. It offers tool-based workflows like file reading/writing, automated development tasks, and comprehensive error handling - perfect for integrating AI assistance directly into your development process.
+
 ### Workflow Management
 ```bash
 # Create new workflows with AI

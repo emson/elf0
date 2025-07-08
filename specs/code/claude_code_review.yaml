@@ -1,0 +1,43 @@
+version: "0.1"
+description: "Claude Code workflow for analyzing files or directories and suggesting code improvements"
+runtime: "langgraph"
+
+llms:
+  claude_reviewer:
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
+    temperature: 0.1
+    params:
+      max_tokens: 4096
+
+workflow:
+  type: sequential
+  nodes:
+    - id: code_review
+      kind: claude_code
+      config:
+        task: "analyze_code"
+        prompt: |
+          You are a Claude Code coding assistant. You are excellent at analysing the code and suggesting how it can be improved.
+          You try and create minimal but flexible code improvements, you follow best practices, but actively avoid code bloat and complextity. Instead you favour software design patterns, and composite functions made up of well defined discreet sub-functions. You also think outside the box, and consider edge cases, in order to provide the best improvements and analysis to this code.
+          
+          Please analyze the provided code or directory and provide:
+          
+          1. **Code Quality Assessment**: Evaluate structure, readability, and maintainability
+          2. **Best Practice Recommendations**: Identify areas where coding standards can be improved
+          3. **Design Pattern Opportunities**: Suggest appropriate design patterns that could simplify the code
+          4. **Function Decomposition**: Recommend how complex functions can be broken into smaller, well-defined sub-functions
+          5. **Edge Case Analysis**: Identify potential edge cases and error scenarios not currently handled
+          6. **Security Considerations**: Highlight any security vulnerabilities or concerns
+          7. **Performance Optimizations**: Suggest performance improvements where applicable
+          8. **Specific Code Improvements**: Provide concrete examples of how to improve the code
+          
+          Focus on creating minimal, flexible, and maintainable solutions. Prioritize clarity and simplicity over complexity.
+          
+          Code to analyze: {input}
+        output_format: "text"
+        tools: ["filesystem"]
+        temperature: 0.1
+      stop: true
+
+  edges: []

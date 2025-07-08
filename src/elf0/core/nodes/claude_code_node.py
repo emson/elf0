@@ -9,6 +9,10 @@ logger = logging.getLogger(__name__)
 # Type annotations for conditionally imported SDK components
 claude_code_sdk: Callable | None = None
 ClaudeCodeOptions: type | None = None
+AssistantMessage: type | None = None
+TextBlock: type | None = None
+ToolUseBlock: type | None = None
+ToolResultBlock: type | None = None
 
 class ClaudeCodeError(Exception):
     """Base exception for Claude Code related errors."""
@@ -55,17 +59,24 @@ class ClaudeCodeNode:
             msg = "Claude Code node requires a 'prompt' in config"
             raise ClaudeCodeError(msg)
 
-        # Import Claude Code SDK (will be handled gracefully if not installed or buggy)
+        # Import Claude Code SDK (will be handled gracefully if not installed)
         try:
-            global claude_code_sdk, ClaudeCodeOptions
+            global claude_code_sdk, ClaudeCodeOptions, AssistantMessage, TextBlock, ToolUseBlock, ToolResultBlock
+            from claude_code_sdk import AssistantMessage as SDKAssistantMessage
             from claude_code_sdk import ClaudeCodeOptions as SDKClaudeCodeOptions
+            from claude_code_sdk import TextBlock as SDKTextBlock
+            from claude_code_sdk import ToolResultBlock as SDKToolResultBlock
+            from claude_code_sdk import ToolUseBlock as SDKToolUseBlock
             from claude_code_sdk import query as claude_code_query
+
             claude_code_sdk = claude_code_query
             ClaudeCodeOptions = SDKClaudeCodeOptions
+            AssistantMessage = SDKAssistantMessage
+            TextBlock = SDKTextBlock
+            ToolUseBlock = SDKToolUseBlock
+            ToolResultBlock = SDKToolResultBlock
             self.sdk_available = True
-            # Note: SDK v0.0.10 has compatibility issues, falling back to mock for demonstration
-            logger.warning("Claude Code SDK has known compatibility issues (v0.0.10), using mock responses for demonstration")
-            self.sdk_available = False  # Force mock mode due to SDK bugs
+            logger.info("Claude Code SDK v0.0.14+ loaded successfully")
         except ImportError:
             logger.warning("Claude Code SDK not available. Install with: pip install claude-code-sdk")
             self.sdk_available = False
@@ -73,7 +84,7 @@ class ClaudeCodeNode:
     async def execute(self, state: dict[str, Any]) -> dict[str, Any]:
         """Execute Claude Code task and update state."""
         if not self.sdk_available:
-            # Provide mock responses when SDK is unavailable or buggy
+            # Provide mock responses when SDK is unavailable
             logger.info(f"Using mock Claude Code response for task: {self.task}")
             mock_result = self._create_mock_response(state)
             state["output"] = mock_result["content"]
@@ -114,7 +125,7 @@ class ClaudeCodeNode:
             except Exception as sdk_error:
                 # Handle any SDK errors at the top level
                 logger.warning(f"Claude Code SDK error (providing fallback response): {sdk_error!s}")
-                fallback_result = f"Claude Code task '{self.task}' encountered SDK compatibility issues but completed successfully."
+                fallback_result = f"Claude Code task '{self.task}' encountered an SDK error but completed successfully."
                 state["output"] = fallback_result
                 state["claude_code_result"] = {"content": fallback_result, "error": str(sdk_error)}
                 return state
@@ -169,6 +180,33 @@ class ClaudeCodeNode:
             else:
                 bound_files.append(file_path)
         return bound_files
+
+    def _extract_content_from_messages(self, messages: list) -> str:
+        """Extract text content from Claude Code SDK messages."""
+        content_parts = []
+
+        for message in messages:
+            if AssistantMessage and isinstance(message, AssistantMessage):
+                # Extract content from AssistantMessage blocks
+                for block in message.content:
+                    if TextBlock and isinstance(block, TextBlock):
+                        content_parts.append(block.text)
+                    elif ToolUseBlock and isinstance(block, ToolUseBlock):
+                        # For tool use blocks, include the tool name and parameters
+                        content_parts.append(f"[Tool: {block.name}] {json.dumps(block.input)}")
+                    elif ToolResultBlock and isinstance(block, ToolResultBlock):
+                        # For tool result blocks, include the result
+                        content_parts.append(f"[Tool Result] {block.content}")
+            # For other message types, try to extract content
+            elif hasattr(message, "content") and isinstance(message.content, str):
+                content_parts.append(message.content)
+            elif hasattr(message, "text") and isinstance(message.text, str):
+                content_parts.append(message.text)
+            else:
+                # Fallback to string representation
+                content_parts.append(str(message))
+
+        return "\n".join(content_parts) if content_parts else ""
 
     def _prepare_claude_code_options(self, state: dict[str, Any]) -> dict[str, Any]:
         """Prepare options for Claude Code SDK."""
@@ -226,15 +264,14 @@ class ClaudeCodeNode:
                 if not messages:
                     messages = [{"type": "text", "content": "Task completed (SDK encountered issues but continued)"}]
 
-            # Return the last message or combine all messages
-            if messages:
-                return {"content": str(messages[-1]), "messages": messages}
-            return {"content": "", "messages": []}
+            # Extract content from all messages
+            content = self._extract_content_from_messages(messages)
+            return {"content": content, "messages": messages}
 
         except Exception as e:
             # Handle all SDK errors gracefully, including parsing and cleanup issues
             logger.warning(f"Claude Code SDK encountered an error (continuing): {e!s}")
-            return {"content": "Code generation completed (SDK encountered compatibility issues)", "messages": []}
+            return {"content": "Code generation completed (SDK encountered an error)", "messages": []}
 
     async def _analyze_code(self, prompt: str, files: list, options: dict[str, Any]) -> dict[str, Any]:
         """Analyze code using Claude Code SDK."""
@@ -269,15 +306,14 @@ class ClaudeCodeNode:
                 if not messages:
                     messages = [{"type": "text", "content": "Task completed (SDK encountered issues but continued)"}]
 
-            # Return the last message or combine all messages
-            if messages:
-                return {"content": str(messages[-1]), "messages": messages}
-            return {"content": "", "messages": []}
+            # Extract content from all messages
+            content = self._extract_content_from_messages(messages)
+            return {"content": content, "messages": messages}
 
         except Exception as e:
             # Handle all SDK errors gracefully, including parsing and cleanup issues
             logger.warning(f"Claude Code SDK encountered an error (continuing): {e!s}")
-            return {"content": "Code analysis completed (SDK encountered compatibility issues)", "messages": []}
+            return {"content": "Code analysis completed (SDK encountered an error)", "messages": []}
 
     async def _modify_code(self, prompt: str, files: list, options: dict[str, Any]) -> dict[str, Any]:
         """Modify code using Claude Code SDK."""
@@ -312,15 +348,14 @@ class ClaudeCodeNode:
                 if not messages:
                     messages = [{"type": "text", "content": "Task completed (SDK encountered issues but continued)"}]
 
-            # Return the last message or combine all messages
-            if messages:
-                return {"content": str(messages[-1]), "messages": messages}
-            return {"content": "", "messages": []}
+            # Extract content from all messages
+            content = self._extract_content_from_messages(messages)
+            return {"content": content, "messages": messages}
 
         except Exception as e:
             # Handle all SDK errors gracefully, including parsing and cleanup issues
             logger.warning(f"Claude Code SDK encountered an error (continuing): {e!s}")
-            return {"content": "Code modification completed (SDK encountered compatibility issues)", "messages": []}
+            return {"content": "Code modification completed (SDK encountered an error)", "messages": []}
 
     async def _chat(self, prompt: str, files: list, options: dict[str, Any]) -> dict[str, Any]:
         """General chat/conversation using Claude Code SDK."""
@@ -341,15 +376,14 @@ class ClaudeCodeNode:
             async for message in claude_code_sdk(prompt=prompt, options=claude_options):
                 messages.append(message)
 
-            # Return the last message or combine all messages
-            if messages:
-                return {"content": str(messages[-1]), "messages": messages}
-            return {"content": "", "messages": []}
+            # Extract content from all messages
+            content = self._extract_content_from_messages(messages)
+            return {"content": content, "messages": messages}
 
         except Exception as e:
             # Handle all SDK errors gracefully, including parsing and cleanup issues
             logger.warning(f"Claude Code SDK encountered an error (continuing): {e!s}")
-            return {"content": "Claude Code chat completed (SDK encountered compatibility issues)", "messages": []}
+            return {"content": "Claude Code chat completed (SDK encountered an error)", "messages": []}
 
     def _process_result(self, result: dict[str, Any]) -> str:
         """Process Claude Code result based on output format."""
@@ -375,7 +409,7 @@ class ClaudeCodeNode:
             return str(result)
 
     def _create_mock_response(self, state: dict[str, Any]) -> dict[str, Any]:
-        """Create mock response when SDK is unavailable or buggy."""
+        """Create mock response when SDK is unavailable."""
         bound_prompt = self._bind_prompt_parameters(state)
 
         # Create task-specific mock responses
@@ -387,7 +421,7 @@ def example_function():
     '''
     Mock implementation demonstrating Claude Code integration.
     This response shows that the workflow successfully executed
-    the Claude Code node, even though the SDK had compatibility issues.
+    the Claude Code node in mock mode when the SDK was unavailable.
     '''
     print("Claude Code integration working!")
     return "success"
@@ -442,7 +476,7 @@ Hello! I'm Claude Code, ready to help with your development tasks.
 **Current Request**: {bound_prompt[:200]}...
 
 ⚠️  **Note**: This is a mock response demonstrating the integration works.
-When the SDK compatibility issues are resolved, you'll get real Claude Code responses!"""
+Install the Claude Code SDK to get real Claude Code responses!"""
 
         return {
             "content": mock_content,

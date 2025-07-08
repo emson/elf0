@@ -1,0 +1,100 @@
+version: "0.1"
+description: "Generate an optimized LinkedIn post by analyzing input text, identifying the target audience, reasoning about the key question to address, and rewriting with minimal changes in a curious, authoritative friend style without emojis."
+runtime: "langgraph"
+
+llms:
+  main_llm:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.5
+  writer_llm:
+    type: anthropic
+    model_name: claude-sonnet-4-20250514 
+    temperature: 0.5
+    params:
+      max_tokens: 4000
+
+workflow:
+  type: sequential
+  nodes:
+    - id: analyze_and_identify_audience
+      kind: agent
+      ref: main_llm
+      config:
+        prompt: |
+          You are professional content editor, who is an expert at reading and analysing content.
+          Provided with the following input text, read it deeply and imagine what resonates with this audience:
+
+          {workflow_initial_input}
+
+          Task:
+          1. Carefully read and understand the text.
+          2. Identify and clearly describe the primary target audience for this text.
+          3. Provide a concise analysis explaining why this audience is appropriate.
+
+          Format your output as:
+          Audience: <identified audience>
+          Analysis: <brief explanation>
+      output_key: audience_analysis
+      stop: false
+
+    - id: reason_about_structure
+      kind: agent
+      ref: main_llm
+      config:
+        prompt: |
+          You are a professional content editor, who deeply understands how content affects an audience.
+          Given the audience analysis below, determine the single most important question this content should answer to effectively engage the audience. Also think about the smaller subquestions that will help answer this main question.
+          Output in eloquent and engaging narrative that is interesting and has value, to this audience.
+
+          Audience Analysis:
+          {state.audience_analysis}
+
+          Task:
+          1. Identify the key question that the post must address to resonate with the audience.
+          2. Identify sub-questions that help answer the key question (see Task 1).
+          3. Provide detailed reasoning on how structuring the content around these questions will improve engagement and clarity.
+
+          Format your response as:
+          Key Question: <the main question>
+          Sub Questions: <sub questions that help answer the main question>
+          Reasoning: <detailed explanation>
+      output_key: workflow_reasoning
+      stop: false
+
+    - id: rewrite_post
+      kind: agent
+      ref: writer_llm
+      config:
+        prompt: |
+          You are a professional writer, who writes eloquently, taking initial concepts and an audience and writes engaging and valuable content that appeals to this audience.
+          Using the original text and the reasoning below, rewrite this content to answer the key question and sub-questions effectively.
+          Specify the key question at the beginning in the style of a curious and authoritative friend.
+          At the end ask "I wonder if you could help me with this?", rewrite this final question to naturally fit the content.
+
+          Requirements:
+          - Eloquently enhance the content and preserve original meaning.
+          - Write in the style of an eloquent, curious and authoritative friend.
+          - Avoid emojis and the dash character `—`.
+          - Use a natural, human tone suitable for content.
+
+          Original Text:
+          {workflow_initial_input}
+
+          Reasoning:
+          {state.workflow_reasoning}
+      output_key: rewritten_post
+      stop: true
+
+  edges:
+    - source: analyze_and_identify_audience
+      target: reason_about_structure
+    - source: reason_about_structure
+      target: rewrite_post
+
+# Comments:
+# - Lowered temperature values for more focused and consistent outputs.
+# - Added explicit formatting instructions in prompts to improve output parsing.
+# - Switched final rewriting to writer_llm (Claude) to leverage its strengths in style and tone.
+# - Clarified reasoning node to focus on identifying one key question to guide rewriting.
+# - Improved description for clarity and conciseness.

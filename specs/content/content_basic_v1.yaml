@@ -1,0 +1,41 @@
+# src/specs/content/content_basic_v1.yaml
+version: "v1"
+description: "Basic content creation workflow for generating various types of written content"
+runtime: "langgraph"
+
+# LLM definitions
+llms:
+  content_llm:
+    type: "openai"
+    model_name: "gpt-4.1-mini"
+    temperature: 0.8
+    params:
+      max_tokens: 2000
+      max_retries: 3
+      retry_delay: 1.0
+      max_retry_delay: 30.0
+      retry_backoff_factor: 2.0
+      system_prompt: |
+        You are a skilled content creator who produces engaging, clear, and well-structured written content.
+        Focus on creating content that is informative, engaging, and tailored to the target audience.
+        Always consider the purpose, tone, and format requirements when creating content.
+
+# No retrievers, memory or functions needed for basic content creation
+retrievers: {}
+memory: {}
+functions: {}
+
+# Workflow definition
+workflow:
+  type: "sequential"
+  nodes:
+    - id: "content_creation_step"
+      kind: "agent"
+      ref: "content_llm"
+      stop: true
+  edges: []
+
+eval:
+  tags: ["content", "writing", "creation"]
+  use_cases: ["Blog posts", "Articles", "Marketing copy", "Documentation"]
+  estimated_runtime: "20-60 seconds"

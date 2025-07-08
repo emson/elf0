@@ -79,15 +79,15 @@ This plan outlines the comprehensive steps needed to transform ELF from a privat
 - [ ] `output-prompt-qwen32.py` (contains experimental prompts)
 
 ### Task 3.2: Documentation Organization
-**Current structure**: `docs_ai/` contains internal development notes
+**Current structure**: `docs/` contains internal development notes
 **Target structure**: Move to standard `docs/` directory with public-appropriate content
 
 **Actions**:
-1. Review `docs_ai/notes/` for content suitable for public consumption
+1. Review `docs/notes/` for content suitable for public consumption
 2. Restructure as user-facing documentation
 3. Remove or sanitize internal development notes
 4. Maintain technical architecture documentation
-- [ ] Rename `docs_ai` to `docs`
+- [ ] Rename `docs` to `docs`
 
 ## 🚀 Phase 4: Infrastructure Setup
 

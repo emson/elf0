@@ -1,0 +1,39 @@
+# src/specs/basic/chat_simple_v1.yaml
+version: "v1"
+description: "Basic chat workflow for simple conversational interactions"
+runtime: "langgraph"
+
+# LLM definitions
+llms:
+  chat_llm:
+    type: "openai"
+    model_name: "gpt-4.1-mini"
+    temperature: 0.7
+    params:
+      max_tokens: 1000
+      max_retries: 3
+      retry_delay: 1.0
+      max_retry_delay: 30.0
+      retry_backoff_factor: 2.0
+      system_prompt: |
+        You are a friendly assistant who always ends a conversation with an emoji.
+
+# No retrievers, memory or functions needed for basic chat
+retrievers: {}
+memory: {}
+functions: {}
+
+# Workflow definition
+workflow:
+  type: "sequential"
+  nodes:
+    - id: "chat_step"
+      kind: "agent"
+      ref: "chat_llm"
+      stop: true
+  edges: []
+
+eval:
+  tags: ["basic", "chat", "conversational"]
+  use_cases: ["Simple Q&A", "Getting started with elf0", "Basic interaction testing"]
+  estimated_runtime: "5-15 seconds"

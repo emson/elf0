@@ -13,11 +13,6 @@ functions:
     type: python
     name: "User Input"
     entrypoint: "elf0.functions.utils.get_user_input"
-    
-  process_text:
-    type: python
-    name: "Text Processor"
-    entrypoint: "elf0.functions.utils.text_processor"
 
 workflow:
   type: sequential
@@ -27,38 +22,33 @@ workflow:
       ref: assistant
       config:
         prompt: |
-          Based on the user's initial input: "${state.input}"
+          Based on the user's initial input: "{input}"
           
-          Generate a thoughtful follow-up question to better understand what they need.
-          Ask only ONE specific question that will help you provide better assistance.
+          Analyze what the user is asking for and determine what additional information you need to provide a complete and helpful response.
+          Generate ONE specific follow-up question that will help you better understand their needs or gather missing information.
           
-          Don't provide any answers yet - just ask the question.
+          Output only the question text, nothing else.
+      output_key: question
           
     - id: ask_user
       kind: tool
       ref: get_input
-      config:
-        parameters:
-          prompt: "${state.output}"
-          
-    - id: process_response
-      kind: tool
-      ref: process_text
-      config:
-        parameters:
-          operation: "count_words"
           
     - id: final_response
       kind: agent
       ref: assistant
       config:
         prompt: |
-          Original request: "${state.input}"
-          Follow-up question asked: "${state.output}"
-          User's response: "${state.user_input}"
-          Response analysis: Word count is ${state.word_count}
+          Original request: "{input}"
+          Follow-up question you asked: {state.output}
+          User's response: {state.user_input}
           
-          Now provide a comprehensive and helpful response that addresses their original request,
-          taking into account their follow-up answer. Be specific and actionable.
+          Now provide a comprehensive and helpful response that addresses the user's original request,
+          taking into account the additional information they provided. Be specific and actionable.
       stop: true
-  edges: []
+      
+  edges:
+    - source: generate_question
+      target: ask_user
+    - source: ask_user
+      target: final_response

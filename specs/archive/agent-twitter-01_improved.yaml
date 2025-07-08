@@ -32,7 +32,7 @@ workflow:
 
           INSTRUCTIONS:
           1. Carefully read the following input text:
-             {workflow_initial_input}
+             {input}
           2. Identify and clearly describe the primary audience for this text.
           3. Decide if the content is best expressed as a "single" tweet or a "thread":
              - Choose "thread" if the input contains multiple key points, detailed explanations, or a narrative that benefits from multiple tweets.
@@ -43,7 +43,7 @@ workflow:
           Tweet Format: <"single" or "thread">
 
           Do NOT include any extra commentary or explanation.
-      output_key: analysis_and_format
+        output_key: analysis_and_format
       stop: false
 
     - id: reason_structure
@@ -81,7 +81,7 @@ workflow:
           Thread Outline: <if thread, numbered list with main statement and supporting tweets, include total count>
 
           Output ONLY as specified above, no extra text.
-      output_key: workflow_reasoning
+        output_key: workflow_reasoning
       stop: false
 
     - id: decide_path
@@ -108,7 +108,7 @@ workflow:
           - Do NOT use emojis or dashes (except for web links).
           - Replace web links like mysite.com with mysite[dot]com.
           - Output ONLY the final tweet text, no explanations or extra text.
-      output_key: final_tweet
+        output_key: final_tweet
       stop: true
 
     - id: rewrite_thread
@@ -139,7 +139,7 @@ workflow:
               - Supporting detail
           3/5 Another insight...
           ...
-      output_key: final_thread
+        output_key: final_thread
       stop: true
 
   edges:

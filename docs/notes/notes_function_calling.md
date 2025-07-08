@@ -1,4 +1,4 @@
-# docs_ai/notes/notes_function_calling.md
+# docs/notes/notes_function_calling.md
 
 # Python Function Calling Implementation Plan
 

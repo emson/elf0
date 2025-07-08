@@ -121,6 +121,13 @@ def get_user_input(state: WorkflowState, prompt: str = "Please provide input:") 
     """
     console = Console(stderr=True)
 
+    # Use question from state if available and no custom prompt provided
+    if prompt == "Please provide input:":
+        if "question" in state:
+            prompt = state["question"]
+        elif "output" in state:
+            prompt = state["output"]
+
     # Display the LLM's question with professional styling
     console.print("\n[bold blue]Assistant:[/bold blue]")
     console.print(prompt)

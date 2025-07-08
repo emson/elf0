@@ -147,3 +147,6 @@ path = "src/elf0/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/elf0"]
+
+[tool.uv.workspace]
+members = ["mcp/youtube-transcript"]

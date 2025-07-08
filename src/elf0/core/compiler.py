@@ -26,16 +26,68 @@ class SafeNamespace:
         self._data = {k: v for k, v in data.items() if isinstance(k, str)}
 
     def __getattr__(self, name: str) -> Any:
-        return self._data.get(name, "")
+        # First check regular state fields
+        if name in self._data:
+            return self._data[name]
+        # Then check dynamic_state for output_key fields
+        dynamic_state = self._data.get("dynamic_state", {})
+        if dynamic_state and isinstance(dynamic_state, dict) and name in dynamic_state:
+            return dynamic_state[name]
+        # Special handling for 'json' - parse JSON from output_key fields
+        if name == "json":
+            return self._create_json_namespace()
+        return ""
+
+    def _create_json_namespace(self) -> "SafeNamespace":
+        """Create a namespace that parses JSON from dynamic_state fields."""
+        import json
+        json_data = {}
+        dynamic_state = self._data.get("dynamic_state", {})
+        if dynamic_state and isinstance(dynamic_state, dict):
+            for value in dynamic_state.values():
+                if isinstance(value, str):
+                    try:
+                        # Clean the string first - remove markdown fences and quotes
+                        cleaned_value = value.strip()
+                        if cleaned_value.startswith("```json"):
+                            cleaned_value = cleaned_value[7:]
+                        if cleaned_value.startswith("```"):
+                            cleaned_value = cleaned_value[3:]
+                        if cleaned_value.endswith("```"):
+                            cleaned_value = cleaned_value[:-3]
+                        cleaned_value = cleaned_value.strip()
+
+                        # Handle case where LLM returns just "error" instead of JSON
+                        if cleaned_value in {'"error"', "error"}:
+                            json_data["error"] = "JSON parsing failed"
+                            continue
+
+                        # Try to parse as JSON
+                        parsed = json.loads(cleaned_value)
+                        if isinstance(parsed, dict):
+                            json_data.update(parsed)
+                        elif isinstance(parsed, str):
+                            # If it's a string, treat it as an error
+                            json_data["error"] = parsed
+                    except (json.JSONDecodeError, ValueError):
+                        # Not valid JSON, treat as error message
+                        json_data["error"] = f"Invalid JSON: {value[:50]}..."
+        return SafeNamespace(json_data)
 
     def __contains__(self, key: str) -> bool:
-        return key in self._data
+        if key in self._data:
+            return True
+        dynamic_state = self._data.get("dynamic_state", {})
+        if dynamic_state and isinstance(dynamic_state, dict) and key in dynamic_state:
+            return True
+        # Special handling for 'json'
+        return key == "json"  # Always return True for json namespace
 
     def __getitem__(self, key: str) -> Any:
-        return self._data.get(key, "")
+        return self.__getattr__(key)
 
     def get(self, key: str, default: Any = "") -> Any:
-        return self._data.get(key, default)
+        return self.__getattr__(key) if self.__contains__(key) else default
 
 # Get a logger specific to elf.core.compiler. The CLI's --quiet flag will target 'elf.core'.
 logger = logging.getLogger(__name__) # This will be 'elf.core.compiler'
@@ -63,6 +115,8 @@ class WorkflowState(TypedDict):
     format_error: str | None
     # Claude Code integration fields
     claude_code_result: dict[str, Any] | None
+    # Dynamic fields for output_key support - stores custom node outputs
+    dynamic_state: dict[str, Any] | None
 
 class NodeFunction(Protocol):
     """Protocol defining the interface for node functions."""
@@ -147,6 +201,136 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
     elif potential_prompt is not None: # 'prompt' key exists in config but its value is not a string
         logger.warning(f"[yellow]⚠ [Node: {node.id}] Invalid prompt type - ignored[/yellow]")
 
+    def _prepare_prompt_template(state: WorkflowState, prompt_template_str: str, user_provided_input: str) -> str:
+        """Prepare the final prompt to send to LLM."""
+        if not prompt_template_str:
+            return user_provided_input if user_provided_input else ""
+
+        # Support multiple state fields in template
+        template_kwargs = {
+            "input": user_provided_input,
+            "output": state.get("output", ""),
+            "iteration_count": state.get("iteration_count", 0),
+            "evaluation_score": state.get("evaluation_score", 0.0),
+            # Allow attribute-style access such as {state.output} with safe fallback
+            "state": SafeNamespace(state),
+        }
+
+        try:
+            return prompt_template_str.format(**template_kwargs)
+        except KeyError as e:
+            logger.warning(f"[yellow]⚠ [Node: {node.id}] Template variable {e} not found in state, using partial formatting[/yellow]")
+            return _handle_template_error(prompt_template_str, user_provided_input, str(e).strip("'\""))
+
+    def _handle_template_error(prompt_template_str: str, user_provided_input: str, error_key: str) -> str:
+        """Handle template formatting errors."""
+        # If the error key looks like a malformed JSON key, try to clean the prompt
+        if error_key.startswith('"') and error_key.endswith('"'):
+            # This is likely a malformed LLM output - remove the problematic template
+            cleaned_prompt = prompt_template_str
+            # Remove the malformed template variable
+            import re
+            malformed_pattern = r'\{["\'][^"\']*["\']\}'
+            cleaned_prompt = re.sub(malformed_pattern, "[MALFORMED_OUTPUT]", cleaned_prompt)
+            logger.warning(f"[yellow]⚠ [Node: {node.id}] Detected malformed template variable, cleaned prompt[/yellow]")
+            return cleaned_prompt
+        # Fall back to just input formatting for compatibility
+        if "{input}" in prompt_template_str:
+            try:
+                return prompt_template_str.format(input=user_provided_input)
+            except KeyError:
+                # Even input formatting failed, use raw prompt
+                final_prompt = prompt_template_str
+                if user_provided_input:
+                    final_prompt += "\n\nUser Input: " + user_provided_input
+                return final_prompt
+        else:
+            final_prompt = prompt_template_str
+            if user_provided_input:
+                final_prompt += "\n\nUser Input: " + user_provided_input
+            return final_prompt
+
+    def _clean_json_response(response: str) -> str:
+        """Clean malformed JSON responses from LLMs."""
+        cleaned = response.strip()
+
+        # If response is just a quoted string (common LLM error), try to fix it
+        QUOTED_STRING_COUNT = 2
+        if cleaned.startswith('"') and cleaned.endswith('"') and cleaned.count('"') == QUOTED_STRING_COUNT:
+            # This looks like: "youtube_url" instead of {"youtube_url": "value"}
+            logger.warning(f"[yellow]⚠ [Node: {node.id}] Detected malformed JSON response, attempting to fix[/yellow]")
+            return '{"error": "Malformed LLM output - expected JSON object"}'
+        if not cleaned.startswith("{"):
+            # Try to extract JSON from response if it's wrapped in text
+            import re
+            json_match = re.search(r"\{[^{}]*\}", cleaned)
+            if json_match:
+                return json_match.group(0)
+            # If no JSON found and response looks like it should be JSON, return error
+            if any(keyword in cleaned.lower() for keyword in ["youtube", "url", "error"]):
+                logger.warning(f"[yellow]⚠ [Node: {node.id}] No valid JSON found in response, returning error[/yellow]")
+                return '{"error": "Invalid response format - expected JSON"}'
+
+        return response
+
+    def _handle_structured_output(response: str, output_format: str, state: WorkflowState) -> WorkflowState:
+        """Handle structured output processing."""
+        logger.info(f"[blue][Node: {node.id}] Processing {output_format} format[/blue]")
+        try:
+            if output_format == "json":
+                # Handle JSON structured output for Spec generation
+                spec_instance = Spec.from_structured_json(response)
+                yaml_output = spec_instance.to_yaml_string()
+
+                logger.info(f"[green]✓ [Node: {node.id}] JSON validation passed[/green]")
+                return WorkflowState({
+                    **state,
+                    "output": yaml_output,  # Clean YAML output
+                    "structured_data": spec_instance.model_dump(exclude_none=True),
+                    "raw_json": response,
+                    "format_status": "converted",
+                    "current_node": node.id,
+                    "error_context": None
+                })
+            if output_format == "yaml":
+                # Handle YAML format (existing logic)
+                structured_output = Spec.create_structured_output(response)
+
+                if structured_output["validation"]["is_valid"]:
+                    logger.info(f"[green]✓ [Node: {node.id}] YAML validation passed[/green]")
+                    return WorkflowState({
+                        **state,
+                        "output": structured_output["yaml_content"],
+                        "structured_output": structured_output,
+                        "validation_status": "valid",
+                        "current_node": node.id,
+                        "error_context": None
+                    })
+                error_msg = structured_output["validation"]["error"]
+                logger.error(f"[red]✗ [Node: {node.id}] YAML validation failed: {error_msg}[/red]")
+                return WorkflowState({
+                    **state,
+                    "output": response,
+                    "structured_output": structured_output,
+                    "validation_status": "invalid",
+                    "validation_error": error_msg,
+                    "current_node": node.id,
+                    "error_context": f"YAML validation failed: {error_msg}"
+                })
+            logger.warning(f"[yellow]⚠ [Node: {node.id}] Unknown format: {output_format}[/yellow]")
+            return None  # Continue with normal processing
+
+        except Exception as e:
+            logger.exception(f"[red]✗ [Node: {node.id}] Structured output error: {e!s}[/red]")
+            return WorkflowState({
+                **state,
+                "output": response,
+                "format_status": "error",
+                "format_error": str(e),
+                "current_node": node.id,
+                "error_context": f"Structured output error: {e!s}"
+            })
+
     def node_fn(state: WorkflowState) -> WorkflowState:
         try:
             current_iter_display = (state.get("iteration_count") or 0) + 1
@@ -155,32 +339,10 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
 
             user_provided_input = state.get("input", "")
 
-            final_prompt_to_llm: str
-            if prompt_template_str:
-                # Support multiple state fields in template
-                template_kwargs = {
-                    "input": user_provided_input,
-                    "output": state.get("output", ""),
-                    "iteration_count": state.get("iteration_count", 0),
-                    "evaluation_score": state.get("evaluation_score", 0.0),
-                    # Allow attribute-style access such as {state.output} with safe fallback
-                    "state": SafeNamespace(state),
-                }
+            # Prepare prompt using helper function
+            final_prompt_to_llm = _prepare_prompt_template(state, prompt_template_str, user_provided_input)
 
-                try:
-                    final_prompt_to_llm = prompt_template_str.format(**template_kwargs)
-                except KeyError as e:
-                    logger.warning(f"[yellow]⚠ [Node: {node.id}] Template variable {e} not found in state, using partial formatting[/yellow]")
-                    # Fall back to just input formatting for compatibility
-                    if "{input}" in prompt_template_str:
-                        final_prompt_to_llm = prompt_template_str.format(input=user_provided_input)
-                    else:
-                        final_prompt_to_llm = prompt_template_str
-                        if user_provided_input:
-                            final_prompt_to_llm += "\n\nUser Input: " + user_provided_input
-            elif user_provided_input:
-                final_prompt_to_llm = user_provided_input
-            else:
+            if not final_prompt_to_llm and not user_provided_input:
                 error_msg = f"Node {node.id} (type: {node.kind}) has no prompt template in config and no 'input' in state. Cannot proceed."
                 logger.error(f"[red]✗ [Node: {node.id}] {error_msg}[/red]")
                 return WorkflowState({
@@ -194,63 +356,17 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             response = llm_client.generate(final_prompt_to_llm)
             logger.info(f"[dim][Node: {node.id}] Response: {response[:50]}...[/dim]")
 
+            # Clean and validate response for nodes that expect JSON
+            output_key = node.config.get("output_key")
+            if output_key and "json" in str(node.config.get("prompt", "")).lower():
+                response = _clean_json_response(response)
+
             # Check if this node has a structured output format
             output_format = node.config.get("format")
             if output_format:
-                logger.info(f"[blue][Node: {node.id}] Processing {output_format} format[/blue]")
-                try:
-                    if output_format == "json":
-                        # Handle JSON structured output for Spec generation
-                        spec_instance = Spec.from_structured_json(response)
-                        yaml_output = spec_instance.to_yaml_string()
-
-                        logger.info(f"[green]✓ [Node: {node.id}] JSON validation passed[/green]")
-                        return WorkflowState({
-                            **state,
-                            "output": yaml_output,  # Clean YAML output
-                            "structured_data": spec_instance.model_dump(exclude_none=True),
-                            "raw_json": response,
-                            "format_status": "converted",
-                            "current_node": node.id,
-                            "error_context": None
-                        })
-                    if output_format == "yaml":
-                        # Handle YAML format (existing logic)
-                        structured_output = Spec.create_structured_output(response)
-
-                        if structured_output["validation"]["is_valid"]:
-                            logger.info(f"[green]✓ [Node: {node.id}] YAML validation passed[/green]")
-                            return WorkflowState({
-                                **state,
-                                "output": structured_output["yaml_content"],
-                                "structured_output": structured_output,
-                                "validation_status": "valid",
-                                "current_node": node.id,
-                                "error_context": None
-                            })
-                        error_msg = structured_output["validation"]["error"]
-                        logger.error(f"[red]✗ [Node: {node.id}] YAML validation failed: {error_msg}[/red]")
-                        return WorkflowState({
-                            **state,
-                            "output": response,
-                            "structured_output": structured_output,
-                            "validation_status": "invalid",
-                            "validation_error": error_msg,
-                            "current_node": node.id,
-                            "error_context": f"YAML validation failed: {error_msg}"
-                        })
-                    logger.warning(f"[yellow]⚠ [Node: {node.id}] Unknown format: {output_format}[/yellow]")
-
-                except Exception as e:
-                    logger.exception(f"[red]✗ [Node: {node.id}] Structured output error: {e!s}[/red]")
-                    return WorkflowState({
-                        **state,
-                        "output": response,
-                        "format_status": "error",
-                        "format_error": str(e),
-                        "current_node": node.id,
-                        "error_context": f"Structured output error: {e!s}"
-                    })
+                structured_result = _handle_structured_output(response, output_format, state)
+                if structured_result is not None:
+                    return structured_result
 
             if node.id == "breakdown_worker":
                 current_iteration_for_node = state.get("iteration_count") or 0
@@ -262,12 +378,22 @@ def make_llm_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                     "error_context": None
                 })
 
-            return WorkflowState({
+            # Handle output_key for custom state field assignment
+            result_state = {
                 **state,  # Preserve all existing state
                 "output": response,
                 "current_node": node.id,
                 "error_context": None
-            })
+            }
+
+            # If node has output_key, store response in dynamic_state
+            output_key = node.config.get("output_key")
+            if output_key and isinstance(output_key, str):
+                if "dynamic_state" not in result_state or result_state["dynamic_state"] is None:
+                    result_state["dynamic_state"] = {}
+                result_state["dynamic_state"][output_key] = response
+
+            return WorkflowState(result_state)
         except Exception as e:
             logger.exception(f"[red]✗ [Node: {node.id}] LLM error: {e!s}[/red]")
             # Preserve original state from before this node's execution on error
@@ -646,22 +772,23 @@ def make_judge_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
 def make_branch_node(node: Any) -> NodeFunction:
     """Creates a node function for implementing branching logic within the workflow.
 
-    Note: This function currently returns a placeholder implementation.
-    A proper implementation would involve evaluating conditions based on `WorkflowState`
-    and returning a string that dictates the next node or path in the graph.
+    Branch nodes are pass-through nodes that preserve the previous node's output
+    while allowing conditional routing based on their configuration. The actual
+    routing logic is handled by the graph edges, not the node function itself.
 
     Args:
         node: The node configuration object. Specific attributes relevant to branching
               (e.g., conditions, target nodes) would be defined here in a full implementation.
 
     Returns:
-        A node function that, when implemented, performs branching based on `WorkflowState`.
+        A node function that passes through the previous node's output unchanged.
     """
     def node_fn(state: WorkflowState) -> WorkflowState:
-        # TODO: Implement actual branching logic
+        # Branch nodes are pass-through - preserve previous output for routing
         return {
             **state,
-            "output": f"Branch result for: {state['input']}"
+            "current_node": getattr(node, "id", "branch_node"),
+            "error_context": None
         }
     return node_fn
 
@@ -1161,6 +1288,8 @@ def compile_to_langgraph(spec: Spec) -> StateGraph:
         raw_json: str | None = None
         format_status: str | None = None  # 'converted', 'error', or None
         format_error: str | None = None
+        # Dynamic fields for output_key support
+        dynamic_state: dict[str, Any] | None = None
 
     # Create a new graph with explicit state schema
     graph = StateGraph(

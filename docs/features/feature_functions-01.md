@@ -1,4 +1,4 @@
-# docs_ai/features/feature_functions-01.md
+# docs/features/feature_functions-01.md
 
 # Python Function Calling - MVP Implementation Guide
 

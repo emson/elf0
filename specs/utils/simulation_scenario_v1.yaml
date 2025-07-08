@@ -1,0 +1,264 @@
+# src/specs/utils/simulation_scenario_v1.yaml
+version: "0.1"
+description: "Meta-utility for creating simulation workflows that role-play scenario elements and generate outcome reports"
+runtime: "langgraph"
+
+llms:
+  rule_llm:
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
+    temperature: 0.2
+    params: {}
+  decomposer_llm:
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
+    temperature: 0.3
+    params: {}
+  strategist_llm:
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
+    temperature: 0.5
+    params: {}
+  element_llm:
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
+    temperature: 0.4
+    params: {}
+  yaml_llm:
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
+    temperature: 0.1
+    params: {}
+
+workflow:
+  type: sequential
+  nodes:
+    # 1. Summarise the schema and flow rules
+    - id: gather_rules
+      kind: agent
+      ref: rule_llm
+      config:
+        prompt: |
+          You have access to @docs_specs/spec_schema.md, @docs/flow_rules.md, and @docs/notes_fix_agent_principles.md.
+          Extract the non-negotiable requirements for LangGraph YAML specs that prevent channel conflicts:
+          
+          PRIORITY RULES FROM CHANNEL CONFLICT ANALYSIS:
+          • ONLY sequential workflow type (never custom_graph for simulations)
+          • ONE and only ONE node may reference {input} (the first node only)
+          • ALL other nodes use {{state.variable_name}} format
+          • LINEAR execution chains only (no fan-out patterns)
+          • Complete state references (no empty "Scenario:" sections)
+          • Unique output keys for all nodes
+
+          STANDARD SPEC REQUIREMENTS:
+          • mandatory top-level keys (version, description, runtime, llms, workflow)
+          • node field rules (`id`, `kind`, `ref`, `config`, `output_key`, `stop`)
+          • edge structure requirements
+
+          OUTPUT under:
+          ## YAML_RULES
+          - <one rule per line prioritising channel conflict prevention>
+        output_key: yaml_rules
+
+    # 2. Break down the user's scenario and rewrite it clearly
+    - id: analyse_scenario
+      kind: agent
+      ref: decomposer_llm
+      config:
+        prompt: |
+          You are an expert at analysing prompts and breaking them down into their constituent elements, in order to create a graph simulation.
+          Your job is to dissect the raw simulation prompt into its constituent elements, and rewrite it in your own words, using:
+          (actors, objects, subsystems, environmental factors, constraints).
+          
+          ORIGINAL SCENARIO PROMPT
+          ------------------------
+          {input}
+          ------------------------
+
+          Provide:
+          1. **Element List** - bullet list with a short behavioural note for each element.
+          2. **Rewritten Scenario** - your own concise, unambiguous restatement.
+
+          Format exactly:
+
+          ## ELEMENTS
+          - <Element 1>: <one-line description>
+          - ...
+
+          ## REWRITTEN_SIMULATION_PROMPT
+          <paragraph(s)>
+        output_key: scenario_breakdown
+
+    # 3. Choose patterns and overall graph structure
+    - id: map_interactions
+      kind: agent
+      ref: strategist_llm
+      config:
+        prompt: |
+          Based on the LangGraph Channel Conflict principles from @docs/notes_fix_agent_principles.md, 
+          design a LINEAR SEQUENTIAL simulation structure for the elements below.
+
+          {state.scenario_breakdown}
+
+          MANDATORY DESIGN PRINCIPLES:
+          - Use ONLY sequential workflow type (never custom_graph)
+          - Create LINEAR execution chain: scenario_processor → element1 → element2 → ... → aggregator
+          - NO fan-out patterns (one node feeds exactly one next node)
+          - Each element becomes one sequential node in the chain
+          - Each node has unique output_key
+
+          Produce:
+
+          BEGIN REASONING
+          <reason>
+          Sequential linear flow prevents LangGraph channel conflicts. Each element will process 
+          the scenario in sequence, building upon previous elements' outputs for rich interaction.
+          </reason>
+          END REASONING
+
+          BEGIN WORKFLOW_TYPE
+          sequential
+          END WORKFLOW_TYPE
+
+          BEGIN GRAPH_PLAN
+          - scenario_processor (consumes {input}, outputs scenario_input)
+          - <element1>_agent (uses {state.scenario_input}, outputs <element1>_response)
+          - <element2>_agent (uses {state.scenario_input} + {state.<element1>_response}, outputs <element2>_response)
+          - ... (continue for all elements)
+          - aggregate_outcomes (synthesizes all responses into final narrative)
+          
+          EDGES: Linear chain scenario_processor → element1 → element2 → ... → aggregate_outcomes
+          END GRAPH_PLAN
+        output_key: graph_plan
+
+    # 4. Craft a detailed simulation prompt for each element
+    - id: make_element_prompts
+      kind: agent
+      ref: element_llm
+      config:
+        prompt: |
+          Build role-play prompts for each element following LangGraph Channel Conflict principles.
+          Each element will execute sequentially and can reference previous elements' outputs.
+
+          ELEMENT LIST AND REWRITTEN SCENARIO
+          -----------------------------------
+          {state.scenario_breakdown}
+
+          PROMPT REQUIREMENTS:
+          - First element only uses {{state.scenario_input}}
+          - Subsequent elements can use {{state.scenario_input}} AND previous elements' outputs
+          - ALL prompts must have complete state references (no empty "Scenario:" sections)
+          - Each element gets unique output_key: <element_name>_response
+
+          For each element, output:
+
+          ### <Element Name>
+          Prompt:
+          """
+          You are <element name>. <behaviour traits>.  
+          <reason /> about the typical characteristics of this element, its behaviours and triggers.
+          Imagine you are this element and incorporate these values and make a prediction of what happens in this scenario, based on your behaviours and traits.
+
+          Scenario:
+          {{state.scenario_input}}
+
+          [If not first element, add previous context:]
+          Previous Element Perspectives:
+          {{state.<previous_element>_response}}
+
+          Provide your detailed reaction as <element name>...
+          """
+          
+          Combine all into a single block labelled:
+          ## ELEMENT_PROMPTS
+        output_key: element_prompts
+
+    # 5. Generate the final simulation YAML
+    - id: build_simulation_yaml
+      kind: agent
+      ref: yaml_llm
+      stop: true
+      config:
+        format: yaml
+        prompt: |
+          Generate a LangGraph-compliant simulation spec following Channel Conflict Prevention Principles.
+          The spec MUST use sequential workflow with linear execution to prevent channel conflicts.
+          
+          REQUIRED STRUCTURE:
+          - `version` (string): "1.0"
+          - `description` (string): Descriptive text about the simulation
+          - `runtime` (string): "langgraph"
+          - `llms` (object): Dictionary with ONE LLM definition
+            - Key should be descriptive (e.g., "sim_llm")
+            - Value must have: `type` (string), `model_name` (string)
+          - `workflow` (object):
+            - `type` (string): MUST be "sequential" (never custom_graph)
+            - `nodes` (array): Array of node objects in LINEAR execution order:
+              - `id` (string): Unique identifier
+              - `kind` (string): "agent" for LLM nodes
+              - `ref` (string): Reference to LLM key
+              - `config` (object): Contains `prompt` (string)
+              - `output_key` (string): State variable name for output (must be unique)
+              - `stop` (boolean): true only for final node
+            - `edges` (array): LINEAR chain of edge objects:
+              - `source` (string): Source node id
+              - `target` (string): Target node id (forms chain: A→B→C→D...)
+
+          ## YAML RULES
+          {state.yaml_rules}
+
+          ## GRAPH PLAN
+          {state.graph_plan}
+
+          ## ELEMENT PROMPTS
+          {state.element_prompts}
+
+          CHANNEL CONFLICT PREVENTION REQUIREMENTS (CRITICAL):
+          
+          1. INPUT ISOLATION PRINCIPLE:
+          - ONLY the first node (scenario_processor) may reference `{input}`
+          - The first node MUST have this EXACT prompt: "Process this scenario for simulation: {input}. Extract key elements and provide comprehensive scenario context."
+          - DO NOT hardcode any scenario text in the first node prompt
+          - The first node prompt must use ONLY {input} for scenario data
+          - ALL other nodes MUST use `{{state.variable_name}}` format NEVER `{input}`
+          
+          2. LINEAR FLOW PRINCIPLE:
+          - workflow.type MUST be "sequential"
+          - Create LINEAR execution chain: scenario_processor → element1 → element2 → ... → aggregate_outcomes
+          - NO fan-out patterns (one source → multiple targets)
+          - Each edge connects exactly one source to one target
+          
+          3. STATE REFERENCE COMPLETENESS:
+          - ALL element nodes must have complete `{{state.scenario_input}}` references
+          - NO empty "Scenario:" sections in prompts
+          - Each node has unique output_key ending in "_response"
+          
+          4. GRAPH STRUCTURE:
+          - Define exactly one LLM with model `gpt-4.1-mini`
+          - Each element gets its own sequential `agent` node
+          - Final `aggregate_outcomes` node with `stop: true`
+          - All edge sources must be actual node IDs from nodes array
+          
+          5. DATA FLOW PATTERN:
+          {input} → scenario_processor(→scenario_input) → element1(→element1_response) → element2(→element2_response) → ... → aggregate_outcomes
+          
+          6. FORBIDDEN PATTERNS:
+          - NO custom_graph workflow type
+          - NO fan-out edges (one source to multiple targets)
+          - NO "__start__" references
+          - NO hardcoded scenario text in first node
+          - NO empty state references
+          - NO concurrent state writes
+
+          Generate the complete specification as valid YAML. Do NOT include markdown fences, preamble, summary or commentary.
+        output_key: simulation_yaml
+
+  edges:
+    - source: gather_rules
+      target: analyse_scenario
+    - source: analyse_scenario
+      target: map_interactions
+    - source: map_interactions
+      target: make_element_prompts
+    - source: make_element_prompts
+      target: build_simulation_yaml

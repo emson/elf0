@@ -1,0 +1,64 @@
+version: "0.1"
+description: "Interactive assistant that asks follow-up questions and processes user responses"
+runtime: "langgraph"
+
+llms:
+  assistant:
+    type: openai
+    model_name: gpt-4.1-mini
+    temperature: 0.3
+
+functions:
+  get_input:
+    type: python
+    name: "User Input"
+    entrypoint: "elf0.functions.utils.get_user_input"
+    
+  process_text:
+    type: python
+    name: "Text Processor"
+    entrypoint: "elf0.functions.utils.text_processor"
+
+workflow:
+  type: sequential
+  nodes:
+    - id: generate_question
+      kind: agent
+      ref: assistant
+      config:
+        prompt: |
+          Based on the user's initial input: "${state.input}"
+          
+          Generate a thoughtful follow-up question to better understand what they need.
+          Ask only ONE specific question that will help you provide better assistance.
+          
+          Don't provide any answers yet - just ask the question.
+          
+    - id: ask_user
+      kind: tool
+      ref: get_input
+      config:
+        parameters:
+          prompt: "${state.output}"
+          
+    - id: process_response
+      kind: tool
+      ref: process_text
+      config:
+        parameters:
+          operation: "count_words"
+          
+    - id: final_response
+      kind: agent
+      ref: assistant
+      config:
+        prompt: |
+          Original request: "${state.input}"
+          Follow-up question asked: "${state.output}"
+          User's response: "${state.user_input}"
+          Response analysis: Word count is ${state.word_count}
+          
+          Now provide a comprehensive and helpful response that addresses their original request,
+          taking into account their follow-up answer. Be specific and actionable.
+      stop: true
+  edges: []

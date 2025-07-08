@@ -39,11 +39,11 @@ workflow:
       ref: rule_llm
       config:
         prompt: |
-          You have access to @docs_ai/spec_schema.md and @docs_ai/flow_rules.md.
+          You have access to @docs_specs/spec_schema.md and @docs/flow_rules.md.
           Extract the non-negotiable requirements for a valid LangGraph YAML spec:
           • mandatory top-level keys  
-          • one and only one use of the reserved input placeholder (curly braces around *input*) in the first node  
-          • all other data references via `{state.xxx}`  
+          • one and only one use of the reserved input placeholder {input} in the first node  
+          • all other data references via `{{state.xxx}}`  
           • node field rules (`id`, `kind`, `ref`, `config`, `output_key`, valid `workflow.type`, etc.)
 
           OUTPUT under:
@@ -86,7 +86,7 @@ workflow:
       ref: strategist_llm
       config:
         prompt: |
-          Using @docs_ai/agent_patterns.md plus the element list below, design the optimal
+          Using @docs/agent_patterns.md plus the element list below, design the optimal
           graph structure for a simulation.
 
           {state.scenario_breakdown}
@@ -132,7 +132,7 @@ workflow:
           Imagine you are this element and incorporate these values and make a prediction of what happens in this scenario, based on your behaviours and traits.
 
           Scenario:
-          {{state.scenario_text}}
+          {{state.scenario_input}}
           Provide your detailed reaction...
           """
           
@@ -181,14 +181,22 @@ workflow:
           {state.element_prompts}
 
           CRITICAL REQUIREMENTS:
-          - The first node must reference the reserved input placeholder `{workflow_initial_input}` **once, within its prompt**. No other node may reference it.
-          - All subsequent nodes must reference data via `{state.variable_name}` format only.
+          - The first node must reference the reserved input placeholder `{input}` **once, within its prompt**. This node should store the input as `scenario_input` in state. The prompt must actually USE the {input} variable, not be hardcoded. No other node may reference `{input}`.
+          - All subsequent nodes must reference data via `{{state.variable_name}}` format only (e.g., `{{state.scenario_input}}` for the scenario text).
           - Follow the node/edge layout from GRAPH_PLAN and the workflow type specified.
           - Define exactly one LLM with model `gpt-4.1-mini`.
           - Each element gets its own `agent` node using its crafted prompt.
           - Add an `aggregate_outcomes` node that summarizes all element responses into a final predictive narrative.
           - Use `stop: true` only on `aggregate_outcomes`.
           - Ensure all node IDs in edges exist in the nodes array.
+          - DATA FLOW: {input} → first_node(output_key: scenario_input) → element_nodes(use: {{state.scenario_input}}) → aggregator
+          - MANDATORY: The first node MUST have this EXACT prompt text: "Process this scenario for simulation: {input}. Extract key elements and provide comprehensive scenario context."
+          - FORBIDDEN: NO hardcoded scenario descriptions in the first node prompt. The prompt MUST contain {input} and ONLY {input} for scenario data.
+          - EXAMPLE VIOLATION (DO NOT DO): prompt: "Process this scenario for simulation: Simulate a agent engineer called Ben..."
+          - CORRECT PATTERN: prompt: "Process this scenario for simulation: {input}. Extract key elements and provide comprehensive scenario context."
+          - CRITICAL: NO "__start__" references anywhere in YAML. NO edges with source "__start__". 
+          - ALL OTHER NODES must use {state.scenario_input} NEVER {input}
+          - EDGES: All edge sources must be actual node IDs from the nodes array
 
           Generate the complete specification as valid YAML. Do NOT include markdown fences, preamble, summary or commentary.
         output_key: simulation_yaml

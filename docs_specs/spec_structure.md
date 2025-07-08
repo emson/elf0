@@ -10,7 +10,7 @@ workflow:
   max_iterations: <int> # Optional: For workflows with loops, max times to repeat
 ```
 
-**CRITICAL**: The `workflow.type` field is **mandatory**. It determines how the runtime engine processes the nodes and edges. Refer to `docs_ai/flow_rules.md` for guidance on choosing the correct type based on your edge patterns (e.g., sequential vs. fan-out/fan-in for custom_graph).
+**CRITICAL**: The `workflow.type` field is **mandatory**. It determines how the runtime engine processes the nodes and edges. Refer to `docs/flow_rules.md` for guidance on choosing the correct type based on your edge patterns (e.g., sequential vs. fan-out/fan-in for custom_graph).
 
 ---
 
@@ -28,7 +28,7 @@ Nodes are the building blocks of your workflow, representing individual tasks or
     -   **Required** for `mcp` nodes.
     -   Commonly used in `agent` and `judge` nodes for `prompt` and `output_key`.
     -   Used in `tool` nodes if the tool itself requires specific parameters not covered by its `Function` definition.
--   `stop` (bool, Optional, default: `false`): If `true`, the workflow (or the current path in a `custom_graph`) will terminate after this node executes. See Rule 5 in `docs_ai/flow_rules.md`.
+-   `stop` (bool, Optional, default: `false`): If `true`, the workflow (or the current path in a `custom_graph`) will terminate after this node executes. See Rule 5 in `docs/flow_rules.md`.
 
 ### Node Kinds
 
@@ -37,8 +37,8 @@ Nodes are the building blocks of your workflow, representing individual tasks or
 -   **Purpose**: For all LLM-based processing. This includes tasks like analyzing input, generating text, making decisions based on prompts, simulating personas, or any operation that involves sending a prompt to an LLM.
 -   **`ref`**: **Required**. Must point to a valid LLM name defined in the top-level `llms` section.
 -   **`config`**:
-    -   `prompt` (string, **Required**): The prompt template to be sent to the LLM. Can include placeholders like `{workflow_initial_input}` (for the very first agent node in a workflow - see Rule 1 in `docs_ai/flow_rules.md`) or `{state.variable_name}` to inject data from previous nodes (see Rule 3 in `docs_ai/flow_rules.md`).
-    -   `output_key` (string, **Required if output is used by other nodes**): The key under which this agent's output (the LLM's response) will be stored in the workflow state, accessible by subsequent nodes via `{state.your_output_key}`. See Rule 2 in `docs_ai/flow_rules.md`.
+    -   `prompt` (string, **Required**): The prompt template to be sent to the LLM. Can include placeholders like `{workflow_initial_input}` (for the very first agent node in a workflow - see Rule 1 in `docs/flow_rules.md`) or `{state.variable_name}` to inject data from previous nodes (see Rule 3 in `docs/flow_rules.md`).
+    -   `output_key` (string, **Required if output is used by other nodes**): The key under which this agent's output (the LLM's response) will be stored in the workflow state, accessible by subsequent nodes via `{state.your_output_key}`. See Rule 2 in `docs/flow_rules.md`.
 
     ```yaml
     - id: analyze_request
@@ -121,7 +121,7 @@ Nodes are the building blocks of your workflow, representing individual tasks or
 
 #### 5. `mcp` (Model Context Protocol)
 
--   **Purpose**: For direct integration with external tools and services via the Model Context Protocol. This is the recommended way to call external, potentially long-running or stateful, tools like calculators, database query engines, file system tools, etc. See Rule 8 in `docs_ai/flow_rules.md` for when to choose `mcp` over `agent`.
+-   **Purpose**: For direct integration with external tools and services via the Model Context Protocol. This is the recommended way to call external, potentially long-running or stateful, tools like calculators, database query engines, file system tools, etc. See Rule 8 in `docs/flow_rules.md` for when to choose `mcp` over `agent`.
 -   **`ref`**: **Not used**. All MCP configuration is within the `config` block.
 -   **`config`** (**Required**, and has specific sub-fields):
     -   `server` (object, **Required**): Defines how to start and manage the MCP server.
@@ -183,4 +183,4 @@ edges:
     # condition: "state.get('status') == 'error'" # Or simply no condition if it's the last edge
 ```
 
-This detailed structure, in conjunction with `docs_specs/spec_schema.md` and `docs_ai/flow_rules.md`, should provide a solid foundation for LLMs to understand how to construct valid and meaningful workflow YAML files. 
+This detailed structure, in conjunction with `docs_specs/spec_schema.md` and `docs/flow_rules.md`, should provide a solid foundation for LLMs to understand how to construct valid and meaningful workflow YAML files. 

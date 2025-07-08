@@ -1,19 +1,20 @@
+# src/specs/utils/creator_workflow_v1.yaml
 version: "0.1"
-description: "Workflow that analyses input, reasons about workflow design, and generates a complete spec"
+description: "Utility workflow for analyzing technical requirements and generating new YAML agent spec file."
 runtime: "langgraph"
 
 llms:
   rewriter_llm:
-    type: openai
-    model_name: gpt-4.1-mini
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
     temperature: 0.3
   strategist_llm:
-    type: openai
-    model_name: gpt-4.1
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
     temperature: 0.5
   worker_llm:
-    type: openai
-    model_name: gpt-4.1-mini
+    type: anthropic
+    model_name: claude-sonnet-4-20250514
     temperature: 0.4
 
 workflow:
@@ -35,7 +36,7 @@ workflow:
       config:
         prompt: |
           Given the rewritten prompt below, reason about the best workflow pattern to process it.
-          Consider agent patterns in @docs_ai/agent_patterns.md
+          Consider agent patterns in @docs/agent_patterns.md
           Output your reasoning and specify the recommended workflow graph pattern (sequential, custom_graph, react, evaluator_optimizer)
           as a mermaid diagram so that the edges in the new YAML file can be correctly generated.
 
@@ -100,3 +101,8 @@ workflow:
       target: select_workflow
     - source: select_workflow
       target: generate_spec
+
+eval:
+  tags: ["utils", "creation", "meta-workflow"]
+  use_cases: ["Creating new workflows", "Automating workflow generation", "Rapid prototyping"]
+  estimated_runtime: "60-120 seconds"

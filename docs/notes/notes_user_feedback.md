@@ -2,7 +2,7 @@
 
  **Prompt:**
  ```
- Create a prompt that will allow a YAML spec agent @docs_ai/project_overview.md @docs_specs/spec_schema.md to prompt the user for input, we need a node that allows the LLM can ask the user a question and wait for the answer, and then incorporate this in the context of the overall process.
+ Create a prompt that will allow a YAML spec agent @docs/project_overview.md @docs_specs/spec_schema.md to prompt the user for input, we need a node that allows the LLM can ask the user a question and wait for the answer, and then incorporate this in the context of the overall process.
 ```
 
  ## Overview

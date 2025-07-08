@@ -34,7 +34,7 @@ uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Analyze all code in 
 ```
 
 ### YouTube Analysis (with MCP servers)
-You will first need to install and run the included MCP server (please see (mcp/youtube-transcript/README.md)[mcp/youtube-transcript/README.md]).
+You will first need to install and run the included MCP server (please see [mcp/youtube-transcript/README.md](mcp/youtube-transcript/README.md)).
 
 ```bash
 # Download and summarize YouTube transcripts

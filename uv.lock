@@ -148,14 +148,14 @@ wheels = [
 
 [[package]]
 name = "claude-code-sdk"
-version = "0.0.10"
+version = "0.0.14"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/38/f5/6c69e0f26cc4dc0f473dcad3fa0138c17d620f6fd5e8019edc47a958579f/claude_code_sdk-0.0.10.tar.gz", hash = "sha256:9fb5d40089845b21de07b0f9dc6e48482c6b819ed5a7cc35dfdcd674b9592213", size = 11538 }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/50/489bd1cf9f448d9e06aa6af4a14db8e22ec5f7dbdb5fcc48821b1d8d1680/claude_code_sdk-0.0.14.tar.gz", hash = "sha256:a1c9384b6934c2b8351d7a35c0b7dcfd5fb657017fb456eb98bcf5e0b4f8eccd", size = 13403 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b3/05/c719217354c8a783689cf94faecc222d725732a4cd3d285a9ee160c8449e/claude_code_sdk-0.0.10-py3-none-any.whl", hash = "sha256:cf4153b1723ff0d7c6a1c281540651c059d6c53b02654cc1ab9e9a85b7092a94", size = 10344 },
+    { url = "https://files.pythonhosted.org/packages/db/a4/6eb606ccb0988054ca52b9453045b2c2f1bc6fd9c915e0f6cd1f73d6ce2c/claude_code_sdk-0.0.14-py3-none-any.whl", hash = "sha256:83a23a260954bb84e78cf2dc42aaaa0eee778ca392e56f1661276f31ba64992c", size = 10589 },
 ]
 
 [[package]]
@@ -285,7 +285,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=0.51.0" },
-    { name = "claude-code-sdk", specifier = ">=0.0.10" },
+    { name = "claude-code-sdk", specifier = ">=0.0.14" },
     { name = "langgraph", specifier = ">=0.4.3" },
     { name = "markdown", specifier = ">=3.8.1" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.9.1" },

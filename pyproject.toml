@@ -30,16 +30,16 @@ dependencies = [
     "anthropic>=0.51.0",
     "mcp[cli]>=1.9.1",
     "prompt-toolkit>=3.0.51",
-    "claude-code-sdk>=0.0.10",
     "markdown>=3.8.1",
+    "claude-code-sdk>=0.0.14",
 ]
 
 [project.urls]
-Homepage = "https://github.com/emson/elf"
-Documentation = "https://github.com/emson/elf#readme"
-Repository = "https://github.com/emson/elf.git"
-Issues = "https://github.com/emson/elf/issues"
-Changelog = "https://github.com/emson/elf/releases"
+Homepage = "https://github.com/emson/elf0"
+Documentation = "https://github.com/emson/elf0#readme"
+Repository = "https://github.com/emson/elf0.git"
+Issues = "https://github.com/emson/elf0/issues"
+Changelog = "https://github.com/emson/elf0/releases"
 
 [project.scripts]
 elf0 = "elf0.cli:app"

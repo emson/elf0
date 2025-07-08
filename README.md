@@ -1,289 +1,138 @@
-# 🧝 Elf0 - sElf Improving Agentic YAML Workflows
+# 🧝 Elf0 - Build AI Agent Workflows in YAML
 
-**Build powerful AI agent workflows using simple YAML files. Zero complex coding required.**
+Elf0 is a command line tool I created to help rapidly build and test AI agent workflows. Often you might get a requirement to build an agent to do something and need to experiment with how it works.
 
-Elf0 lets you create multi-step AI workflows by describing what you want in YAML. Chain (graph) together different AI models, integrate with external tools, and even use AI to improve your workflows automatically.
+For example, you may have an insurance PDF document and want to extract quote information. Sure, you could write a quick prompt and plug it into ChatGPT, but usually the problem is more nuanced and complex, requiring a sophisticated workflow (an agent) to solve it properly.
 
-## ✨ What Makes Elf0 Special?
+**Elf0 lets you easily create surprisingly useful agents.**
 
-🤖 **Zero Complex Coding** - Write workflows in simple YAML, no Python required  
-🔗 **File Reference Magic** - Use `@filename.ext` or `@directory/` to auto-include files in your prompts  
-🔄 **Self-Improving** - AI can analyze and optimize your workflows automatically  
-🌐 **Multi-LLM Support** - OpenAI, Anthropic, DeepSeek, Ollama (local) - use them all  
-⚡ **Lightning Fast** - Built with `uv` for blazingly fast package management  
-🛠️ **Extensible** - Python functions, MCP tools, Claude Code integration
+Start by creating a YAML file that defines your agent workflow, add in the prompts and model settings, and run it as real code. Since your agent specification (_spec_) is defined in YAML, you can easily feed the whole thing into ChatGPT or Claude and get it to improve it.
 
+Defining agents like this is powerful because you can version not only the prompts but the entire logic of the workflow, the model parameters, and the reasoning chains. YAML becomes a great agent abstraction that can be quickly tailored to your specific needs and use cases.
+
+## 🚀 What Can You Build?
+
+### Simple Agents
 ```bash
-# Simple AI workflow in one command
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Explain quantum computing in simple terms"
+# Basic assistant (uses gpt-4.1-mini - cheap but not great at reasoning)
+uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "How many r's are in strawberry?"
 
-# Reference files automatically with @filename.ext syntax  
+# Better reasoning agent (same model, much better system prompt - gets strawberry right!)
+uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "How many r's are in strawberry?"
+
+# Prompt optimization - enter a potential prompt and it iterates to improve it
+uv run elf0 agent specs/utils/optimizer_prompt_v1.yaml --prompt "Help me write better prompts for code review"
+```
+
+### File Analysis with @references
+```bash
+# Automatically include file contents in your prompts
 uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Review this code @src/elf0/cli.py and suggest improvements"
 
-# Reference entire directories with @directory/ syntax
+# Analyze entire directories  
 uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Analyze all code in @src/ for improvements"
-
-# Let AI improve your workflows
-uv run elf0 improve yaml specs/basic/chat_simple_v1.yaml --prompt "Make this workflow more efficient"
 ```
+
+### YouTube Analysis (with MCP servers)
+```bash
+# Download and summarize YouTube transcripts
+uv run elf0 agent specs/content/youtube_analyzer.yaml --prompt "Analyse this youtube video https://www.youtube.com/watch?v=9tOmppsiO2w"
+```
+
+### Interactive Workflows
+```bash
+# Ask for your name and create a poem about it (calls Python functions)
+uv run elf0 agent specs/examples/interactive_assistant.yaml --prompt "Ask me my name and then make a poem about it."
+```
+
+### Simulations
+```bash
+# Create complex multi-agent simulations
+uv run elf0 agent specs/utils/simulation_scenario_v1.yaml --prompt "Create a salary negotiation simulation between Ben (plucky engineer) and Clive (CEO of a London consultancy)" --output simulate_salary.yaml
+
+# Then run scenarios with your new simulation
+uv run elf0 agent simulate_salary.yaml --prompt "Ben is negotiating a new job with Clive, Ben has to commute from Edinburgh 4 days a month. Work through the negotiation step by step."
+```
+
+**Pulling all this together, you have a very powerful and useful "agent toolkit" to explore ideas and get stuff done.**
 
 ## ⚡ Quick Start (5 minutes)
 
-> ⚠️ **Read the [Security & Safety Considerations](#-security--safety-considerations) section before proceeding**
+> ⚠️ **Be careful!** Elf0 can execute code and access your files. Only run workflows you trust.
 
-Get up and running with your first AI workflow in 5 minutes:
-
-### 1. Prerequisites
-- **Python 3.13+** ([Download here](https://python.org/downloads/))
-- **uv package manager** by Astral ([Install guide](https://docs.astral.sh/uv/getting-started/installation/)) - A blazingly fast Python package manager that replaces pip/conda
-- **An API key** from [OpenAI](https://platform.openai.com/api-keys), [Anthropic](https://console.anthropic.com/), or use [Ollama](https://ollama.ai/) locally
+### 1. Install Python 3.13+ and uv
+- **Python 3.13+**: [Download here](https://python.org/downloads/)
+- **uv package manager**: Fast Python package manager - [Install guide](https://docs.astral.sh/uv/getting-started/installation/)
 
 ### 2. Install Elf0
 ```bash
 git clone https://github.com/emson/elf.git
 cd elf
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 uv pip install -e .
 ```
 
-### 3. Set up your API keys
-Configure your environment using the provided template:
+### 3. Get an API key
+Choose one:
+- **OpenAI**: [Get key](https://platform.openai.com/api-keys) → `export OPENAI_API_KEY="your-key"`
+- **Anthropic**: [Get key](https://console.anthropic.com/) → `export ANTHROPIC_API_KEY="your-key"`  
+- **Ollama**: [Install locally](https://ollama.ai/) → `ollama pull llama2` (no key needed)
 
+### 4. Try it out!
 ```bash
-# Copy the environment template
-cp .env.example .env
-
-# Edit .env with your actual API keys
-# The file contains detailed instructions and all supported providers
-```
-
-**Quick setup for common providers:**
-```bash
-# For OpenAI (recommended for beginners)
-export OPENAI_API_KEY="your-api-key-here"
-
-# OR for Anthropic (Claude)
-export ANTHROPIC_API_KEY="your-api-key-here"
-
-# OR use Ollama locally (no API key needed)
-# Install Ollama from https://ollama.ai/ and run: ollama pull llama2
-```
-
-**Supported LLM providers:**
-- **OpenAI**: GPT-4, GPT-3.5, etc. - Get API key from [platform.openai.com](https://platform.openai.com/api-keys)
-- **Anthropic**: Claude models - Get API key from [console.anthropic.com](https://console.anthropic.com/)
-- **DeepSeek**: Advanced models - Get API key from [platform.deepseek.com](https://platform.deepseek.com/)
-- **Ollama**: Local models (free) - No API key required, install from [ollama.ai](https://ollama.ai/)
-
-### 4. Run your first workflow
-```bash
+# Test basic chat
 uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Write a haiku about programming"
+
+# Test file analysis
+uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "What does this code do? @src/elf0/cli.py"
+
+# Test the strawberry reasoning challenge
+uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "How many r's are in strawberry?"
 ```
 
-**🎉 It works!** You should see a beautiful haiku generated by AI. 
+**🎉 It works!** You should see AI-generated responses. The reasoning agent actually gets the strawberry question right! 
 
----
+## 🔒 Security Note
 
-## 🔒 Security & Safety Considerations
+**Elf0 can execute code, read files, and make network requests.** It's experimental software - be careful what you run.
 
-### ⚠️ Important Security Warnings
+**What workflows can do:**
+- Read any file you can access
+- Execute Python functions and MCP servers  
+- Send your data to LLM providers
+- Write/modify files
 
-**Elf0 is experimental software that can execute arbitrary code and interact with your system. Use with extreme caution.**
+**Stay safe:**
+- Only run workflows you trust
+- Review YAML files before running (`cat workflow.yaml`)
+- Use test API keys, not production ones
+- Back up important work first
+- Start with simple examples in `specs/basic/`
 
-#### Potential Risks:
-- **File System Access**: Workflows can read, write, and delete files
-- **Network Requests**: External API calls and web requests  
-- **Code Execution**: Custom Python functions and MCP servers
-- **System Commands**: Potential shell command execution
-- **Data Exposure**: Sensitive data may be sent to LLM providers
-
-#### Best Practices:
-```bash
-# 1. Always review workflows before running
-cat specs/workflow.yaml  # Inspect the workflow
-
-# 2. Test in isolated environments  
-docker run --rm -it python:3.13  # Use containers
-python -m venv test_env           # Separate virtual environments
-
-# 3. Use restricted permissions
-chmod 644 sensitive_files/        # Read-only important files
-chattr +i important_config        # Immutable critical configs (Linux)
-
-# 4. Monitor workflow execution
-uv run elf0 --verbose agent workflow.yaml  # Watch what happens
-
-# 5. Backup before experimentation
-cp -r project/ project_backup/    # Backup your work
-```
-
-#### What Workflows Can Do:
-- **Read any accessible file** on your system
-- **Write/modify files** with your user permissions  
-- **Make network requests** to external services
-- **Execute Python code** defined in workflows
-- **Start external processes** via MCP servers
-- **Access environment variables** including API keys
-
-#### Red Flags - Never Run Workflows That:
-- Come from untrusted sources
-- Use `os.system()` or `subprocess` calls
-- Access sensitive directories (`/etc`, `~/.ssh`, etc.)
-- Make unexpected network requests
+**Red flags - never run workflows that:**
+- Come from unknown sources
+- Use `os.system()` or `subprocess`
+- Access sensitive directories (`~/.ssh`, `/etc`)
 - Request elevated permissions
-- Modify system configurations
 
-#### Data Privacy:
-- **LLM Providers**: Your prompts/data are sent to OpenAI, Anthropic, etc.
-- **Local Processing**: Ollama keeps data local but uses system resources
-- **File Contents**: `@file.txt` syntax uploads file contents to LLMs
-- **Logging**: Workflow data may be logged locally
+The `@file.txt` syntax sends file contents to LLM providers, so be mindful of sensitive data.
 
-### Safe Usage Guidelines
+## 🧠 How Elf0 Works
 
-```bash
-# Create a dedicated Elf0 workspace
-mkdir ~/elf0_workspace
-cd ~/elf0_workspace
-git clone https://github.com/emson/elf0.git
-cd elf0
+### YAML as Agent Abstraction
 
-# Use a dedicated Python environment
-uv venv elf0_env
-source elf0_env/bin/activate
+Here's what a simple agent looks like:
 
-# Set up minimal API keys (avoid using production keys)
-export OPENAI_API_KEY="sk-test-key-here"  # Use test/development keys
-
-# Test with safe, simple workflows first
-uv run elf0 agent specs/basic_chat.yaml --prompt "Hello world"
-```
-
----
-
-## 📦 Complete Installation Guide
-
-### System Requirements
-
-- **Operating System**: macOS, Linux, or Windows
-- **Python**: 3.13 or higher
-- **Memory**: 4GB RAM minimum (8GB recommended)
-- **Network**: Internet connection for cloud LLM providers
-
-### Step 1: Install Python
-Elf0 requires Python 3.13 or higher. Check your version:
-
-```bash
-python --version
-# or
-python3 --version
-```
-
-If you don't have Python 3.13+, download it from [python.org](https://python.org/downloads/).
-
-### Step 2: Install uv Package Manager
-
-Elf0 uses `uv` by Astral for fast Python package management. `uv` is a modern, blazingly fast Python package installer and resolver that's 10-100x faster than pip. It's written in Rust and provides excellent dependency resolution.
-
-**Why we use uv:**
-- ⚡ **10-100x faster** than pip for installing packages
-- 🔒 **Better dependency resolution** - avoids dependency conflicts
-- 🧹 **Clean virtual environments** - isolated, reproducible setups
-- 🔄 **Drop-in pip replacement** - same commands, better performance
-- 📦 **Built-in virtual environment management**
-
-**Installation:**
-
-```bash
-# macOS/Linux (Recommended)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows (PowerShell)
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# Alternative: Install via pip (slower, but works everywhere)
-pip install uv
-
-# Alternative: Install via Homebrew (macOS)
-brew install uv
-
-# Alternative: Install via pipx
-pipx install uv
-```
-
-**Verify installation:**
-```bash
-uv --version
-# Should show something like: uv 0.4.29
-```
-
-**New to uv?** Don't worry! It works just like pip but faster:
-- `uv pip install package` ≡ `pip install package`
-- `uv venv` ≡ `python -m venv`
-- `uv run command` ≡ `python command` (but with auto-dependency management)
-
-### Step 3: Clone and Install Elf0
-```bash
-git clone https://github.com/emson/elf0.git
-cd elf
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -e .
-```
-
-### Step 4: Configure API Keys
-
-Elf0 supports multiple LLM providers. Choose one:
-
-#### Option A: OpenAI (Recommended for beginners)
-1. Get an API key from [OpenAI Platform](https://platform.openai.com/api-keys)
-2. Set the environment variable:
-   ```bash
-   export OPENAI_API_KEY="sk-your-key-here"
-   ```
-
-#### Option B: Anthropic (Claude)
-1. Get an API key from [Anthropic Console](https://console.anthropic.com/)
-2. Set the environment variable:
-   ```bash
-   export ANTHROPIC_API_KEY="sk-ant-your-key-here"
-   ```
-
-#### Option C: Ollama (Local, Free)
-1. Install Ollama from [ollama.ai](https://ollama.ai/)
-2. Download a model:
-   ```bash
-   ollama pull llama2
-   # or
-   ollama pull codellama
-   ```
-3. No API key needed! Ollama runs locally.
-
-### Step 5: Verify Installation
-```bash
-# Test with OpenAI/Anthropic
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Hello, Elf0!"
-
-# Test with Ollama (archived specs available)
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Hello, Elf0!"
-```
-
----
-
-## 🏃‍♀️ Your First Workflow
-
-Let's understand what just happened by examining a simple workflow:
-
-### The Basic Chat Workflow (`specs/basic/chat_simple_v1.yaml`)
 ```yaml
-name: basic_chat
-description: Simple AI chat using Claude
+# specs/basic/chat_simple_v1.yaml
+version: "0.1"
+description: "Simple AI assistant"
+runtime: "langgraph"
 
 llms:
-  claude:
-    type: anthropic
-    model_name: claude-3-5-haiku-latest
+  assistant:
+    type: openai
+    model_name: gpt-4.1-mini
     temperature: 0.7
 
 workflow:
@@ -291,828 +140,364 @@ workflow:
   nodes:
     - id: chat_step
       kind: agent
-      ref: claude
-      stop: true
+      ref: assistant
       config:
         prompt: |
-          You are a helpful AI assistant. Respond to the user's request clearly and concisely.
-          
+          You are a helpful AI assistant. 
           User request: {input}
+      stop: true
 ```
 
 **What this does:**
-1. **Defines an LLM**: Uses Anthropic's Claude with specific settings
-2. **Creates a workflow**: Sequential workflow with one step
-3. **Sets up a node**: An "agent" node that processes user input
-4. **Configures the prompt**: Instructions for the AI + user input placeholder
-5. **Stops execution**: `stop: true` ends the workflow after this step
+1. Defines an LLM (OpenAI's cheap but fast model)
+2. Creates a workflow with one step
+3. Sets up the prompt with user input
+4. Runs when you execute: `uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Hello"`
 
-### Running Workflows
+### The Magic of @file References
+
+Instead of copy-pasting file contents, just use `@filename`:
 
 ```bash
-# Basic usage
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Your message here"
+# This automatically reads README.md and includes it in the prompt
+uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Summarize @README.md"
 
-# Save output to file
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Write a story" --output story.md
+# Works with any file type
+uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Find bugs in @app.py"
 
-# Use verbose mode to see what's happening
-uv run elf0 --verbose agent specs/basic/chat_simple_v1.yaml --prompt "Hello"
+# Even entire directories
+uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Analyze the code quality in @src/"
+```
 
-# Interactive mode for conversations
+This is incredibly useful for code review, documentation, and analysis tasks.
+
+## 🛠️ Cool Things You Can Do
+
+### Workflow Self-Improvement
+
+Don't like a workflow? Get AI to improve it:
+
+```bash
+# AI analyzes and improves any workflow
+uv run elf0 improve yaml specs/basic/chat_simple_v1.yaml
+
+# Or use the dedicated optimizer
+uv run elf0 agent specs/utils/optimizer_yaml_v1.yaml --prompt "Improve this workflow @specs/basic/chat_simple_v1.yaml"
+
+# You can even feed the result back into ChatGPT for more improvements
+```
+
+### Interactive Mode
+
+Have conversations with any workflow:
+
+```bash
 uv run elf0 prompt specs/basic/chat_simple_v1.yaml
+💬 Prompt: Help me debug this code @app.py
+💬 Prompt: Now write unit tests for it
+💬 Prompt: /exit
 ```
 
-### The Magic of File References
+### Multi-Agent Workflows
 
-Elf0's killer feature is automatic file inclusion using `@my/path/filename.ext` syntax:
+Create sophisticated multi-step processes:
 
-```bash
-# Automatically include file contents in your prompt
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Explain this code @src/elf0/cli.py"
-
-# Reference multiple files
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Compare @file1.py and @file2.py"
-
-# Works in interactive mode too
-uv run elf0 prompt specs/basic/chat_simple_v1.yaml
-💬 Prompt: Review @README.md and suggest improvements
-```
-
-The files are automatically read and included as context - no manual copy/paste needed!
-
----
-
-## 🖥️ CLI Reference
-
-Elf0 provides a comprehensive command-line interface for executing and managing AI workflows.
-
-### Basic Usage
-```bash
-uv run elf0 [OPTIONS] COMMAND [ARGS]...
-```
-
-### Global Options
-| Option | Description |
-|--------|-------------|
-| `--verbose`, `-v` | Enable verbose logging output (shows detailed logs from Elf0 core and HTTP libraries) |
-| `--help` | Show help message and exit |
-
-### Commands Overview
-
-#### `agent` - Execute Workflows
-Execute an agent workflow defined in YAML:
-
-```bash
-uv run elf0 agent <spec_file> [OPTIONS]
-```
-
-**Options:**
-- `--prompt TEXT` - User prompt to process
-- `--prompt_file PATH` - Markdown (.md) or XML (.xml) file containing the prompt  
-- `--context PATH` - Context file(s) to include (use multiple times or comma-separated)
-- `--output PATH` - Save result to file instead of displaying
-- `--session-id TEXT` - Session identifier for stateful runs (default: "session")
-
-**Examples:**
-```bash
-# Basic usage
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Explain quantum computing"
-
-# Use prompt file
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt_file my_prompt.md
-
-# Include context files
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Analyze this" --context config.yaml --context data.csv
-
-# Save output to file
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Write documentation" --output docs.md
-
-# Verbose mode for debugging
-uv run elf0 --verbose agent specs/basic/chat_simple_v1.yaml --prompt "Debug this workflow"
-```
-
-#### `prompt` - Interactive Sessions
-Start an interactive conversation with a workflow agent:
-
-```bash
-uv run elf0 prompt <spec_file> [OPTIONS]
-```
-
-**Options:**
-- `--session-id TEXT` - Session identifier for the conversation (default: "interactive_session")
-
-**Examples:**
-```bash
-# Start interactive session
-uv run elf0 prompt specs/basic/chat_simple_v1.yaml
-
-# Custom session ID
-uv run elf0 prompt specs/basic/chat_simple_v1.yaml --session-id my_session
-```
-
-**Interactive Commands:**
-- Type your prompt and press Enter twice to send
-- `/send` - Send the current prompt
-- `/exit`, `/quit`, `/bye` - Exit the session
-- `@filename.ext` - Include file contents in your prompt
-
-#### `improve yaml` - Workflow Optimization
-Improve and optimize YAML workflow specifications using AI:
-
-```bash
-uv run elf0 improve yaml <spec_file> [OPTIONS]
-```
-
-**Options:**
-- `--output PATH`, `-o PATH` - Save improved YAML to file (default: `<original>_improved.yaml`)
-- `--prompt TEXT` - Custom improvement guidance (supports @file references)
-- `--session-id TEXT` - Session identifier for improvement run (default: "improve_session")
-
-**Examples:**
-```bash
-# Basic improvement
-uv run elf0 improve yaml specs/my_workflow.yaml
-
-# Custom output file
-uv run elf0 improve yaml specs/my_workflow.yaml --output optimized_workflow.yaml
-
-# Specific improvement guidance
-uv run elf0 improve yaml specs/my_workflow.yaml --prompt "Focus on making prompts more specific"
-
-# Use reference patterns
-uv run elf0 improve yaml specs/my_workflow.yaml --prompt "Follow patterns from @examples/best_workflow.yaml"
-```
-
-#### `list-specs` - Discover Workflows
-List all available YAML workflow specification files:
-
-```bash
-uv run elf0 list-specs
-```
-
-Shows all `.yaml` and `.yml` files in the `./specs` directory with their descriptions.
-
-### Advanced Usage Patterns
-
-#### File References with @ Syntax
-Use `@path/filename.ext` anywhere in prompts to automatically include file contents:
-
-```bash
-# Single file reference
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Review this code @src/elf0/cli.py"
-
-# Multiple file references  
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Compare @file1.py and @file2.py"
-
-# In improvement guidance
-uv run elf0 improve yaml specs/basic/chat_simple_v1.yaml --prompt "Use patterns from @specs/examples/claude_code_example.yaml"
-```
-
-#### Output Redirection
-Control where logs and output go:
-
-```bash
-# Output to file, errors to stderr
-uv run elf0 agent workflow.yaml --prompt "Generate report" > report.txt
-
-# Verbose logs to file, output to stdout  
-uv run elf0 --verbose agent workflow.yaml --prompt "Debug" 2> debug.log
-
-# Both output and logs to files
-uv run elf0 agent workflow.yaml --prompt "Process" > output.txt 2> logs.txt
-
-# Pipe output while preserving error logs
-uv run elf0 agent workflow.yaml --prompt "Generate" | grep "important"
-```
-
-#### Session Management
-Use session IDs to maintain conversation context:
-
-```bash
-# Different sessions for different tasks
-uv run elf0 prompt specs/chat.yaml --session-id "project_alpha"
-uv run elf0 prompt specs/chat.yaml --session-id "project_beta"
-
-# Continue previous agent session
-uv run elf0 agent specs/workflow.yaml --prompt "Continue from before" --session-id "my_project"
-```
-
----
-
-## 🧠 Core Concepts
-
-### Workflows
-A **workflow** is a sequence of AI agents and tools working together. Think of it like a recipe:
-1. Take user input
-2. Process it with AI Agent A
-3. Pass the result to Tool B  
-4. Process with AI Agent C
-5. Return final result
-
-### Nodes
-**Nodes** are the building blocks of workflows:
-- **Agent nodes**: AI models that process text (OpenAI, Anthropic, Ollama)
-- **Tool nodes**: Custom Python functions for data processing
-- **MCP nodes**: External tools via Model Context Protocol
-- **Claude Code nodes**: AI-powered code generation, analysis, and modification
-
-### Edges
-**Edges** connect nodes together, defining the flow of data:
-- **Sequential**: Nodes run one after another
-- **Conditional**: Route based on conditions (if/then logic)
-- **Parallel**: Run multiple nodes simultaneously
-
-### YAML Structure
 ```yaml
-name: my_workflow
-description: What this workflow does
-
-# Define your AI models
-llms:
-  llm_model:
-    type: openai
-    model_name: gpt-4.1-mini
-    temperature: 0.7
-
-# Define your workflow steps  
+# Example: Code review workflow
 workflow:
   type: sequential
   nodes:
-    - id: step1
+    - id: analyze_code
       kind: agent
-      ref: llm_model
+      ref: fast_model
       config:
-        prompt: "Your instructions here. User input: {input}"
+        prompt: "Analyze this code for issues: {input}"
+    
+    - id: detailed_review
+      kind: agent  
+      ref: smart_model
+      config:
+        prompt: |
+          Based on this analysis: {state.output}
+          Provide detailed code review with suggestions.
 ```
 
----
+### Advanced Examples
 
-## 📋 Common Use Cases
-
-### 1. Content Generation
-```bash
-# Blog post generation
-uv run elf0 agent specs/content/content_basic_v1.yaml --prompt "Write a blog post about sustainable technology"
-
-# LinkedIn post generation
-uv run elf0 agent specs/content/linkedin_post.yaml --prompt "Create a LinkedIn post about my new AI project"
-
-# Twitter/X post generation
-uv run elf0 agent specs/content/twitter_post.yaml --prompt "Write a tweet about the benefits of renewable energy"
-
-# Code documentation
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Document this code @src/api.py"
-
-# Meeting summaries  
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Summarize this meeting transcript @meeting.txt"
-```
-
-### 2. Code Analysis
-```bash
-# Code review
-uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Review this code for bugs and improvements @main.py"
-
-# Security audit
-uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Check this code for security vulnerabilities @auth.py"
-
-# Performance optimization
-uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Suggest performance improvements for @slow_function.py"
-```
-
-### 3. Data Processing
-```bash
-# Note: Python function examples are archived. Use archive directory:
-# Text analysis (archived)
-uv run elf0 list-specs archive  # See available archived workflows
-
-# Basic data analysis
-uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Analyze this data @data.csv"
-
-# Content processing
-uv run elf0 agent specs/content/content_basic_v1.yaml --prompt "Process and summarize @report.txt"
-```
-
-### 4. Multi-step Workflows & Utilities
 ```bash
 # Create new workflows using AI
-uv run elf0 agent specs/utils/agent_creator.yaml --prompt "Create a workflow for code review"
+uv run elf0 agent specs/utils/agent_creator.yaml --prompt "Create a workflow for API testing"
 
-# Optimize existing workflows
-uv run elf0 agent specs/utils/agent_optimizer.yaml --prompt "Improve this workflow @specs/basic/chat_simple_v1.yaml"
+# Process YouTube videos (requires MCP server setup)
+uv run elf0 agent specs/content/youtube_analyzer.yaml --prompt "Analyze this video https://youtube.com/watch?v=example"
 
-# Advanced prompt optimization
-uv run elf0 agent specs/utils/prompt_optimizer.yaml --prompt "Optimize prompts for code generation"
-
-# AI-powered code generation with Claude Code
-uv run elf0 agent specs/examples/claude_code_example.yaml --prompt "Create a REST API with authentication"
-
-# Workflow simulation and testing
-uv run elf0 agent specs/utils/agent_simulation.yaml --prompt "Simulate a customer service scenario"
+# Generate simulations
+uv run elf0 agent specs/utils/simulation_scenario_v1.yaml --prompt "Create a customer service training simulation" --output customer_sim.yaml
 ```
 
----
+## 📋 Command Reference
+
+### Basic Commands
+
+```bash
+# Run a workflow
+uv run elf0 agent <workflow.yaml> --prompt "Your prompt here"
+
+# Interactive mode
+uv run elf0 prompt <workflow.yaml>
+
+# Improve a workflow with AI
+uv run elf0 improve yaml <workflow.yaml>
+
+# List available workflows
+uv run elf0 list-specs
+
+# Verbose mode (see what's happening)
+uv run elf0 --verbose agent <workflow.yaml> --prompt "Debug mode"
+```
+
+### Useful Options
+
+```bash
+# Save output to file
+--output filename.txt
+
+# Include additional files as context
+--context file1.txt --context file2.csv
+
+# Use @file.ext syntax anywhere in prompts
+--prompt "Analyze @data.csv and @config.yaml"
+
+# Interactive mode commands
+💬 Prompt: /send          # Send current message
+💬 Prompt: /exit          # Exit session
+💬 Prompt: @file.txt help # Include file in message
+```
+
+### Examples
+
+```bash
+# Code review
+uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Review @app.py for security issues"
+
+# Content generation
+uv run elf0 agent specs/content/linkedin_post.yaml --prompt "Write about AI trends" --output post.md
+
+# Interactive debugging
+uv run elf0 prompt specs/basic/chat_simple_v1.yaml
+💬 Prompt: Help me debug @buggy_code.py
+💬 Prompt: Now write tests for the fixed version
+```
+
+## 🧠 Understanding Workflows
+
+Think of workflows like cooking recipes - a series of steps that transform your input into the desired output.
+
+**Basic structure:**
+1. **Input**: Your prompt or question
+2. **LLM models**: Define which AI models to use (OpenAI, Anthropic, Ollama)
+3. **Workflow nodes**: The processing steps (agents, tools, functions)
+4. **Output**: The final result
+
+**Node types:**
+- **agent**: AI model that processes text
+- **tool**: Python function for custom logic  
+- **mcp**: External tool via Model Context Protocol
+
+**Flow types:**
+- **sequential**: Steps run one after another (most common)
+- **custom_graph**: Complex routing with conditionals and parallel processing
+
+```yaml
+# Minimal workflow example
+version: "0.1"
+runtime: "langgraph"
+
+llms:
+  my_ai:
+    type: openai
+    model_name: gpt-4.1-mini
+
+workflow:
+  type: sequential
+  nodes:
+    - id: process
+      kind: agent
+      ref: my_ai
+      config:
+        prompt: "Help with: {input}"
+      stop: true
+```
+
+## 💡 Quick Examples by Use Case
+
+### Content Creation
+```bash
+# Blog posts and articles
+uv run elf0 agent specs/content/content_basic_v1.yaml --prompt "Write about AI trends in 2024"
+
+# Social media
+uv run elf0 agent specs/content/linkedin_post.yaml --prompt "Post about remote work benefits"
+uv run elf0 agent specs/content/twitter_post.yaml --prompt "Tweet about machine learning"
+
+# Documentation
+uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Document this API @api.py"
+```
+
+### Code Analysis
+```bash
+# Code review with the reasoning agent (much better than basic chat)
+uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Review @app.py for bugs and improvements"
+
+# Security check
+uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Find security issues in @auth.py"
+
+# Compare files
+uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Compare @old_version.py and @new_version.py"
+```
+
+### Workflow Management
+```bash
+# Create new workflows with AI
+uv run elf0 agent specs/utils/agent_creator.yaml --prompt "Create a workflow for API testing"
+
+# Improve existing ones
+uv run elf0 improve yaml specs/basic/chat_simple_v1.yaml --prompt "Make it better for code review"
+
+# Generate simulations
+uv run elf0 agent specs/utils/simulation_scenario_v1.yaml --prompt "Create a customer support simulation" --output support_sim.yaml
+```
 
 ## 🚀 Advanced Features
 
-### Interactive Mode
-Start conversations with any workflow:
-
-```bash
-uv run elf0 prompt specs/basic/chat_simple_v1.yaml
-💬 Prompt: Hello, how are you?
-💬 Prompt: Analyze this file @config.yaml  
-💬 Prompt: exit
-```
-
-### Self-Improving Workflows
-Let AI improve your workflows automatically:
-
-```bash
-# Analyze and improve any workflow
-uv run elf0 improve yaml specs/basic/chat_simple_v1.yaml
-
-# Custom improvement guidance
-uv run elf0 improve yaml specs/basic/chat_simple_v1.yaml --prompt "Make prompts more specific"
-
-# Use reference patterns
-uv run elf0 improve yaml specs/basic/chat_simple_v1.yaml --prompt "Follow patterns from @specs/examples/claude_code_example.yaml"
-
-# Use dedicated optimizer workflow for advanced optimization
-uv run elf0 agent specs/utils/agent_optimizer.yaml --prompt "Optimize this workflow @specs/basic/chat_simple_v1.yaml"
-```
-
-### Python Function Integration
-Create custom tools using Python functions:
+### Python Functions
+Add custom logic to workflows:
 
 ```python
-# src/tools/my_tools.py
-def process_text(state, text_input):
-    """Custom text processing function."""
-    processed = text_input.upper()
-    return {"output": f"Processed: {processed}"}
+# Create custom functions
+def my_processor(state, operation="uppercase"):
+    text = state.get("output", "")
+    if operation == "uppercase":
+        result = text.upper()
+    return {"output": f"Processed: {result}"}
 ```
 
-```yaml
-# In your workflow YAML
-functions:
-  text_processor:
-    type: python
-    name: text_processor
-    entrypoint: src.tools.my_tools.process_text
-
-workflow:
-  nodes:
-    - id: process
-      kind: tool
-      ref: text_processor
-```
-
-### Claude Code Integration
-Use Claude Code SDK for AI-powered code generation, analysis, and modification:
-**NB: You will need the Claude API keys set up for this**
+### MCP Servers
+Connect to external tools. For example, the YouTube transcript server:
 
 ```bash
-# Generate code from requirements
-uv run elf0 agent specs/examples/claude_code_example.yaml --prompt "Create a Python calculator function"
+# First install and start the MCP server (see mcp/youtube-transcript/README.md)
+uv pip install youtube-transcript-api
 
-# Self-improvement workflow for Elf0 platform
-uv run elf0 agent specs/examples/claude_code_self_improvement.yaml --prompt "Add better error handling to Elf0 workflows"
+# Then use it in workflows
+uv run elf0 agent specs/content/youtube_analyzer.yaml --prompt "Analyze this video https://youtube.com/watch?v=example"
 ```
 
-**Claude Code Node Types:**
-- `generate_code`: Create new code from requirements
-- `analyze_code`: Review code for quality, security, and performance
-- `modify_code`: Improve existing code with specific changes
-- `chat`: General conversation with code-aware AI
-
-```yaml
-# Example Claude Code node in workflow
-nodes:
-  - id: code_generator
-    kind: claude_code
-    config:
-      task: "generate_code"
-      prompt: "Create a Python function based on: {input}"
-      output_format: "text"
-      tools: ["filesystem", "bash"]
-      temperature: 0.2
-```
-
-### MCP (Model Context Protocol) Integration
-Connect to external tools and services:
-
-```bash
-# Note: MCP examples are archived. Access them via archive:
-uv run elf0 list-specs archive  # See MCP workflow examples
-
-# Example MCP usage (from archive):
-# uv run elf0 agent specs/archive/mcp_workflow.yaml --prompt "Calculate 15 + 30"
-# uv run elf0 agent specs/archive/simple_mcp.yaml --prompt "Use filesystem tools"
-```
-
-### Multiple LLM Providers
-Use different AI models in the same workflow:
+### Multiple AI Models
+Use different models for different tasks:
 
 ```yaml
 llms:
-  fast_model:
+  fast_model:      # Quick and cheap
     type: openai
     model_name: gpt-4.1-mini
-    temperature: 0.3
     
-  smart_model:
+  smart_model:     # Powerful reasoning
     type: anthropic
     model_name: claude-sonnet-4
-    temperature: 0.7
     
-  local_model:
+  local_model:     # Private and free
     type: ollama
     model_name: llama3
-    temperature: 0.5
 
 workflow:
   nodes:
     - id: draft
-      kind: agent
-      ref: fast_model  # Quick draft
+      ref: fast_model    # Quick first pass
     - id: refine  
-      kind: agent
-      ref: smart_model  # Detailed refinement
+      ref: smart_model   # Detailed improvement
 ```
 
----
-
-## 🔗 File Reference System
-
-Elf0's `@filename.ext` syntax automatically includes file contents in prompts:
-
-### Basic Usage
+### Want More?
 ```bash
-# Single file
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Explain @main.py"
+# See all available workflows
+uv run elf0 list-specs
 
-# Directory (automatically includes relevant files)
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Analyze all code in @src/"
+# Explore examples and utilities
+ls specs/examples/
+ls specs/utils/
 
-# Multiple files  
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Compare @file1.py and @file2.py"
-
-# Mixed files and directories
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Review @main.py and all tests in @tests/ for compatibility"
+# Create your own workflow
+uv run elf0 agent specs/utils/agent_creator.yaml --prompt "Create a workflow for my specific use case"
 ```
 
-### Supported File Types
-- **Code**: `.py`, `.js`, `.ts`, `.java`, `.cpp`, etc.
-- **Text**: `.txt`, `.md`, `.rst`, `.log`  
-- **Config**: `.yaml`, `.yml`, `.json`, `.toml`, `.ini`
-- **Data**: `.csv`, `.xml` (text-based files)
-
-### Best Practices
-- **Keep files reasonably sized** (< 10KB for best results)
-- **Use descriptive filenames** (`user_auth.py` vs `utils.py`)
-- **Combine with context** (`--context` flag for additional files)
-- **Reference documentation** (`@README.md`, `@CHANGELOG.md`)
-
-### Examples
-```bash
-# Code review with context
-uv run elf0 agent specs/basic/reasoning_structured_v1.yaml \
-  --prompt "Review @api.py for security issues" \
-  --context requirements.txt --context .env.example
-
-# Documentation generation
-uv run elf0 agent specs/content/content_basic_v1.yaml \
-  --prompt "Create API docs for @server.py based on @api_spec.yaml"
-
-# Test generation  
-uv run elf0 agent specs/basic/reasoning_structured_v1.yaml \
-  --prompt "Write unit tests for @calculator.py following patterns in @test_example.py"
-```
-
----
-
-## 🛠 Troubleshooting
+## 🛠️ Troubleshooting
 
 ### Common Issues
 
-#### 1. "Command not found: elf"
+**"Command not found: elf"**
 ```bash
 # Make sure you're in the virtual environment
-source .venv/bin/activate  # macOS/Linux
-.venv\Scripts\activate     # Windows
-
-# Verify installation
-uv pip list | grep elf
+source .venv/bin/activate
+uv pip install -e .
 ```
 
-#### 2. "API key not found" 
+**"API key not found"**
 ```bash
 # Check your environment variables
 echo $OPENAI_API_KEY
 echo $ANTHROPIC_API_KEY
 
-# Set them properly
+# Set them if missing
 export OPENAI_API_KEY="your-key-here"
-
-# Or use a .env file in the project root
-echo "OPENAI_API_KEY=your-key-here" > .env
 ```
 
-#### 3. "Module not found" errors
+**"Module not found" errors**
 ```bash
 # Reinstall in development mode
 uv pip install -e .
-
-# Or install dependencies
-uv pip install -r requirements.txt
 ```
 
-#### 4. "Workflow file not found"
+**Workflow not working as expected**
 ```bash
-# Check the file exists
-ls specs/basic_chat.yaml
+# Use verbose mode to see what's happening
+uv run elf0 --verbose agent workflow.yaml --prompt "debug"
 
-# Use full path if needed
-uv run elf0 agent /full/path/to/specs/basic_chat.yaml --prompt "test"
+# Review the YAML file
+cat workflow.yaml
 ```
 
-#### 5. Ollama connection issues
-```bash
-# Make sure Ollama is running
-ollama list
+## 🤝 Contributing & Support
 
-# Start Ollama service
-ollama serve
+**Want to help?**
+- Report bugs or suggest features: [GitHub Issues](https://github.com/emson/elf/issues)
+- Share your workflows: Submit a PR with your useful specs
+- Improve docs: Found something unclear? Please fix it!
 
-# Test with a simple model
-ollama run llama2 "Hello"
-```
-
-#### 6. uv package manager issues
-```bash
-# uv command not found
-# Make sure uv is in your PATH - restart your terminal after installation
-echo $PATH | grep -i uv
-
-# Reinstall uv if needed
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Alternative: Use pip fallback
-pip install -e .  # Instead of uv pip install -e .
-
-# Clear uv cache if having dependency issues
-uv cache clean
-
-# Check uv configuration
-uv --help
-```
-
-### Platform-Specific Issues
-
-#### Windows
-- Use `py` instead of `python` if you have multiple Python versions
-- Use PowerShell or Command Prompt, not Git Bash for installation
-- Path separators: use forward slashes `/` in file paths
-
-#### macOS
-- Install Xcode Command Line Tools: `xcode-select --install`
-- Use Homebrew for Python if needed: `brew install python@3.13`
-
-#### Linux  
-- Install Python dev headers: `sudo apt-get install python3-dev`
-- Some distributions need: `sudo apt-get install build-essential`
-
-### Getting Help
-
-1. **Check the examples**: Look in `specs/examples/` for working workflows
-2. **Use verbose mode**: `uv run elf0 --verbose` to see detailed logs
-3. **Check the issues**: [GitHub Issues](https://github.com/emson/elf/issues) 
-4. **Start a discussion**: [GitHub Discussions](https://github.com/emson/elf/discussions)
-
----
-
-## 📂 Project Structure
-
-Understanding where files go helps you organize your workflows:
-
-```
-elf0/
-├── specs/                    # Workflow definitions (organized by category)
-│   ├── basic/               # Simple, foundational workflows
-│   │   ├── chat_simple_v1.yaml      # Basic chat workflow
-│   │   └── reasoning_structured_v1.yaml  # Structured reasoning
-│   ├── content/             # Content generation workflows
-│   │   ├── content_basic_v1.yaml    # General content creation
-│   │   ├── linkedin_post.yaml       # LinkedIn posts
-│   │   └── twitter_post.yaml        # Twitter/X posts
-│   ├── utils/               # Utility workflows for workflow management
-│   │   ├── agent_creator.yaml       # Create new workflows
-│   │   ├── agent_optimizer.yaml     # Optimize workflows
-│   │   ├── prompt_optimizer.yaml    # Optimize prompts
-│   │   └── agent_simulation.yaml    # Simulate scenarios
-│   ├── examples/            # Advanced examples
-│   │   ├── claude_code_example.yaml
-│   │   └── claude_code_self_improvement.yaml
-│   └── archive/             # Legacy/archived workflows
-│       └── (many legacy workflows)
-├── src/elf0/               # Elf0 source code
-├── mcp/                    # MCP server configurations
-└── your_workflows/         # Put your custom workflows here
-```
-
-### Creating Your Own Workflows
-
-1. **Start with an example**: Copy from `specs/basic/` or use the AI creator
-2. **Modify gradually**: Change prompts, models, add steps
-3. **Test frequently**: Run after each change
-4. **Use version control**: Git track your workflow evolution
-
-```bash
-# Copy and customize
-cp specs/basic/chat_simple_v1.yaml my_workflow.yaml
-
-# Or create with AI assistance
-uv run elf0 agent specs/utils/agent_creator.yaml --prompt "Create a workflow for code documentation"
-
-# Edit with your favorite editor
-code my_workflow.yaml  # VS Code
-vim my_workflow.yaml   # Vim
-nano my_workflow.yaml  # Nano
-
-# Test your changes
-uv run elf0 agent my_workflow.yaml --prompt "test"
-
-# Optimize with AI
-uv run elf0 agent specs/utils/agent_optimizer.yaml --prompt "Improve this workflow @my_workflow.yaml"
-```
-
----
-
-## 🎯 Examples Gallery
-
-### Simple Examples (Start Here)
-
-#### Basic Chat
-```bash
-uv run elf0 agent specs/basic/chat_simple_v1.yaml --prompt "Explain photosynthesis"
-```
-
-#### Structured Reasoning
-```bash
-uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Analyze the pros and cons of renewable energy"
-```
-
-#### Code Analysis  
-```bash
-uv run elf0 agent specs/basic/reasoning_structured_v1.yaml --prompt "Review this code @example.py"
-```
-
-#### Content Generation
-```bash
-# Blog content
-uv run elf0 agent specs/content/content_basic_v1.yaml --prompt "Write about artificial intelligence trends"
-
-# LinkedIn post
-uv run elf0 agent specs/content/linkedin_post.yaml --prompt "Create a post about remote work benefits"
-
-# Twitter/X post
-uv run elf0 agent specs/content/twitter_post.yaml --prompt "Share insights about machine learning"
-```
-
-### Intermediate Examples
-
-#### Interactive Session
-```bash
-uv run elf0 prompt specs/basic/chat_simple_v1.yaml
-💬 Prompt: Help me debug @buggy_code.py
-💬 Prompt: Now write tests for the fixed version
-💬 Prompt: exit
-```
-
-#### Workflow Creation & Optimization
-```bash
-# Create new workflows with AI assistance
-uv run elf0 agent specs/utils/agent_creator.yaml --prompt "Create a workflow for automated testing"
-
-# Optimize existing workflows
-uv run elf0 agent specs/utils/agent_optimizer.yaml --prompt "Improve this workflow @specs/basic/chat_simple_v1.yaml"
-
-# Advanced prompt optimization
-uv run elf0 agent specs/utils/prompt_optimizer.yaml --prompt "Optimize prompts for better code generation"
-```
-
-#### Workflow Simulation & Testing
-```bash
-# Simulate complex scenarios
-uv run elf0 agent specs/utils/agent_simulation.yaml --prompt "Simulate a customer support interaction"
-```
-
-### Advanced Examples
-
-#### Self-Improvement
-```bash
-uv run elf0 improve yaml specs/basic/chat_simple_v1.yaml --prompt "Make this workflow better for code review"
-```
-
-#### Claude Code Integration
-```bash
-# AI-powered code generation and improvement
-uv run elf0 agent specs/examples/claude_code_example.yaml --prompt "Create a REST API with authentication"
-
-# Self-evolving AI platform capabilities  
-uv run elf0 agent specs/examples/claude_code_self_improvement.yaml --prompt "Add logging capabilities to Elf0 workflows"
-```
-
-#### Discovering More Examples
-```bash
-# List all available workflow categories
-uv run elf0 list-specs
-
-# Explore archived workflows (including legacy examples)
-uv run elf0 list-specs archive
-
-# Create your own based on existing patterns
-uv run elf0 agent specs/utils/agent_creator.yaml --prompt "Create a workflow based on @specs/content/linkedin_post.yaml for newsletter generation"
-```
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how to get involved:
-
-### Quick Contributions
-- **Report bugs**: [Create an issue](https://github.com/emson/elf/issues/new)
-- **Suggest features**: [Start a discussion](https://github.com/emson/elf/discussions)
-- **Improve docs**: Edit README or add examples
-- **Share workflows**: Submit your useful workflows
-
-### Development Setup
+**Development setup:**
 ```bash
 git clone https://github.com/emson/elf.git
 cd elf
-uv venv                    # Create virtual environment (much faster than python -m venv)
-source .venv/bin/activate  # Activate environment
-uv pip install -e .       # Install Elf0 in development mode (faster than pip)
-
-# Install development dependencies
-uv pip install pytest ruff mypy
-
-# Run tests
-pytest
-
-# Run linting
-ruff check src/
-mypy src/
+uv venv && source .venv/bin/activate
+uv pip install -e .
+pytest  # Run tests
 ```
 
-**Note:** All `uv pip` commands can be replaced with regular `pip` commands if you prefer, but `uv` will be significantly faster for dependency resolution and installation.
+## 📄 License
 
-### Areas We Need Help
-- **New workflow examples** for different use cases
-- **Documentation improvements** for clarity
-- **MCP server integrations** for popular tools
-- **Performance optimizations** for large workflows
-- **Platform testing** (Windows, Linux, different Python versions)
+Apache License 2.0 - Use freely, even commercially. See [LICENSE](LICENSE) file.
 
-### Code Style
-- Follow PEP 8 conventions
-- Use type hints for all functions
-- Add tests for new features
-- Update documentation
-
----
-
-## 📄 License & Legal Disclaimers
-
-Elf0 is licensed under the [Apache License 2.0](LICENSE). This means you can freely use, modify, and distribute this software, even for commercial purposes, as long as you include the original license and copyright notice.
-
-### Legal Disclaimers
-
-**DISCLAIMER OF WARRANTIES**: This software is provided "AS IS" without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement.
-
-**LIMITATION OF LIABILITY**: In no event shall the authors, copyright holders, or contributors be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
-
-**USER RESPONSIBILITY**: You are solely responsible for:
-- Reviewing workflow files before execution
-- Ensuring appropriate security measures  
-- Protecting sensitive data and systems
-- Complying with applicable laws and regulations
-- Any consequences of using this experimental software
-
-**EXPERIMENTAL SOFTWARE**: This is beta/experimental software under active development. Features may change, break, or be removed without notice. Use in production environments is strongly discouraged.
-
-**NO SUPPORT GUARANTEE**: While we appreciate community contributions, there is no guarantee of support, maintenance, or updates to this software.
+**Disclaimer**: This is experimental software. Use with caution, especially in production environments. You're responsible for reviewing workflows before running them.
 
 ## 🙏 Acknowledgments
 
 - Built with [LangGraph](https://github.com/langchain-ai/langgraph) for workflow orchestration
-- Powered by [Rich](https://github.com/Textualize/rich) for beautiful terminal output  
-- Uses [uv](https://github.com/astral-sh/uv) by [Astral](https://astral.sh/) for blazingly fast Python package management
+- Uses [uv](https://github.com/astral-sh/uv) by Astral for fast Python package management  
 - Supports [MCP](https://modelcontextprotocol.io/) for tool integration
-- Inspired by NVIDIA's AgentIQ framework for AI workflow design patterns
+- Inspired by agentic workflow patterns
 
 ---
 
-**Ready to build your first AI workflow?** Start with the [Quick Start](#-quick-start-5-minutes) section above! 🚀
+**Ready to build your first AI workflow?** Start with the [Quick Start](#-quick-start-5-minutes) section! 🚀
+
+I hope you love using Elf0 as much as I enjoyed building it.

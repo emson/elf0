@@ -1,5 +1,12 @@
 # 🧝 Elf0 - Build AI Agent Workflows in YAML
 
+[![Python Version](https://img.shields.io/badge/python-3.13%2B-blue)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
+[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Tests](https://github.com/emson/elf0/workflows/Tests/badge.svg)](https://github.com/emson/elf0/actions)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+
 Elf0 is a command line tool I created to help rapidly build and test AI agent workflows. Often you might get a requirement to build an agent to do something and need to experiment with how it works.
 
 For example, you may have an insurance PDF document and want to extract quote information. Sure, you could write a quick prompt and plug it into ChatGPT, but usually the problem is more nuanced and complex, requiring a sophisticated workflow (an agent) to solve it properly.

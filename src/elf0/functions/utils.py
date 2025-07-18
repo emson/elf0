@@ -12,6 +12,7 @@ from pygments.lexers.special import TextLexer
 from rich.console import Console
 
 from elf0.core.compiler import WorkflowState
+from elf0.core.input_state import set_collecting_input, clear_collecting_input
 
 # Exit command constants
 EXIT_COMMANDS = {"/exit", "/quit", "/bye"}
@@ -99,7 +100,7 @@ def _collect_enhanced_input() -> str:
 
     while True:
         try:
-            line = session.prompt("   ", multiline=False)
+            line = session.prompt("> ", multiline=False)  # Clear prompt indicator
         except EOFError:  # Handles Ctrl+D
             return ""
         except KeyboardInterrupt:  # Handles Ctrl+C
@@ -141,70 +142,77 @@ def get_user_input(state: WorkflowState, prompt: str = "Please provide input:") 
     """
     console = Console(stderr=True)
 
-    # Use question from state if available and no custom prompt provided
-    if prompt == "Please provide input:":
-        if "question" in state:
-            prompt = state["question"]
-        elif "output" in state:
-            prompt = state["output"]
-
-    # Clear any running terminal status and ensure clean state
-    console.print()  # Clear line
-    console.print("\n[bold blue]Assistant:[/bold blue]")
-    console.print(prompt)
-    console.print()  # Add spacing
-
-    # Give a moment for terminal to settle
-    time.sleep(0.1)
-
-    # Collect user input with enhanced error handling
-    user_response = ""
-    max_retries = 3
-    retry_count = 0
+    # Signal that we're starting input collection
+    set_collecting_input()
     
-    while retry_count < max_retries:
-        try:
-            if sys.stdin.isatty():
-                user_response = _collect_enhanced_input()
-            else:
-                user_response = _collect_simple_input()
-            break  # Success, exit retry loop
-            
-        except KeyboardInterrupt:
-            retry_count += 1
-            if retry_count < max_retries:
-                console.print(f"\n[yellow]Interrupted. Retrying... ({retry_count}/{max_retries})[/yellow]")
-                time.sleep(0.2)
-                continue
-            else:
-                console.print("\n[yellow]Input cancelled after multiple attempts.[/yellow]")
-                return {**state, "user_input": "", "output": "User cancelled input"}
-                
-        except Exception as e:
-            # Fallback to simple input on any error
-            console.print(f"\n[yellow]Input method failed, trying simple input...[/yellow]")
+    try:
+        # Use question from state if available and no custom prompt provided
+        if prompt == "Please provide input:":
+            if "question" in state:
+                prompt = state["question"]
+            elif "output" in state:
+                prompt = state["output"]
+
+        # Wait for spinner to stop and give clean terminal handoff
+        time.sleep(0.2)
+        
+        # Display prompt cleanly
+        console.print("\n[bold blue]Assistant:[/bold blue]")
+        console.print(prompt)
+        console.print()
+
+        # Collect user input with enhanced error handling
+        user_response = ""
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
             try:
-                user_response = _collect_simple_input()
-                break
-            except (EOFError, KeyboardInterrupt):
-                console.print("\n[yellow]Input cancelled.[/yellow]")
-                return {**state, "user_input": "", "output": "Input cancelled"}
+                if sys.stdin.isatty():
+                    user_response = _collect_enhanced_input()
+                else:
+                    user_response = _collect_simple_input()
+                break  # Success, exit retry loop
+                
+            except KeyboardInterrupt:
+                retry_count += 1
+                if retry_count < max_retries:
+                    console.print(f"\n[yellow]Interrupted. Retrying... ({retry_count}/{max_retries})[/yellow]")
+                    time.sleep(0.2)
+                    continue
+                else:
+                    console.print("\n[yellow]Input cancelled after multiple attempts.[/yellow]")
+                    return {**state, "user_input": "", "output": "User cancelled input"}
+                    
+            except Exception as e:
+                # Fallback to simple input on any error
+                console.print(f"\n[yellow]Input method failed, trying simple input...[/yellow]")
+                try:
+                    user_response = _collect_simple_input()
+                    break
+                except (EOFError, KeyboardInterrupt):
+                    console.print("\n[yellow]Input cancelled.[/yellow]")
+                    return {**state, "user_input": "", "output": "Input cancelled"}
 
-    # Handle exit commands
-    if _is_exit_command(user_response):
-        _show_exit_feedback()
-        return _create_exit_state(state, user_response)
+        # Handle exit commands
+        if _is_exit_command(user_response):
+            _show_exit_feedback()
+            return _create_exit_state(state, user_response)
 
-    # Show normal processing feedback for non-empty responses
-    if user_response:
-        _show_processing_feedback()
+        # Show normal processing feedback for non-empty responses
+        if user_response:
+            _show_processing_feedback()
 
-    # Return normal state
-    return {
-        **state,
-        "user_input": user_response,
-        "output": f"User provided: {user_response}"
-    }
+        # Return normal state
+        return {
+            **state,
+            "user_input": user_response,
+            "output": f"User provided: {user_response}"
+        }
+        
+    finally:
+        # Always clear the input collection state
+        clear_collecting_input()
 
 def text_processor(state: WorkflowState, operation: str = "count_words") -> WorkflowState:
     """Process text from workflow state.

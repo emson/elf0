@@ -23,6 +23,7 @@ from rich.spinner import Spinner
 import typer
 
 from elf0.core.exceptions import UserExitRequested
+from elf0.core.input_state import is_collecting_input
 from elf0.core.runner import run_workflow
 from elf0.utils.file_utils import (  # Added import
     extract_spec_description,
@@ -132,6 +133,7 @@ def _conditional_secho(message: str, **kwargs: Any) -> None:
     if app_state.verbose_mode or is_error:
         typer.secho(message, **kwargs)
 
+
 @contextlib.contextmanager
 def progress_spinner(message: str) -> Generator[None]:
     """Context manager that shows a spinner with message in non-verbose mode."""
@@ -139,10 +141,56 @@ def progress_spinner(message: str) -> Generator[None]:
         # In verbose mode, just yield without showing spinner
         yield
     else:
-        # In non-verbose mode, show spinner
+        # In non-verbose mode, show spinner with clean terminal handoff
+        import threading
+        import time
+        
+        # Create spinner
         spinner = Spinner("dots", text=f"[dim]{message}[/dim]")
-        with Live(spinner, console=rich.console, refresh_per_second=10):
+        live = Live(spinner, console=rich.console, refresh_per_second=10)
+        
+        # Control variables
+        stop_monitoring = threading.Event()
+        
+        def monitor_and_manage():
+            """Monitor input state and manage spinner pause/resume."""
+            spinner_running = False
+            
+            while not stop_monitoring.wait(0.1):
+                input_active = is_collecting_input()
+                
+                if input_active and spinner_running:
+                    # Pause spinner for input collection
+                    try:
+                        live.stop()
+                        spinner_running = False
+                    except Exception:
+                        pass
+                elif not input_active and not spinner_running:
+                    # Resume spinner after input collection
+                    try:
+                        live.start()
+                        spinner_running = True
+                    except Exception:
+                        pass
+        
+        # Start spinner
+        live.start()
+        
+        # Start monitoring thread
+        monitor_thread = threading.Thread(target=monitor_and_manage, daemon=True)
+        monitor_thread.start()
+        
+        try:
             yield
+        finally:
+            # Clean shutdown
+            stop_monitoring.set()
+            monitor_thread.join(timeout=0.5)
+            try:
+                live.stop()
+            except Exception:
+                pass
 
 def prepare_workflow_input(prompt: str, context_content: str) -> str:
     """Combine context content with user prompt."""

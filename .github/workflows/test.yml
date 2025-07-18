@@ -115,7 +115,7 @@ jobs:
     - name: Run tests with coverage
       timeout-minutes: 8
       run: |
-        uv run pytest tests/ --cov=src/elf --cov-report=term --timeout=300 -v --tb=short -m "not requires_external"
+        uv run pytest tests/ --cov=src/elf0 --cov-report=term --timeout=300 -v --tb=short -m "not requires_external"
       env:
         OPENAI_API_KEY: test-key-not-real
         ANTHROPIC_API_KEY: test-key-not-real

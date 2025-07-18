@@ -196,6 +196,65 @@ nodes:
   stop: true
 ```
 
+#### ⚠️ CRITICAL: Sequential Workflow State Access Pattern
+
+**Most Common State Management Error**: Using custom `output_key` names to access previous node output in sequential workflows.
+
+```yaml
+# ❌ WRONG: Common misconception
+- id: analyze_content
+  kind: agent
+  ref: main_llm
+  config:
+    prompt: "Analyze this: {input}"
+  output_key: analysis_result
+
+- id: generate_questions
+  kind: agent
+  ref: main_llm
+  config:
+    prompt: "Based on: {state.analysis_result}"  # ❌ This often fails!
+  stop: true
+```
+
+**The Issue**: Even though you set `output_key: analysis_result`, sequential workflows primarily use `{state.output}` for direct node-to-node communication.
+
+```yaml
+# ✅ CORRECT: Use {state.output} for previous node
+- id: analyze_content
+  kind: agent
+  ref: main_llm
+  config:
+    prompt: "Analyze this: {input}"
+  output_key: analysis_result  # This creates a named state variable
+
+- id: generate_questions
+  kind: agent
+  ref: main_llm
+  config:
+    prompt: "Based on: {state.output}"  # ✅ Accesses previous node output
+  stop: true
+```
+
+**When to Use Each Pattern**:
+- **`{state.output}`**: Previous node's output (sequential workflows)
+- **`{state.custom_key}`**: Access specific named state variables from any previous node
+- **`{input}`**: Raw input (only first node should use this)
+
+**Debug State Flow**: If your workflow gives generic responses instead of processing specific input, check your state variable references first.
+
+```yaml
+# ✅ DEBUG PATTERN: Test state flow
+- id: debug_state
+  kind: agent
+  ref: main_llm
+  config:
+    prompt: |
+      DEBUG: Previous node output: {state.output}
+      DEBUG: Custom state variable: {state.custom_key}
+      Now proceeding with actual task...
+```
+
 ### 8. **Custom Graph Patterns (Advanced)**
 
 **Use only when you need**: True parallelism, complex routing, or dynamic workflows.
@@ -328,6 +387,8 @@ Before creating any YAML spec, verify:
 - [ ] All `output_key` values are unique
 - [ ] State references use consistent syntax: `{state.variable_name}`
 - [ ] No empty prompt template sections
+- [ ] Sequential workflows use `{state.output}` for previous node output
+- [ ] Custom state variables `{state.custom_key}` only used when accessing specific named outputs
 
 #### Graph Structure
 - [ ] All edge `source` and `target` refer to existing node IDs
@@ -837,13 +898,16 @@ When generating YAML specifications:
 1. **Start Simple**: Begin with sequential workflow pattern
 2. **Required Fields First**: `version`, `runtime`, `workflow.type` are mandatory
 3. **One Input Consumer**: Only first node uses `{input}`
-4. **State Flow**: Use `{state.output}` for previous node results
-5. **Unique Keys**: Every `output_key` must be unique
-6. **Valid References**: All `ref` fields must point to defined LLMs/functions
-7. **Complete Templates**: No empty `{state.}` or malformed variables
-8. **Bounded Loops**: Always set `max_iterations` for workflows with cycles
-9. **Test Incrementally**: Build and test in small steps
-10. **Avoid Complexity**: Use custom graphs only when truly needed
-11. **Follow Patterns**: Use proven patterns from this document
+4. **State Flow**: Use `{state.output}` for previous node results in sequential workflows
+5. **State Variables**: Don't mix up `{state.output}` vs `{state.custom_key}` usage
+6. **Unique Keys**: Every `output_key` must be unique
+7. **Valid References**: All `ref` fields must point to defined LLMs/functions
+8. **Complete Templates**: No empty `{state.}` or malformed variables
+9. **Bounded Loops**: Always set `max_iterations` for workflows with cycles
+10. **Test Incrementally**: Build and test in small steps
+11. **Avoid Complexity**: Use custom graphs only when truly needed
+12. **Follow Patterns**: Use proven patterns from this document
+
+**Most Common Error**: Using `{state.custom_key}` instead of `{state.output}` to access the previous node's output in sequential workflows.
 
 **Remember**: A working simple specification is infinitely better than a broken complex one. Start minimal, test frequently, and add complexity only when the basics work perfectly.

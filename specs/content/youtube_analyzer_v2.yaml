@@ -40,6 +40,8 @@ workflow:
         prompt: |
           You are a URL-extraction specialist.
           Identify exactly one valid YouTube URL in the user input.
+          Examples of YouTube URLs are; https://www.youtube.com/watch?v=S8a7gkFhoBA or `https://www.youtube.com/watch?v=om-etwwp3Wg` or "https://www.youtube.com/watch?v=hii2UuFTdmA" or 'https://www.youtube.com/watch?v=Wvcu_iieFxw'
+          See how they start and end and think hard how to extract the URL from the prompt text.
 
           USER INPUT:
           {input}
@@ -56,7 +58,7 @@ workflow:
       config:
         server:
           command: ["python", "mcp/youtube-transcript/server.py"]
-        tool: "extract_transcript"
+        tool: "get_transcript_text"
         parameters:
           url: "${state.json.youtube_url}"
           language: "en"
@@ -106,14 +108,14 @@ workflow:
 
           • Video URL: {state.json.youtube_url}
           • Transcript: {state.transcript_data}
-          • Concept JSON: {output}
+          • Concept JSON: {state.concept_analysis}
 
           Create an in-depth markdown report:
 
           # YouTube Video Analysis – *Add title*
 
           **Video URL:** {state.json.youtube_url}  
-          **Analysis Date:** {{date:%Y-%m-%d}}
+          **Analysis Date:** {date:%Y-%m-%d}
 
           ## Executive Summary
           (3–4 paragraphs)
@@ -121,15 +123,15 @@ workflow:
           ## Detailed Concept Analysis
           For every concept:
 
-          ### {{name}}
-          **Category:** {{category}}  
-          **Context:** {{context}}
+          ### {name}
+          **Category:** {category}  
+          **Context:** {context}
 
           **Explanation** – merge key_details with inline `>` quotes from verbatim_quotes.  
           **Insights** – bullet list.  
           **Practical Uses** – actionable points.  
           **Evidence / Examples** – supporting data or anecdotes.  
-          **Timestamps:** {{timestamp_references}}
+          **Timestamps:** {timestamp_references}
 
           ---
 

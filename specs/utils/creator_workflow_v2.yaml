@@ -64,21 +64,56 @@ workflow:
 
           User Request: {input}
 
-          Process:
-          1. Analyze and clarify the request
-          2. Select optimal workflow pattern (sequential, custom_graph, react, evaluator_optimizer)
-          3. Generate complete YAML specification
+          REQUIRED STRUCTURE (follow exactly):
+          ```yaml
+          version: "0.1"
+          description: "Brief description of what this workflow does"
+          runtime: "langgraph"
+          
+          llms:
+            main_llm:
+              type: openai
+              model_name: gpt-4o-mini
+              temperature: 0.3
+              params:
+                max_tokens: 1000
+          
+          workflow:
+            type: sequential
+            nodes:
+              - id: first_node
+                kind: agent
+                ref: main_llm
+                config:
+                  prompt: |
+                    Your task description here.
+                    Process input: {input}
+                output_key: first_result
+              - id: second_node
+                kind: agent
+                ref: main_llm
+                config:
+                  prompt: |
+                    Continue processing: {state.first_result}
+                stop: true
+            edges:
+              - source: first_node
+                target: second_node
+          ```
 
-          YAML Spec Requirements:
-          • First node's prompt contains {input} exactly once
-          • Later nodes use {state.variable} references  
-          • Final node has `stop: true`
-          • Use only LLM types: openai, anthropic, ollama
-          • All node IDs in edges must exist
-          • Follow order: version → description → runtime → llms → workflow
-          • Include proper workflow type and edges
+          CRITICAL REQUIREMENTS:
+          • version must be quoted string
+          • runtime must be "langgraph" or "agentiq"
+          • llms must be a dictionary/map, not a list
+          • workflow.type field is MANDATORY
+          • Every node must have kind field
+          • Every node except stop nodes must have ref field
+          • First node uses {input}, later nodes use {state.variable}
+          • Final node has stop: true
+          • All edge source/target must reference existing node IDs
+          • Use single braces {} for template variables to avoid parsing issues
 
-          Output complete, valid YAML specification.
+          Output the complete YAML specification following this exact structure.
         output_key: yaml_spec
       stop: false
 
@@ -100,12 +135,14 @@ workflow:
       kind: agent
       ref: generator_llm
       config:
-        format: yaml
         prompt: |
           Output the final, polished YAML specification that passed evaluation.
-          Return only the complete YAML specification without any additional text, formatting, or markdown.
+          Return ONLY the complete YAML specification without any additional text, formatting, or markdown fences.
           
+          YAML Specification:
           {state.yaml_spec}
+          
+          Output the above YAML exactly as provided, ensuring proper formatting.
       stop: true
       output_key: final_spec
 

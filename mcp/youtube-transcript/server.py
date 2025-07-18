@@ -84,6 +84,31 @@ def extract_transcript(url: str, language: str = "en") -> dict:
         raise Exception(f"Failed to extract transcript: {str(e)}")
 
 
+def get_transcript_text(url: str, language: str = "en") -> str:
+    """Extract transcript text only from YouTube video"""
+    try:
+        video_id = extract_video_id(url)
+        log_message(f"📺 Fetching transcript text for video: {video_id}", "blue")
+        
+        # Try to get transcript in specified language
+        try:
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
+        except Exception:
+            # Fallback to auto-generated or any available language
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        
+        # Join all transcript segments
+        transcript_text = ' '.join([item['text'] for item in transcript_list])
+        word_count = len(transcript_text.split())
+        
+        log_message(f"✅ Transcript text extracted: {word_count} words, {len(transcript_list)} segments", "green")
+        
+        return transcript_text
+    
+    except Exception as e:
+        raise Exception(f"Failed to extract transcript text: {str(e)}")
+
+
 def get_video_metadata(url: str) -> dict:
     """Get basic YouTube video metadata from URL"""
     try:
@@ -110,6 +135,18 @@ def main():
         {
             "name": "extract_transcript",
             "description": "Extract transcript text from a YouTube video",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "YouTube video URL or video ID"},
+                    "language": {"type": "string", "description": "Language code (default: 'en')", "default": "en"}
+                },
+                "required": ["url"]
+            }
+        },
+        {
+            "name": "get_transcript_text",
+            "description": "Extract transcript text only from a YouTube video (returns plain text)",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -185,6 +222,23 @@ def main():
                             "id": request.get("id"),
                             "result": {
                                 "content": [{"type": "text", "text": json.dumps(result, indent=2)}]
+                            }
+                        }
+                    
+                    elif tool_name == "get_transcript_text":
+                        url = args.get("url")
+                        language = args.get("language", "en")
+                        
+                        if not url:
+                            raise ValueError("URL is required")
+                        
+                        result = get_transcript_text(url, language)
+                        
+                        response = {
+                            "jsonrpc": "2.0",
+                            "id": request.get("id"),
+                            "result": {
+                                "content": [{"type": "text", "text": result}]
                             }
                         }
                     

@@ -61,7 +61,17 @@ def _collect_simple_input() -> str:
     """Collect input using simple input() method."""
     console = Console(stderr=True)
     console.print("[dim]Enter your response (press Enter to submit):[/dim]")
-    return input("> ")
+    
+    # Ensure stdin is ready and flush any buffers
+    sys.stdin.flush()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    
+    try:
+        response = input("> ")
+        return response
+    except EOFError:
+        return ""
 
 def _collect_enhanced_input() -> str:
     """Collect input using enhanced multi-line prompt_toolkit."""
@@ -69,21 +79,31 @@ def _collect_enhanced_input() -> str:
     console.print("[dim]Commands: '/exit', '/quit', '/bye' to quit | Enter twice or '/send' to send[/dim]")
     console.print()
 
+    # Flush all output streams before input collection
+    sys.stdout.flush()
+    sys.stderr.flush()
+    
     lines = []
     history = InMemoryHistory()
-    pt_stderr_output = create_output(sys.stderr)
-
-    session = PromptSession(
-        history=history,
-        lexer=PygmentsLexer(TextLexer),
-        output=pt_stderr_output
-    )
+    
+    try:
+        pt_stderr_output = create_output(sys.stderr)
+        session = PromptSession(
+            history=history,
+            lexer=PygmentsLexer(TextLexer),
+            output=pt_stderr_output
+        )
+    except Exception:
+        # Fallback to simple input if prompt_toolkit fails to initialize
+        raise Exception("prompt_toolkit initialization failed")
 
     while True:
         try:
             line = session.prompt("   ", multiline=False)
         except EOFError:  # Handles Ctrl+D
             return ""
+        except KeyboardInterrupt:  # Handles Ctrl+C
+            raise KeyboardInterrupt("User interrupted input")
 
         # Check for submission commands
         if line.strip() == "/send":
@@ -128,26 +148,47 @@ def get_user_input(state: WorkflowState, prompt: str = "Please provide input:") 
         elif "output" in state:
             prompt = state["output"]
 
-    # Display the LLM's question with professional styling
+    # Clear any running terminal status and ensure clean state
+    console.print()  # Clear line
     console.print("\n[bold blue]Assistant:[/bold blue]")
     console.print(prompt)
     console.print()  # Add spacing
 
-    # Collect user input based on terminal capability
-    try:
-        if sys.stdin.isatty():
-            user_response = _collect_enhanced_input()
-        else:
-            user_response = _collect_simple_input()
-    except (KeyboardInterrupt, Exception) as e:
-        if isinstance(e, KeyboardInterrupt):
-            console.print("\n[yellow]Input cancelled.[/yellow]")
-            return {**state, "user_input": "", "output": "User cancelled input"}
-        # Fallback to simple input on any prompt_toolkit error
+    # Give a moment for terminal to settle
+    time.sleep(0.1)
+
+    # Collect user input with enhanced error handling
+    user_response = ""
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
         try:
-            user_response = _collect_simple_input()
-        except (EOFError, KeyboardInterrupt):
-            return {**state, "user_input": "", "output": "Input cancelled"}
+            if sys.stdin.isatty():
+                user_response = _collect_enhanced_input()
+            else:
+                user_response = _collect_simple_input()
+            break  # Success, exit retry loop
+            
+        except KeyboardInterrupt:
+            retry_count += 1
+            if retry_count < max_retries:
+                console.print(f"\n[yellow]Interrupted. Retrying... ({retry_count}/{max_retries})[/yellow]")
+                time.sleep(0.2)
+                continue
+            else:
+                console.print("\n[yellow]Input cancelled after multiple attempts.[/yellow]")
+                return {**state, "user_input": "", "output": "User cancelled input"}
+                
+        except Exception as e:
+            # Fallback to simple input on any error
+            console.print(f"\n[yellow]Input method failed, trying simple input...[/yellow]")
+            try:
+                user_response = _collect_simple_input()
+                break
+            except (EOFError, KeyboardInterrupt):
+                console.print("\n[yellow]Input cancelled.[/yellow]")
+                return {**state, "user_input": "", "output": "Input cancelled"}
 
     # Handle exit commands
     if _is_exit_command(user_response):

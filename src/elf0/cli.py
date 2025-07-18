@@ -390,7 +390,7 @@ def improve_yaml_command(
         elf0 improve yaml workflow.yaml --prompt "Follow patterns from @examples/best_workflow.yaml"
     """
     # Use the built-in agent-optimizer.yaml spec
-    optimizer_spec_path = Path(__file__).parent.parent.parent / "specs" / "agent-optimizer.yaml"
+    optimizer_spec_path = Path(__file__).parent.parent.parent / "specs" / "utils" /  "optimizer_yaml_v1.yaml"
 
     if not optimizer_spec_path.exists():
         typer.secho(f"Error: Agent optimizer spec not found at {optimizer_spec_path}", fg=typer.colors.RED)

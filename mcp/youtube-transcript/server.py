@@ -87,25 +87,34 @@ def extract_transcript(url: str, language: str = "en") -> dict:
 def get_transcript_text(url: str, language: str = "en") -> str:
     """Extract transcript text only from YouTube video"""
     try:
+        log_message(f"🔍 DEBUG: get_transcript_text called with URL: {url}", "yellow")
+        log_message(f"🔍 DEBUG: Language parameter: {language}", "yellow")
+        
         video_id = extract_video_id(url)
         log_message(f"📺 Fetching transcript text for video: {video_id}", "blue")
+        log_message(f"🔍 DEBUG: Extracted video ID: {video_id} from URL: {url}", "yellow")
         
         # Try to get transcript in specified language
         try:
             transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
-        except Exception:
+            log_message(f"🔍 DEBUG: Successfully got transcript in {language}", "yellow")
+        except Exception as e:
+            log_message(f"🔍 DEBUG: Language {language} failed: {e}, trying fallback", "yellow")
             # Fallback to auto-generated or any available language
             transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            log_message(f"🔍 DEBUG: Fallback transcript retrieved", "yellow")
         
         # Join all transcript segments
         transcript_text = ' '.join([item['text'] for item in transcript_list])
         word_count = len(transcript_text.split())
         
         log_message(f"✅ Transcript text extracted: {word_count} words, {len(transcript_list)} segments", "green")
+        log_message(f"🔍 DEBUG: First 100 chars of transcript: {transcript_text[:100]}...", "yellow")
         
         return transcript_text
     
     except Exception as e:
+        log_message(f"❌ DEBUG: Error in get_transcript_text: {str(e)}", "red")
         raise Exception(f"Failed to extract transcript text: {str(e)}")
 
 

@@ -334,6 +334,7 @@ Before creating any YAML spec, verify:
 - [ ] No unreachable nodes (orphans)
 - [ ] No infinite loops in edge definitions
 - [ ] Custom graphs have proper convergence points
+- [ ] Workflows with loops have `max_iterations` set
 
 ### 12. **Common Error Patterns and Fixes**
 
@@ -660,6 +661,150 @@ workflow:
       kind: agent
       # Missing ref field!
 ```
+### 22. **Iteration Control: Preventing Infinite Loops**
+
+Workflows with loops **MUST** implement proper iteration limits to prevent `GraphRecursionError`.
+
+#### ✅ CORRECT: Built-in iteration control with `evaluator_optimizer`
+```yaml
+workflow:
+  type: "evaluator_optimizer"
+  max_iterations: 7        # ✅ Automatic protection
+  nodes:
+    - id: generate
+      kind: agent
+    - id: evaluate  
+      kind: judge
+    - id: finalize
+      stop: true
+  edges:
+    - source: evaluate
+      target: finalize
+      condition: "state.get('evaluation_score', 0) >= 4.0 or state.get('iteration_count', 0) >= 7"
+```
+
+#### ✅ CORRECT: Manual iteration control with `custom_graph`
+```yaml
+workflow:
+  type: custom_graph
+  max_iterations: 5        # ✅ Provides basic protection
+  nodes:
+    - id: process
+    - id: evaluate
+    - id: fix
+    - id: finalize
+      stop: true
+  edges:
+    - source: evaluate
+      target: finalize
+      condition: "state.json.valid"    # Success condition
+    - source: evaluate  
+      target: fix
+      condition: "not state.json.valid"  # Continue condition
+    - source: fix
+      target: evaluate    # ✅ Bounded by max_iterations
+```
+
+#### ❌ WRONG: Unbounded loops cause recursion errors
+```yaml
+workflow:
+  type: custom_graph
+  # Missing: max_iterations
+  edges:
+    - source: evaluate
+      target: fix
+      condition: "not state.json.valid"  # ❌ No iteration limit!
+    - source: fix
+      target: evaluate    # ❌ Infinite loop possible
+```
+
+**Key Principles:**
+- **Always set `max_iterations`** for workflows with loops
+- **Use `evaluator_optimizer` type** when possible for automatic iteration tracking
+- **For `custom_graph`**: rely on `max_iterations` setting for protection
+- **Include success conditions** that can terminate loops early
+
+### 23. **Structured Output Format vs Plain JSON**
+
+LLMs must understand when to explicitly request structured output using `config.format: json` and when to allow plain JSON to be inferred. Misuse of this field often results in parsing errors or validation failures.
+
+#### ✅ CORRECT: Omit `config.format` when the prompt returns plain JSON and the workflow expects a `Spec`
+```yaml
+- id: extract_url
+  kind: agent
+  ref: main_llm
+  config:
+    prompt: |
+      Extract the YouTube URL from the following text:
+      "{input}"
+
+      Output JSON like:
+      {
+        "youtube_url": "https://www.youtube.com/watch?v=xyz"
+      }
+```
+
+The runtime expects structured JSON from this node, and the prompt directly instructs the model to emit that structure. No additional format field is needed.
+
+#### ❌ WRONG: Using `config.format: json` when returning partial or minimal objects
+```yaml
+# ❌ This will fail Spec validation because it's not a full Spec object
+- id: extract_url
+  kind: agent
+  ref: main_llm
+  config:
+    format: json
+    prompt: |
+      Extract the YouTube URL from the following text:
+      "{input}"
+```
+
+If you use `format: json`, the runtime assumes the output must match a full `Spec` or schema-defined structure. Returning partial JSON (like `{"youtube_url": ...}`) will trigger a validation error.
+
+#### ⚠️ Template Variable Warnings: Ignore Harmless JSON Examples
+
+**Common Warning**: You may see logs like:
+```
+WARNING ⚠ [Node: extract_url] Template variable '"youtube_url"' not found in state, using partial formatting
+```
+
+**Cause**: The template engine flags JSON examples in prompts as potential variables but uses "partial formatting" (preserves literal text).
+
+**Impact**: **ZERO** - These are harmless false positives. The workflow functions correctly.
+
+**Action**: **IGNORE** these warnings. Do NOT attempt to "fix" them with double braces `{{}}` as this can break functionality.
+
+```yaml
+# ✅ CORRECT: JSON examples in prompts (warnings are harmless)
+prompt: |
+  Output JSON like:
+  {
+    "youtube_url": "https://example.com"
+  }
+
+# ❌ WRONG: Using {{ }} to "fix" warnings breaks functionality
+prompt: |
+  Output JSON like:
+  {{
+    "youtube_url": "https://example.com"
+  }}
+```
+
+#### Principle Summary
+
+- **Use `format: json`** only when returning a full, valid `Spec` or schema output.
+- **Do NOT use `format: json`** if only returning partial JSON or key-value objects.
+- **Escape JSON examples** in prompts with `{{ }}` to avoid substitution errors.
+- **Validate structured output nodes** carefully, especially when using templates that output fragments.
+
+This principle helps avoid errors like:
+```
+Spec validation error: Workflow is required when not using a reference
+```
+or:
+```
+Invalid JSON: Expecting value: line 1 column 1 (char 0)
+```
 
 ## Quick Reference Checklist
 
@@ -696,8 +841,9 @@ When generating YAML specifications:
 5. **Unique Keys**: Every `output_key` must be unique
 6. **Valid References**: All `ref` fields must point to defined LLMs/functions
 7. **Complete Templates**: No empty `{state.}` or malformed variables
-8. **Test Incrementally**: Build and test in small steps
-9. **Avoid Complexity**: Use custom graphs only when truly needed
-10. **Follow Patterns**: Use proven patterns from this document
+8. **Bounded Loops**: Always set `max_iterations` for workflows with cycles
+9. **Test Incrementally**: Build and test in small steps
+10. **Avoid Complexity**: Use custom graphs only when truly needed
+11. **Follow Patterns**: Use proven patterns from this document
 
 **Remember**: A working simple specification is infinitely better than a broken complex one. Start minimal, test frequently, and add complexity only when the basics work perfectly.

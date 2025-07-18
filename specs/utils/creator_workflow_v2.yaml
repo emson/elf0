@@ -1,0 +1,172 @@
+# src/specs/utils/creator_workflow_v2.yaml
+version: "0.2"
+description: "Meta-workflow that rewrites a user prompt, selects an agent pattern, and iteratively produces a schema-valid LangGraph YAML spec."
+runtime: "langgraph"
+
+llms:
+  rewriter_llm:
+    type: anthropic
+    model_name: claude-3-haiku-20240307
+    temperature: 0.1
+    params:
+      max_tokens: 2048
+
+  strategist_llm:
+    type: anthropic
+    model_name: claude-3-sonnet-20240229
+    temperature: 0.4
+    params:
+      max_tokens: 4096
+
+  generator_llm:
+    type: openai
+    model_name: gpt-4o
+    temperature: 0.55
+    params:
+      max_tokens: 8192
+
+  evaluator_llm:
+    type: openai
+    model_name: gpt-4o-mini
+    temperature: 0
+    params:
+      max_tokens: 1000
+      system_prompt: |
+        You are an expert YAML specification evaluator.
+        You will receive a LangGraph YAML spec. Evaluate it on:
+        - Schema Compliance: Valid structure and required fields
+        - Completeness: All mandatory sections present
+        - Logic Flow: Proper node/edge relationships
+        - Best Practices: Follows Elf0 conventions
+        For each criterion, assign a score from 1 (poor) to 5 (excellent). Calculate the average as evaluation_score.
+        **Output only** a JSON object matching this schema:
+        {
+          "evaluation_score": 4.5,
+          "feedback": "Well-structured spec with proper field order",
+          "improvements": "Consider adding more detailed prompts"
+        }
+        No additional text.
+
+workflow:
+  type: evaluator_optimizer
+  max_iterations: 5
+  nodes:
+    ######################################################################
+    # Generate Phase: Create/Improve YAML spec (evaluator_optimizer pattern)
+    ######################################################################
+    - id: generate
+      kind: agent
+      ref: generator_llm
+      config:
+        prompt: |
+          Create a COMPLETE LangGraph YAML spec for the user request.
+          **Return raw YAML only — no markdown fences or commentary.**
+
+          User Request: {input}
+
+          REQUIRED STRUCTURE (follow exactly):
+          ```yaml
+          version: "0.1"
+          description: "Brief description of what this workflow does"
+          runtime: "langgraph"
+          
+          llms:
+            main_llm:
+              type: openai
+              model_name: gpt-4o-mini
+              temperature: 0.3
+              params:
+                max_tokens: 1000
+          
+          workflow:
+            type: sequential
+            nodes:
+              - id: first_node
+                kind: agent
+                ref: main_llm
+                config:
+                  prompt: |
+                    Your task description here.
+                    Process input: {input}
+                output_key: first_result
+              - id: second_node
+                kind: agent
+                ref: main_llm
+                config:
+                  prompt: |
+                    Continue processing: {state.first_result}
+                stop: true
+            edges:
+              - source: first_node
+                target: second_node
+          ```
+
+          CRITICAL REQUIREMENTS:
+          • version must be quoted string
+          • runtime must be "langgraph" or "agentiq"
+          • llms must be a dictionary/map, not a list
+          • workflow.type field is MANDATORY
+          • Every node must have kind field
+          • Every node except stop nodes must have ref field
+          • First node uses {input}, later nodes use {state.variable}
+          • Final node has stop: true
+          • All edge source/target must reference existing node IDs
+          • Use single braces {} for template variables to avoid parsing issues
+
+          Output the complete YAML specification following this exact structure.
+        output_key: yaml_spec
+      stop: false
+
+    ######################################################################
+    # Evaluate Phase: Score YAML quality (judge node for evaluator_optimizer)
+    ######################################################################
+    - id: evaluate
+      kind: judge
+      ref: evaluator_llm
+      config:
+        prompt: |
+          {state.yaml_spec}
+      stop: false
+
+    ######################################################################
+    # Finalize Phase: Output final YAML spec
+    ######################################################################
+    - id: finalize
+      kind: agent
+      ref: generator_llm
+      config:
+        prompt: |
+          Output the final, polished YAML specification that passed evaluation.
+          Return ONLY the complete YAML specification without any additional text, formatting, or markdown fences.
+          
+          YAML Specification:
+          {state.yaml_spec}
+          
+          Output the above YAML exactly as provided, ensuring proper formatting.
+      stop: true
+      output_key: final_spec
+
+  ########################################################################
+  # Evaluator-Optimizer Pattern Edges
+  ########################################################################
+  edges:
+    # Generation always flows to evaluation
+    - source: generate
+      target: evaluate
+      condition: "True"
+    
+    # High quality or max iterations reached → finalize
+    - source: evaluate
+      target: finalize
+      condition: "state.get('evaluation_score', 0) >= 4.0 or state.get('iteration_count', 0) >= 5"
+    
+    # Low quality and under iteration limit → regenerate
+    - source: evaluate
+      target: generate
+      condition: "state.get('evaluation_score', 0) < 4.0 and state.get('iteration_count', 0) < 5"
+
+eval:
+  metrics: ["quality", "latency"]
+  tags: ["utils", "creation", "meta-workflow"]
+  use_cases: ["Creating new workflows", "Automating workflow generation", "Rapid prototyping"]
+  estimated_runtime: "60-120 seconds"

@@ -7,13 +7,6 @@ from pathlib import Path
 import sys
 from typing import Annotated, Any
 
-from prompt_toolkit import PromptSession  # Added for specifying output
-from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.lexers import PygmentsLexer
-from prompt_toolkit.output.defaults import create_output as pt_create_output
-from pygments.lexers.special import (
-    TextLexer,  # Using a simple lexer for plain text input
-)
 import rich
 from rich.console import Console as RichConsole
 from rich.live import Live
@@ -23,6 +16,7 @@ from rich.spinner import Spinner
 import typer
 
 from elf0.core.exceptions import UserExitRequested
+from elf0.core.input_state import is_collecting_input
 from elf0.core.runner import run_workflow
 from elf0.utils.file_utils import (  # Added import
     extract_spec_description,
@@ -132,6 +126,7 @@ def _conditional_secho(message: str, **kwargs: Any) -> None:
     if app_state.verbose_mode or is_error:
         typer.secho(message, **kwargs)
 
+
 @contextlib.contextmanager
 def progress_spinner(message: str) -> Generator[None]:
     """Context manager that shows a spinner with message in non-verbose mode."""
@@ -139,10 +134,49 @@ def progress_spinner(message: str) -> Generator[None]:
         # In verbose mode, just yield without showing spinner
         yield
     else:
-        # In non-verbose mode, show spinner
+        # In non-verbose mode, show spinner with clean terminal handoff
+        import threading
+
+        # Create spinner
         spinner = Spinner("dots", text=f"[dim]{message}[/dim]")
-        with Live(spinner, console=rich.console, refresh_per_second=10):
+        live = Live(spinner, console=rich.console, refresh_per_second=10)
+
+        # Control variables
+        stop_monitoring = threading.Event()
+
+        def monitor_and_manage():
+            """Monitor input state and manage spinner pause/resume."""
+            spinner_running = False
+
+            while not stop_monitoring.wait(0.1):
+                input_active = is_collecting_input()
+
+                if input_active and spinner_running:
+                    # Pause spinner for input collection
+                    with contextlib.suppress(Exception):
+                        live.stop()
+                        spinner_running = False
+                elif not input_active and not spinner_running:
+                    # Resume spinner after input collection
+                    with contextlib.suppress(Exception):
+                        live.start()
+                        spinner_running = True
+
+        # Start spinner
+        live.start()
+
+        # Start monitoring thread
+        monitor_thread = threading.Thread(target=monitor_and_manage, daemon=True)
+        monitor_thread.start()
+
+        try:
             yield
+        finally:
+            # Clean shutdown
+            stop_monitoring.set()
+            monitor_thread.join(timeout=0.5)
+            with contextlib.suppress(Exception):
+                live.stop()
 
 def prepare_workflow_input(prompt: str, context_content: str) -> str:
     """Combine context content with user prompt."""
@@ -390,7 +424,7 @@ def improve_yaml_command(
         elf0 improve yaml workflow.yaml --prompt "Follow patterns from @examples/best_workflow.yaml"
     """
     # Use the built-in agent-optimizer.yaml spec
-    optimizer_spec_path = Path(__file__).parent.parent.parent / "specs" / "agent-optimizer.yaml"
+    optimizer_spec_path = Path(__file__).parent.parent.parent / "specs" / "utils" /  "optimizer_yaml_v1.yaml"
 
     if not optimizer_spec_path.exists():
         typer.secho(f"Error: Agent optimizer spec not found at {optimizer_spec_path}", fg=typer.colors.RED)
@@ -484,53 +518,12 @@ def get_multiline_input() -> str:
     Returns empty string if user wants to exit.
     Uses Enter on an empty line or '/send' to send prompt.
     """
-    lines = []
-    # Messages like "Enter your prompt" are essential UI for interactive mode, always show.
-    rich.console.print("[dim]💬 Enter your prompt:[/dim]") # Use the global stderr console
+    # Keep introductory Rich console messages for user guidance
+    rich.console.print("[dim]💬 Enter your prompt:[/dim]")
 
-    history = InMemoryHistory()
-    pt_stderr_output = pt_create_output(sys.stderr) # Ensure prompt_toolkit uses stderr
-    # Create a PromptSession with the desired output, history, and lexer
-    session = PromptSession(
-        history=history,
-        lexer=PygmentsLexer(TextLexer),
-        output=pt_stderr_output
-    )
-
-    try:
-        while True:
-            try:
-                # Use the prompt method from the session instance
-                line = session.prompt(
-                    "   ",
-                    multiline=False # multiline can be specified per-prompt call
-                )
-            except EOFError: # Handles Ctrl+D
-                return ""
-
-            # Check for submission commands
-            if line.strip() == "/send":
-                break
-            if line.strip().lower() in ["/exit", "/quit", "/bye"]:
-                return "" # User wants to exit
-            if not line.strip() and lines: # Enter on an empty line (after at least one line of input)
-                # Check if the previous line was also effectively empty to allow for blank lines within the prompt
-                if not lines[-1].strip():
-                    lines.append(line) # Add the current empty line
-                    break # send on double empty line
-                lines.append(line) # Allow single empty lines within the prompt
-            elif not line.strip() and not lines: # First line is empty, treat as submission
-                break
-            else:
-                lines.append(line)
-
-    except KeyboardInterrupt: # Handles Ctrl+C
-        # This message is essential feedback for interactive mode, always show.
-        rich.console.print("\n[yellow]Input cancelled.[/yellow]") # Use the global stderr console
-        return ""
-
-    # Join lines and clean up
-    return "\n".join(lines).strip()
+    # Use unified input collection system
+    from elf0.core.input_collector import get_cli_input
+    return get_cli_input()
 
 def prompt_yaml_command(
     spec_path: Annotated[Path, typer.Argument(exists=True, file_okay=True, dir_okay=False, help="Path to YAML spec to prompt")],
@@ -557,7 +550,7 @@ def prompt_yaml_command(
             prompt = get_multiline_input()
 
             # Check if user wants to exit
-            if not prompt or prompt.lower() in ["exit", "quit", "bye"]:
+            if not prompt or prompt.lower() in ["exit", "quit", "bye", "/exit", "/quit", "/bye"]:
                 break
 
             # "Running workflow..." is essential feedback in interactive mode.

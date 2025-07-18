@@ -9,8 +9,8 @@ wheels/
 # Virtual environments
 .venv
 .env
-output*.*
-input*.*
+/output*.*
+/input*.*
 .DS_Store
 **/.claude/settings.local.json
 /gol*.py

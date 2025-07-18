@@ -57,7 +57,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     environment:
       name: pypi
-      url: https://pypi.org/p/elf/
+      url: https://pypi.org/p/elf0/
     permissions:
       id-token: write  # For trusted publishing
     

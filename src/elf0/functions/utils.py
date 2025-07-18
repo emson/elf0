@@ -4,11 +4,6 @@
 import sys
 import time
 
-from prompt_toolkit import PromptSession
-from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.lexers import PygmentsLexer
-from prompt_toolkit.output.defaults import create_output
-from pygments.lexers.special import TextLexer
 from rich.console import Console
 
 from elf0.core.compiler import WorkflowState
@@ -57,50 +52,7 @@ def _create_exit_state(state: WorkflowState, user_response: str) -> WorkflowStat
         "user_exit_requested": True
     }
 
-def _collect_simple_input() -> str:
-    """Collect input using simple input() method."""
-    console = Console(stderr=True)
-    console.print("[dim]Enter your response (press Enter to submit):[/dim]")
-    return input("> ")
-
-def _collect_enhanced_input() -> str:
-    """Collect input using enhanced multi-line prompt_toolkit."""
-    console = Console(stderr=True)
-    console.print("[dim]Commands: '/exit', '/quit', '/bye' to quit | Enter twice or '/send' to send[/dim]")
-    console.print()
-
-    lines = []
-    history = InMemoryHistory()
-    pt_stderr_output = create_output(sys.stderr)
-
-    session = PromptSession(
-        history=history,
-        lexer=PygmentsLexer(TextLexer),
-        output=pt_stderr_output
-    )
-
-    while True:
-        try:
-            line = session.prompt("   ", multiline=False)
-        except EOFError:  # Handles Ctrl+D
-            return ""
-
-        # Check for submission commands
-        if line.strip() == "/send":
-            break
-        if _is_exit_command(line):
-            return line.strip()
-        if not line.strip() and lines:  # Enter on empty line after input
-            if not lines[-1].strip():  # Double empty line
-                lines.append(line)
-                break
-            lines.append(line)  # Allow single empty lines
-        elif not line.strip() and not lines:  # First line empty
-            break
-        else:
-            lines.append(line)
-
-    return "\n".join(lines).strip()
+# Legacy functions removed - now using unified input_collector module
 
 def get_user_input(state: WorkflowState, prompt: str = "Please provide input:") -> WorkflowState:
     """Function that requests user input via CLI with multi-line support.
@@ -119,51 +71,8 @@ def get_user_input(state: WorkflowState, prompt: str = "Please provide input:") 
     Returns:
         Updated workflow state with user response
     """
-    console = Console(stderr=True)
-
-    # Use question from state if available and no custom prompt provided
-    if prompt == "Please provide input:":
-        if "question" in state:
-            prompt = state["question"]
-        elif "output" in state:
-            prompt = state["output"]
-
-    # Display the LLM's question with professional styling
-    console.print("\n[bold blue]Assistant:[/bold blue]")
-    console.print(prompt)
-    console.print()  # Add spacing
-
-    # Collect user input based on terminal capability
-    try:
-        if sys.stdin.isatty():
-            user_response = _collect_enhanced_input()
-        else:
-            user_response = _collect_simple_input()
-    except (KeyboardInterrupt, Exception) as e:
-        if isinstance(e, KeyboardInterrupt):
-            console.print("\n[yellow]Input cancelled.[/yellow]")
-            return {**state, "user_input": "", "output": "User cancelled input"}
-        # Fallback to simple input on any prompt_toolkit error
-        try:
-            user_response = _collect_simple_input()
-        except (EOFError, KeyboardInterrupt):
-            return {**state, "user_input": "", "output": "Input cancelled"}
-
-    # Handle exit commands
-    if _is_exit_command(user_response):
-        _show_exit_feedback()
-        return _create_exit_state(state, user_response)
-
-    # Show normal processing feedback for non-empty responses
-    if user_response:
-        _show_processing_feedback()
-
-    # Return normal state
-    return {
-        **state,
-        "user_input": user_response,
-        "output": f"User provided: {user_response}"
-    }
+    from elf0.core.input_collector import get_workflow_input
+    return get_workflow_input(state, prompt)
 
 def text_processor(state: WorkflowState, operation: str = "count_words") -> WorkflowState:
     """Process text from workflow state.

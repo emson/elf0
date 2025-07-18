@@ -91,7 +91,7 @@ llms:
 
   spec_evaluator:
     type: "openai"
-    model_name: "gpt-4.1"
+    model_name: "gpt-4.1-mini"
     temperature: 0.0
     params:
       max_tokens: 1500

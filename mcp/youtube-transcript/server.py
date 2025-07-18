@@ -84,6 +84,40 @@ def extract_transcript(url: str, language: str = "en") -> dict:
         raise Exception(f"Failed to extract transcript: {str(e)}")
 
 
+def get_transcript_text(url: str, language: str = "en") -> str:
+    """Extract transcript text only from YouTube video"""
+    try:
+        log_message(f"🔍 DEBUG: get_transcript_text called with URL: {url}", "yellow")
+        log_message(f"🔍 DEBUG: Language parameter: {language}", "yellow")
+        
+        video_id = extract_video_id(url)
+        log_message(f"📺 Fetching transcript text for video: {video_id}", "blue")
+        log_message(f"🔍 DEBUG: Extracted video ID: {video_id} from URL: {url}", "yellow")
+        
+        # Try to get transcript in specified language
+        try:
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
+            log_message(f"🔍 DEBUG: Successfully got transcript in {language}", "yellow")
+        except Exception as e:
+            log_message(f"🔍 DEBUG: Language {language} failed: {e}, trying fallback", "yellow")
+            # Fallback to auto-generated or any available language
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            log_message(f"🔍 DEBUG: Fallback transcript retrieved", "yellow")
+        
+        # Join all transcript segments
+        transcript_text = ' '.join([item['text'] for item in transcript_list])
+        word_count = len(transcript_text.split())
+        
+        log_message(f"✅ Transcript text extracted: {word_count} words, {len(transcript_list)} segments", "green")
+        log_message(f"🔍 DEBUG: First 100 chars of transcript: {transcript_text[:100]}...", "yellow")
+        
+        return transcript_text
+    
+    except Exception as e:
+        log_message(f"❌ DEBUG: Error in get_transcript_text: {str(e)}", "red")
+        raise Exception(f"Failed to extract transcript text: {str(e)}")
+
+
 def get_video_metadata(url: str) -> dict:
     """Get basic YouTube video metadata from URL"""
     try:
@@ -110,6 +144,18 @@ def main():
         {
             "name": "extract_transcript",
             "description": "Extract transcript text from a YouTube video",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "YouTube video URL or video ID"},
+                    "language": {"type": "string", "description": "Language code (default: 'en')", "default": "en"}
+                },
+                "required": ["url"]
+            }
+        },
+        {
+            "name": "get_transcript_text",
+            "description": "Extract transcript text only from a YouTube video (returns plain text)",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -185,6 +231,23 @@ def main():
                             "id": request.get("id"),
                             "result": {
                                 "content": [{"type": "text", "text": json.dumps(result, indent=2)}]
+                            }
+                        }
+                    
+                    elif tool_name == "get_transcript_text":
+                        url = args.get("url")
+                        language = args.get("language", "en")
+                        
+                        if not url:
+                            raise ValueError("URL is required")
+                        
+                        result = get_transcript_text(url, language)
+                        
+                        response = {
+                            "jsonrpc": "2.0",
+                            "id": request.get("id"),
+                            "result": {
+                                "content": [{"type": "text", "text": result}]
                             }
                         }
                     

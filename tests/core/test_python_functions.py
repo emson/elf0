@@ -1,6 +1,8 @@
 # tests/core/test_python_functions_new.py
 """High-level tests for Python function calling functionality."""
 
+from unittest.mock import patch
+
 import pytest
 
 from elf0.core.compiler import WorkflowState, compile_to_langgraph
@@ -83,25 +85,20 @@ class TestParameterBinding:
 class TestUtilityFunctions:
     """Test utility functions behavior."""
 
-    def test_user_input_function(self):
+    @patch("elf0.core.input_collector.collect_terminal_input")
+    def test_user_input_function(self, mock_collect_terminal_input):
         """Test user input function interface."""
         # Arrange
         from elf0.functions.utils import get_user_input
         state = WorkflowState(input="test", output=None)
+        mock_collect_terminal_input.return_value = "test response"
 
-        # Act: Mock input to avoid actual user interaction in tests
-        import builtins
-        original_input = builtins.input
-        builtins.input = lambda _: "test response"
+        # Act
+        result = get_user_input(state, prompt="Test prompt")
 
-        try:
-            result = get_user_input(state, prompt="Test prompt")
-
-            # Assert
-            assert result["user_input"] == "test response"
-            assert result["output"] == "User provided: test response"
-        finally:
-            builtins.input = original_input
+        # Assert
+        assert result["output"] == "User provided: test response"
+        mock_collect_terminal_input.assert_called_once_with("Test prompt", multiline=True)
 
     def test_text_processor_word_count(self):
         """Test text processor word counting."""

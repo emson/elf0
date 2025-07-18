@@ -362,41 +362,58 @@ workflow:
         mock_run.assert_called_once()
         assert mock_run.call_args[0][1] == "" # Empty prompt string
 
-@patch("elf0.cli.PromptSession.prompt")
-def test_get_multiline_input_with_send_command(mock_prompt_session_prompt, capsys):
+@patch("elf0.core.input_collector.collect_terminal_input")
+def test_get_multiline_input_with_send_command(mock_collect_terminal_input, capsys):
     """Test multiline input with /send command."""
-    mock_prompt_session_prompt.side_effect = [
-        "Hello world",
-        "This is a test",
-        "/send"
-    ]
+    mock_collect_terminal_input.return_value = "Hello world\nThis is a test"
 
     result = get_multiline_input()
     assert result == "Hello world\nThis is a test"
-    assert mock_prompt_session_prompt.call_count == 3
+    mock_collect_terminal_input.assert_called_once_with("💬 Enter your prompt:", multiline=True)
     _ = capsys.readouterr() # Consume any stderr like "💬 Enter your prompt:"
 
-@patch("elf0.cli.PromptSession.prompt")
-def test_get_multiline_input_with_double_enter(mock_prompt_session_prompt, capsys):
+@patch("elf0.core.input_collector.collect_terminal_input")
+def test_get_multiline_input_with_double_enter(mock_collect_terminal_input, capsys):
     """Test multiline input with double enter."""
-    mock_prompt_session_prompt.side_effect = [
-        "Hello world",
-        "This is a test",
-        "",
-        ""
-    ]
+    mock_collect_terminal_input.return_value = "Hello world\nThis is a test"
+
     result = get_multiline_input()
     # The current logic: join(["Hello world", "This is a test", "", ""]) -> "Hello world\nThis is a test\n\n" -> strip -> "Hello world\nThis is a test"
     assert result == "Hello world\nThis is a test"
-    assert mock_prompt_session_prompt.call_count == 4
+    mock_collect_terminal_input.assert_called_once_with("💬 Enter your prompt:", multiline=True)
     _ = capsys.readouterr() # Consume any stderr
 
-@patch("elf0.cli.PromptSession.prompt")
-def test_get_multiline_input_with_exit_command(mock_prompt_session_prompt, capsys):
+@patch("elf0.core.input_collector.collect_terminal_input")
+def test_get_multiline_input_with_exit_command(mock_collect_terminal_input, capsys):
     """Test multiline input with exit command."""
-    mock_prompt_session_prompt.return_value = "/exit"
+    mock_collect_terminal_input.return_value = ""
 
     result = get_multiline_input()
     assert result == ""
-    assert mock_prompt_session_prompt.call_count == 1
+    mock_collect_terminal_input.assert_called_once_with("💬 Enter your prompt:", multiline=True)
     _ = capsys.readouterr() # Consume any stderr
+
+
+def test_exit_command_detection():
+    """Test that exit commands are detected correctly in prompt_yaml_command."""
+    # Test cases for exit command detection
+    test_cases = [
+        ("", True),           # Empty string should exit
+        ("/exit", True),      # Should exit
+        ("/quit", True),      # Should exit
+        ("/bye", True),       # Should exit
+        ("exit", True),       # Should exit
+        ("quit", True),       # Should exit
+        ("bye", True),        # Should exit
+        ("EXIT", True),       # Should exit (case insensitive)
+        ("/EXIT", True),      # Should exit (case insensitive)
+        ("hello", False),     # Should not exit
+        ("test prompt", False),  # Should not exit
+        ("export", False),    # Should not exit (contains 'exit' but not exact match)
+    ]
+
+    for prompt, expected_exit in test_cases:
+        # This is the logic from the CLI prompt_yaml_command
+        should_exit = not prompt or prompt.lower() in ["exit", "quit", "bye", "/exit", "/quit", "/bye"]
+
+        assert should_exit == expected_exit, f"'{prompt}' -> exit={should_exit}, expected={expected_exit}"

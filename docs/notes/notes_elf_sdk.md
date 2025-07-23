@@ -373,7 +373,7 @@ advanced_result = advanced_analyzer.run("Perform deep analysis of market trends"
 - **Environment variables supported** - `.env` files and `export` commands
 
 ### Gradual Adoption Path
-1. **Install**: Same package (`pip install elf0` or `uv pip install elf0`)
+1. **Install**: Same package (development: `git clone` and `uv pip install -e .`)
 2. **Use CLI**: Continue using CLI as before
 3. **Import SDK**: Start with `from elf0 import ElfWorkflow`
 4. **Migrate incrementally**: Replace CLI subprocess calls with SDK calls

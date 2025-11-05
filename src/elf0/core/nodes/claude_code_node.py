@@ -145,11 +145,11 @@ class ClaudeCodeNode:
         import re
         pattern = r"\$\{state\.([^}]+)\}"
 
-        def replace_match(match):
+        def replace_match(match: re.Match[str]) -> str:
             field_path = match.group(1)
             # Support nested field access like "output" or "structured_data.field"
             field_parts = field_path.split(".")
-            value = state
+            value: Any = state
             for part in field_parts:
                 if isinstance(value, dict) and part in value:
                     value = value[part]
@@ -390,23 +390,18 @@ class ClaudeCodeNode:
         if self.output_format == "json":
             try:
                 # If result is already structured, return as JSON string
-                if isinstance(result, dict):
-                    return json.dumps(result, indent=2)
-                return str(result)
+                return json.dumps(result, indent=2)
             except Exception:
                 return str(result)
         # For text format, extract the main content
-        elif isinstance(result, dict):
-            # Try to extract the main response text
-            if "content" in result:
-                return str(result["content"])
-            if "text" in result:
-                return str(result["text"])
-            if "response" in result:
-                return str(result["response"])
-            return str(result)
-        else:
-            return str(result)
+        # Try to extract the main response text
+        if "content" in result:
+            return str(result["content"])
+        if "text" in result:
+            return str(result["text"])
+        if "response" in result:
+            return str(result["response"])
+        return str(result)
 
     def _create_mock_response(self, state: dict[str, Any]) -> dict[str, Any]:
         """Create mock response when SDK is unavailable."""

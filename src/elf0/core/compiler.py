@@ -607,7 +607,7 @@ def make_claude_code_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
                 # Handle async execution with proper event loop management
                 import concurrent.futures
 
-                def run_claude_code():
+                def run_claude_code() -> dict[str, Any]:
                     """Run Claude Code in a new event loop in a separate thread."""
                     # Create a new event loop for this thread
                     loop = asyncio.new_event_loop()
@@ -870,7 +870,7 @@ def make_tool_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
 
             return error_function
 
-    elif function_spec.type == "mcp":
+    else:  # function_spec.type == "mcp"
         # For MCP functions, create a placeholder that explains the new architecture
         logger.info(f"[blue]MCP function {function_spec.name} - use MCP nodes instead[/blue]")
 
@@ -882,10 +882,6 @@ def make_tool_node(spec: Spec, node: WorkflowNode) -> NodeFunction:
             }
 
         return mcp_function_placeholder
-
-    else:
-        msg = f"Unsupported function type '{function_spec.type}' for function '{function_spec.name}'"
-        raise ValueError(msg)
 
 class NodeFactoryRegistry:
     """Registry for node factory functions."""

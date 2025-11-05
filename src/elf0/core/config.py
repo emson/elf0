@@ -106,13 +106,10 @@ def create_llm_config(config: dict[str, Any] | LLMConfig, llm_type: str | None =
         current_config_dict = config.copy()
         # Try to determine llm_type if not explicitly passed but available in the config dict
         effective_llm_type = llm_type or current_config_dict.get("type")
-    elif isinstance(config, LLMConfig):
+    else:  # isinstance(config, LLMConfig)
         current_config_dict = config.model_dump() # Get dict from Pydantic model
         # Try to determine llm_type if not explicitly passed but available in the config object
         effective_llm_type = llm_type or getattr(config, "type", None)
-    else:
-        msg = "Input 'config' must be a dictionary or an LLMConfig instance."
-        raise TypeError(msg)
 
     if not effective_llm_type:
         msg = "llm_type must be provided or present in config"

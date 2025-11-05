@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class SimpleFunctionLoader:
     """MVP function loader with basic import capabilities."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._function_cache: dict[str, Callable] = {}
 
     def load_function(self, entrypoint: str) -> Callable:

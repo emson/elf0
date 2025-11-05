@@ -526,11 +526,10 @@ class Spec(BaseModel):
                     )
 
                 for _i, ref_path_str in enumerate(reference_paths):
+                    # Defensive runtime check (type narrowing makes this appear unreachable to mypy)
                     if not isinstance(ref_path_str, str):
                         msg = f"Invalid reference path in {spec_path}. All items in reference list must be strings. Found: {type(ref_path_str)}"
-                        raise WorkflowReferenceError(
-                            msg
-                        )
+                        raise WorkflowReferenceError(msg)  # type: ignore[unreachable]
 
                     # Resolve reference path (relative to current file's directory)
                     resolved_ref_path = Path(ref_path_str)

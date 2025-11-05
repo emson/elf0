@@ -144,7 +144,7 @@ def progress_spinner(message: str) -> Generator[None]:
         # Control variables
         stop_monitoring = threading.Event()
 
-        def monitor_and_manage():
+        def monitor_and_manage() -> None:
             """Monitor input state and manage spinner pause/resume."""
             spinner_running = False
 
@@ -491,12 +491,10 @@ Output only the improved YAML specification."""
         raise typer.Exit(code=0) from None
 
     # Extract the improved YAML from the result
-    if isinstance(result, dict) and "output" in result:
+    if "output" in result:
         improved_yaml = result["output"]
-    elif isinstance(result, str):
-        improved_yaml = result
     else:
-        typer.secho("Error: Unexpected result format from optimizer", fg=typer.colors.RED)
+        typer.secho("Error: Unexpected result format from optimizer (missing 'output' key)", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
     # Determine output path
@@ -595,7 +593,7 @@ def prompt_yaml_command(
 
 @app.command("list-specs", help="List YAML workflow spec files, optionally filtered by directory.")
 def list_specs_command(
-    directory: str = typer.Argument(
+    directory: str | None = typer.Argument(
         None,
         help="Optional directory filter (basic, content, code, examples, utils, archive). Shows all except archive if not specified."
     )
